@@ -1,0 +1,125 @@
+# =============================================================================
+# Nomba Payment Failure Code Classification
+# =============================================================================
+# Maps Nomba charge API response codes to RETRIABLE or NON_RETRIABLE categories.
+# This file is loaded at startup. Business logic never hardcodes failure codes.
+#
+# RETRIABLE     — schedule next dunning retry
+# NON_RETRIABLE — move subscription to SUSPENDED immediately; no retry
+#
+# When an unmapped code arrives:
+#   - Default category: RETRIABLE
+#   - A warning is logged for investigation
+#   - The unknown code is recorded on the invoice
+# =============================================================================
+
+failure_codes:
+
+  # ---------------------------------------------------------------------------
+  # RETRIABLE — temporary conditions; revenue is recoverable
+  # ---------------------------------------------------------------------------
+
+  - code: insufficient_funds
+    category: RETRIABLE
+    description: >
+      Temporarily low balance. Common in Nigeria around mid-month.
+      High recovery rate when retried after payday timing (25th-31st).
+
+  - code: transaction_limit_exceeded
+    category: RETRIABLE
+    description: >
+      Daily or monthly card limit reached. Resets at midnight or
+      start of next month. Retry the following day.
+
+  - code: temporary_bank_decline
+    category: RETRIABLE
+    description: >
+      Bank-side transient error not related to the card itself.
+      Usually clears within 24-48 hours.
+
+  - code: network_timeout
+    category: RETRIABLE
+    description: >
+      Infrastructure or network timeout during charge attempt.
+      Safe to retry immediately or on next schedule.
+
+  - code: do_not_honour_temporary
+    category: RETRIABLE
+    description: >
+      Temporary honour block placed by the issuing bank.
+      Bank may lift this automatically. Worth retrying.
+
+  - code: processing_error
+    category: RETRIABLE
+    description: >
+      Generic processing error from card scheme or acquirer.
+      Transient; retry on schedule.
+
+  - code: service_unavailable
+    category: RETRIABLE
+    description: >
+      Payment processor temporarily unavailable.
+      Retry on next dunning schedule.
+
+  # ---------------------------------------------------------------------------
+  # NON_RETRIABLE — permanent conditions; retrying signals bad engineering
+  # ---------------------------------------------------------------------------
+
+  - code: card_expired
+    category: NON_RETRIABLE
+    description: >
+      Card is past its expiry date. No point retrying.
+      Customer must provide a new card to reactivate.
+
+  - code: card_stolen_or_lost
+    category: NON_RETRIABLE
+    description: >
+      Card has been reported stolen or lost by the cardholder.
+      Retrying a stolen card is a compliance violation.
+
+  - code: do_not_honour_permanent
+    category: NON_RETRIABLE
+    description: >
+      Permanent honour block placed by the issuing bank.
+      This card will never succeed. Suspend immediately.
+
+  - code: invalid_card_number
+    category: NON_RETRIABLE
+    description: >
+      Card number failed Luhn check or does not exist in any
+      card scheme. No retry will ever succeed.
+
+  - code: card_blocked_international
+    category: NON_RETRIABLE
+    description: >
+      Nigerian card blocked for international or online transactions.
+      Very common with GTBank, Access Bank, Zenith cards on default settings.
+      Customer must enable online transactions via their bank app.
+
+  - code: fraud_suspected
+    category: NON_RETRIABLE
+    description: >
+      Transaction flagged by Nomba fraud system or card scheme.
+      Retrying a fraud-flagged card escalates risk. Suspend immediately.
+
+  - code: card_blocked
+    category: NON_RETRIABLE
+    description: >
+      Card has been blocked by the issuing bank for unspecified reasons.
+      Treat as permanent until customer resolves with their bank.
+
+  - code: restricted_card
+    category: NON_RETRIABLE
+    description: >
+      Card has usage restrictions that prevent this transaction type.
+      Permanent for recurring billing purposes.
+
+# =============================================================================
+# Default behaviour for unmapped codes
+# =============================================================================
+default:
+  category: RETRIABLE
+  log_level: warn
+  message: >
+    Unmapped failure code received from Nomba. Defaulting to RETRIABLE.
+    Investigate and add to this file.
