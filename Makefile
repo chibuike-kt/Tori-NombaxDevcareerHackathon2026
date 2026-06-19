@@ -33,10 +33,10 @@ run-worker:
 ## ── Database migrations ──────────────────────────────────────────────────────
 
 migrate-up:
-	$(MIGRATE) up
+	Get-Content db/migrations/*.up.sql | docker exec -i tori-nombaxdevcareerhackathon2026-postgres-1 psql -U app -d subscriptions_engine
 
 migrate-down:
-	$(MIGRATE) down 1
+	Get-Content db/migrations/*.down.sql | docker exec -i tori-nombaxdevcareerhackathon2026-postgres-1 psql -U app -d subscriptions_engine
 
 migrate-reset:
 	$(MIGRATE) down -all
