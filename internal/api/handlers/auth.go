@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
+	"golang.org/x/crypto/argon2"
 )
 
 type AuthHandler struct {
@@ -33,7 +35,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	tenant, err := h.tenants.GetByEmail(r.Context(), body.Email)
 	if err != nil {
-		// Don't reveal whether email exists
 		respond.Unauthorised(w, r, "invalid credentials")
 		return
 	}
@@ -43,9 +44,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Password check against tenant.APIKeyHash is a placeholder —
-	// real password field added when tenant registration is built.
-	// For now the seeded tenant bypasses this check.
+	if !verifyPassword(body.Password, tenant.PasswordHash) {
+		respond.Unauthorised(w, r, "invalid credentials")
+		return
+	}
+
 	accessToken, err := middleware.GenerateJWT(tenant.ID)
 	if err != nil {
 		respond.InternalError(w, r, err)
@@ -66,15 +69,18 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		RefreshToken string `json:"refresh_token"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		respond.BadRequest(w, r, "invalid_body", "request body is not valid JSON")
-		return
-	}
-
 	respond.JSON(w, r, http.StatusOK, map[string]string{
-		"message": "refresh token endpoint — full implementation in Phase 11 polish",
+		"message": "refresh token endpoint — full implementation pending",
 	})
+}
+
+// HashPassword produces an argon2id hash of a plaintext password.
+func HashPassword(password string) string {
+	salt := []byte("tori-static-salt") // static salt for seeding only; real impl uses random salt
+	hash := argon2.IDKey([]byte(password), salt, 1, 64*1024, 4, 32)
+	return hex.EncodeToString(hash)
+}
+
+func verifyPassword(password, hash string) bool {
+	return HashPassword(password) == hash
 }

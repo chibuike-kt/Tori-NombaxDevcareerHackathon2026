@@ -99,14 +99,15 @@ const (
 
 // Tenant represents a SaaS business registered on the billing engine.
 type Tenant struct {
-	ID            uuid.UUID       `json:"id"`
-	Name          string          `json:"name"`
-	Email         string          `json:"email"`
-	APIKeyHash    string          `json:"-"`
-	WebhookSecret string          `json:"-"`
-	DunningConfig DunningConfig   `json:"dunning_config"`
-	IsActive      bool            `json:"is_active"`
-	CreatedAt     time.Time       `json:"created_at"`
+	ID            uuid.UUID     `json:"id"`
+	Name          string        `json:"name"`
+	Email         string        `json:"email"`
+	APIKeyHash    string        `json:"-"`
+	WebhookSecret string        `json:"-"`
+	PasswordHash  string        `json:"-"`
+	DunningConfig DunningConfig `json:"dunning_config"`
+	IsActive      bool          `json:"is_active"`
+	CreatedAt     time.Time     `json:"created_at"`
 }
 
 type DunningConfig struct {

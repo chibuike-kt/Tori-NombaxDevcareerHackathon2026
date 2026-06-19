@@ -30,12 +30,11 @@ func NewRouter(deps Deps) http.Handler {
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 
-	// Global middleware
 	r.Use(chimiddleware.Recoverer)
 	r.Use(middleware.RequestID)
+	r.Use(corsMiddleware)
 	r.Use(httprate.LimitByIP(100, 60))
 
-	// Health
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
@@ -45,7 +44,6 @@ func NewRouter(deps Deps) http.Handler {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	// Handlers
 	authH := handlers.NewAuthHandler(deps.Tenants)
 	planH := handlers.NewPlanHandler(deps.Plans)
 	customerH := handlers.NewCustomerHandler(deps.Customers)
@@ -56,22 +54,18 @@ func NewRouter(deps Deps) http.Handler {
 	finopsH := handlers.NewFinOpsHandler(finopsSvc)
 	webhookH := handlers.NewWebhookHandler(deps.Webhooks)
 
-	// Auth (public)
 	r.Post("/v1/auth/login", authH.Login)
 	r.Post("/v1/auth/refresh", authH.Refresh)
 
-	// Dashboard API — JWT auth
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.JWTAuth(jwtSecret, deps.Tenants))
 
-		// Plans
 		r.Post("/v1/plans", planH.Create)
 		r.Get("/v1/plans", planH.List)
 		r.Get("/v1/plans/{id}", planH.Get)
 		r.Patch("/v1/plans/{id}", planH.Update)
 		r.Delete("/v1/plans/{id}", planH.Deactivate)
 
-		// Customers
 		r.Post("/v1/customers", customerH.Create)
 		r.Get("/v1/customers", customerH.List)
 		r.Get("/v1/customers/{id}", customerH.Get)
@@ -79,7 +73,6 @@ func NewRouter(deps Deps) http.Handler {
 		r.Post("/v1/customers/{id}/archive", customerH.Archive)
 		r.Get("/v1/customers/{id}/portal-token", customerH.GeneratePortalToken)
 
-		// Subscriptions
 		r.Post("/v1/subscriptions", subH.Create)
 		r.Get("/v1/subscriptions", subH.List)
 		r.Get("/v1/subscriptions/{id}", subH.Get)
@@ -87,19 +80,16 @@ func NewRouter(deps Deps) http.Handler {
 		r.Post("/v1/subscriptions/{id}/pause", subH.Pause)
 		r.Post("/v1/subscriptions/{id}/resume", subH.Resume)
 
-		// Ledger
 		r.Get("/v1/ledger", ledgerH.List)
 		r.Get("/v1/ledger/summary", ledgerH.Summary)
 		r.Get("/v1/ledger/{id}", ledgerH.Get)
 
-		// Finance
 		r.Get("/v1/finance/mrr", finopsH.MRR)
 		r.Get("/v1/finance/arr", finopsH.ARR)
 		r.Get("/v1/finance/churn", finopsH.Churn)
 		r.Get("/v1/finance/dunning-recovery", finopsH.DunningRecovery)
 		r.Get("/v1/finance/revenue-report", finopsH.RevenueReport)
 
-		// Webhooks
 		r.Post("/v1/webhooks/endpoints", webhookH.CreateEndpoint)
 		r.Get("/v1/webhooks/endpoints", webhookH.ListEndpoints)
 		r.Patch("/v1/webhooks/endpoints/{id}", webhookH.UpdateEndpoint)
@@ -108,7 +98,6 @@ func NewRouter(deps Deps) http.Handler {
 		r.Post("/v1/webhooks/logs/{id}/retry", webhookH.RetryDelivery)
 	})
 
-	// Platform API — API key auth
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.APIKeyAuth(deps.Tenants))
 
@@ -131,4 +120,17 @@ func NewRouter(deps Deps) http.Handler {
 	})
 
 	return r
+}
+
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Request-ID")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }

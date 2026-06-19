@@ -117,6 +117,7 @@ type Tenant struct {
 	DunningConfig json.RawMessage `json:"dunning_config"`
 	IsActive      bool            `json:"is_active"`
 	CreatedAt     time.Time       `json:"created_at"`
+	PasswordHash  string          `json:"password_hash"`
 }
 
 type WebhookDelivery struct {

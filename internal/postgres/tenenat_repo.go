@@ -123,6 +123,7 @@ func tenantFromRow(row db.Tenant) *domain.Tenant {
 		Email:         row.Email,
 		APIKeyHash:    row.ApiKeyHash,
 		WebhookSecret: row.WebhookSecret,
+		PasswordHash:  row.PasswordHash,
 		DunningConfig: config,
 		IsActive:      row.IsActive,
 		CreatedAt:     row.CreatedAt,

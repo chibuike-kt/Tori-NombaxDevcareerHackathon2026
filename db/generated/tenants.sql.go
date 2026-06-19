@@ -15,7 +15,7 @@ import (
 const createTenant = `-- name: CreateTenant :one
 INSERT INTO tenants (name, email, api_key_hash, webhook_secret, dunning_config)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at
+RETURNING id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash
 `
 
 type CreateTenantParams struct {
@@ -44,6 +44,7 @@ func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Ten
 		&i.DunningConfig,
 		&i.IsActive,
 		&i.CreatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
@@ -58,7 +59,7 @@ func (q *Queries) DeactivateTenant(ctx context.Context, id uuid.UUID) error {
 }
 
 const getTenantByAPIKeyHash = `-- name: GetTenantByAPIKeyHash :one
-SELECT id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at FROM tenants WHERE api_key_hash = $1 AND is_active = TRUE
+SELECT id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash FROM tenants WHERE api_key_hash = $1 AND is_active = TRUE
 `
 
 func (q *Queries) GetTenantByAPIKeyHash(ctx context.Context, apiKeyHash string) (Tenant, error) {
@@ -73,12 +74,13 @@ func (q *Queries) GetTenantByAPIKeyHash(ctx context.Context, apiKeyHash string) 
 		&i.DunningConfig,
 		&i.IsActive,
 		&i.CreatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const getTenantByEmail = `-- name: GetTenantByEmail :one
-SELECT id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at FROM tenants WHERE email = $1
+SELECT id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash FROM tenants WHERE email = $1
 `
 
 func (q *Queries) GetTenantByEmail(ctx context.Context, email string) (Tenant, error) {
@@ -93,12 +95,13 @@ func (q *Queries) GetTenantByEmail(ctx context.Context, email string) (Tenant, e
 		&i.DunningConfig,
 		&i.IsActive,
 		&i.CreatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const getTenantByID = `-- name: GetTenantByID :one
-SELECT id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at FROM tenants WHERE id = $1
+SELECT id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash FROM tenants WHERE id = $1
 `
 
 func (q *Queries) GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error) {
@@ -113,12 +116,13 @@ func (q *Queries) GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, erro
 		&i.DunningConfig,
 		&i.IsActive,
 		&i.CreatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const listTenants = `-- name: ListTenants :many
-SELECT id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at FROM tenants ORDER BY created_at DESC
+SELECT id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash FROM tenants ORDER BY created_at DESC
 `
 
 func (q *Queries) ListTenants(ctx context.Context) ([]Tenant, error) {
@@ -139,6 +143,7 @@ func (q *Queries) ListTenants(ctx context.Context) ([]Tenant, error) {
 			&i.DunningConfig,
 			&i.IsActive,
 			&i.CreatedAt,
+			&i.PasswordHash,
 		); err != nil {
 			return nil, err
 		}
@@ -151,7 +156,7 @@ func (q *Queries) ListTenants(ctx context.Context) ([]Tenant, error) {
 }
 
 const updateTenant = `-- name: UpdateTenant :one
-UPDATE tenants SET name = $2, email = $3 WHERE id = $1 RETURNING id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at
+UPDATE tenants SET name = $2, email = $3 WHERE id = $1 RETURNING id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash
 `
 
 type UpdateTenantParams struct {
@@ -172,12 +177,13 @@ func (q *Queries) UpdateTenant(ctx context.Context, arg UpdateTenantParams) (Ten
 		&i.DunningConfig,
 		&i.IsActive,
 		&i.CreatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const updateTenantDunningConfig = `-- name: UpdateTenantDunningConfig :one
-UPDATE tenants SET dunning_config = $2 WHERE id = $1 RETURNING id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at
+UPDATE tenants SET dunning_config = $2 WHERE id = $1 RETURNING id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash
 `
 
 type UpdateTenantDunningConfigParams struct {
@@ -197,6 +203,21 @@ func (q *Queries) UpdateTenantDunningConfig(ctx context.Context, arg UpdateTenan
 		&i.DunningConfig,
 		&i.IsActive,
 		&i.CreatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
+}
+
+const updateTenantPassword = `-- name: UpdateTenantPassword :exec
+UPDATE tenants SET password_hash = $2 WHERE id = $1
+`
+
+type UpdateTenantPasswordParams struct {
+	ID           uuid.UUID `json:"id"`
+	PasswordHash string    `json:"password_hash"`
+}
+
+func (q *Queries) UpdateTenantPassword(ctx context.Context, arg UpdateTenantPasswordParams) error {
+	_, err := q.db.Exec(ctx, updateTenantPassword, arg.ID, arg.PasswordHash)
+	return err
 }

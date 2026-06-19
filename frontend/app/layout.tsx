@@ -11,7 +11,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Tori | Subscriptions Engine",
+  title: "Tori — Subscriptions Engine",
   description: "Managed recurring billing infrastructure for Nomba",
 };
 
@@ -27,7 +27,6 @@ export default function RootLayout({
         style={{
           fontFamily: inter.style.fontFamily,
           WebkitFontSmoothing: "antialiased",
-          MozOsxFontSmoothing: "grayscale",
         }}
       >
         <Providers>{children}</Providers>
