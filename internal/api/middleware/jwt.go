@@ -58,3 +58,15 @@ func validateJWT(tokenStr, secret string) (uuid.UUID, error) {
 
 	return claims.TenantID, nil
 }
+
+func GeneratePortalToken(customerID uuid.UUID) (string, error) {
+	secret := os.Getenv("JWT_SECRET")
+	claims := jwt.MapClaims{
+		"customer_id": customerID.String(),
+		"type":        "portal",
+		"exp":         time.Now().Add(time.Hour).Unix(),
+		"iat":         time.Now().Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(secret))
+}

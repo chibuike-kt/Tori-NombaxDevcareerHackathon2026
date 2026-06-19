@@ -1,0 +1,92 @@
+package handlers
+
+import (
+	"net/http"
+	"time"
+
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/finops"
+)
+
+type FinOpsHandler struct {
+	svc *finops.Service
+}
+
+func NewFinOpsHandler(svc *finops.Service) *FinOpsHandler {
+	return &FinOpsHandler{svc: svc}
+}
+
+func (h *FinOpsHandler) MRR(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	period := parsePeriod(r)
+
+	result, err := h.svc.GetMRR(r.Context(), tenantID, period)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, result)
+}
+
+func (h *FinOpsHandler) ARR(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	period := parsePeriod(r)
+
+	result, err := h.svc.GetARR(r.Context(), tenantID, period)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, result)
+}
+
+func (h *FinOpsHandler) Churn(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	from, to := parseDateRange(r)
+
+	result, err := h.svc.GetChurn(r.Context(), tenantID, from, to)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, result)
+}
+
+func (h *FinOpsHandler) DunningRecovery(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	from, to := parseDateRange(r)
+
+	result, err := h.svc.GetDunningRecovery(r.Context(), tenantID, from, to)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, result)
+}
+
+func (h *FinOpsHandler) RevenueReport(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	from, to := parseDateRange(r)
+
+	result, err := h.svc.GetRevenueReport(r.Context(), tenantID, from, to)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, result)
+}
+
+func parsePeriod(r *http.Request) time.Time {
+	if p := r.URL.Query().Get("period"); p != "" {
+		if t, err := time.Parse("2006-01", p); err == nil {
+			return t
+		}
+	}
+	return time.Now()
+}
