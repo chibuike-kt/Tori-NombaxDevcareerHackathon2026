@@ -9,6 +9,7 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
 	"golang.org/x/crypto/argon2"
+	"github.com/google/uuid"
 )
 
 type AuthHandler struct {
@@ -83,4 +84,57 @@ func HashPassword(password string) string {
 
 func verifyPassword(password, hash string) bool {
 	return HashPassword(password) == hash
+}
+
+func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name     string `json:"name"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respond.BadRequest(w, r, "invalid_body", "request body is not valid JSON")
+		return
+	}
+	if body.Name == "" || body.Email == "" || body.Password == "" {
+		respond.BadRequest(w, r, "missing_fields", "name, email, and password are required")
+		return
+	}
+	if len(body.Password) < 8 {
+		respond.BadRequest(w, r, "weak_password", "password must be at least 8 characters")
+		return
+	}
+
+	existing, _ := h.tenants.GetByEmail(r.Context(), body.Email)
+	if existing != nil {
+		respond.Conflict(w, r, "email_taken", "an account with this email already exists")
+		return
+	}
+
+	apiKey := "tori_live_" + uuid.New().String()
+	apiKeyHash := middleware.HashAPIKey(apiKey)
+	webhookSecret := "whsec_" + uuid.New().String()
+	passwordHash := HashPassword(body.Password)
+
+	tenant, err := h.tenants.Create(r.Context(), body.Name, body.Email, apiKeyHash, webhookSecret, domain.DefaultDunningConfig())
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	if err := h.tenants.SetPassword(r.Context(), tenant.ID, passwordHash); err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	accessToken, _ := middleware.GenerateJWT(tenant.ID)
+	refreshToken, _ := middleware.GenerateRefreshToken(tenant.ID)
+
+	respond.JSON(w, r, http.StatusCreated, map[string]interface{}{
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+		"token_type":    "Bearer",
+		"api_key":       apiKey,
+		"tenant":        tenant,
+	})
 }

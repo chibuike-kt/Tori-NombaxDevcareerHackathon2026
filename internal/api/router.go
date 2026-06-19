@@ -54,6 +54,7 @@ func NewRouter(deps Deps) http.Handler {
 	finopsH := handlers.NewFinOpsHandler(finopsSvc)
 	webhookH := handlers.NewWebhookHandler(deps.Webhooks)
 
+	r.Post("/v1/auth/register", authH.Register)
 	r.Post("/v1/auth/login", authH.Login)
 	r.Post("/v1/auth/refresh", authH.Refresh)
 

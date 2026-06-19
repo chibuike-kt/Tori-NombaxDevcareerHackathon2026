@@ -26,3 +26,6 @@ SELECT * FROM tenants ORDER BY created_at DESC;
 
 -- name: UpdateTenantPassword :exec
 UPDATE tenants SET password_hash = $2 WHERE id = $1;
+
+-- name: SetTenantPassword :exec
+UPDATE tenants SET password_hash = $2 WHERE id = $1;

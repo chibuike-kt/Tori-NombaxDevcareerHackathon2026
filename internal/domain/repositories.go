@@ -9,6 +9,7 @@ import (
 
 type TenantRepository interface {
 	Create(ctx context.Context, name, email, apiKeyHash, webhookSecret string, config DunningConfig) (*Tenant, error)
+	SetPassword(ctx context.Context, id uuid.UUID, passwordHash string) error
 	GetByID(ctx context.Context, id uuid.UUID) (*Tenant, error)
 	GetByEmail(ctx context.Context, email string) (*Tenant, error)
 	GetByAPIKeyHash(ctx context.Context, hash string) (*Tenant, error)

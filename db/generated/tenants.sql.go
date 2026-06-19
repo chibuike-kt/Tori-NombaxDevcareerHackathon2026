@@ -155,6 +155,20 @@ func (q *Queries) ListTenants(ctx context.Context) ([]Tenant, error) {
 	return items, nil
 }
 
+const setTenantPassword = `-- name: SetTenantPassword :exec
+UPDATE tenants SET password_hash = $2 WHERE id = $1
+`
+
+type SetTenantPasswordParams struct {
+	ID           uuid.UUID `json:"id"`
+	PasswordHash string    `json:"password_hash"`
+}
+
+func (q *Queries) SetTenantPassword(ctx context.Context, arg SetTenantPasswordParams) error {
+	_, err := q.db.Exec(ctx, setTenantPassword, arg.ID, arg.PasswordHash)
+	return err
+}
+
 const updateTenant = `-- name: UpdateTenant :one
 UPDATE tenants SET name = $2, email = $3 WHERE id = $1 RETURNING id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash
 `

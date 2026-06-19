@@ -129,3 +129,7 @@ func tenantFromRow(row db.Tenant) *domain.Tenant {
 		CreatedAt:     row.CreatedAt,
 	}
 }
+
+func (r *TenantRepo) SetPassword(ctx context.Context, id uuid.UUID, passwordHash string) error {
+	return r.q.SetTenantPassword(ctx, db.SetTenantPasswordParams{ID: id, PasswordHash: passwordHash})
+}
