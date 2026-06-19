@@ -1,0 +1,173 @@
+package ledger
+
+import (
+	"context"
+	"time"
+
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
+	"github.com/google/uuid"
+)
+
+type Service struct {
+	repo domain.LedgerRepository
+}
+
+func NewService(repo domain.LedgerRepository) *Service {
+	return &Service{repo: repo}
+}
+
+// RecordCharge writes a DEBIT entry for a successful payment.
+func (s *Service) RecordCharge(ctx context.Context, tenantID, subscriptionID, invoiceID, customerID uuid.UUID, amount int64, currency, idempotencyKey string) (*domain.LedgerEntry, error) {
+	return s.repo.Append(ctx,
+		tenantID,
+		&subscriptionID,
+		&invoiceID,
+		&customerID,
+		domain.EntryCharge,
+		domain.DirectionDebit,
+		amount,
+		currency,
+		"Payment collected for subscription renewal",
+		idempotencyKey,
+		nil,
+	)
+}
+
+// RecordRefund writes a CREDIT entry for a refund issued.
+func (s *Service) RecordRefund(ctx context.Context, tenantID, subscriptionID, invoiceID, customerID uuid.UUID, amount int64, currency, idempotencyKey, reason string) (*domain.LedgerEntry, error) {
+	return s.repo.Append(ctx,
+		tenantID,
+		&subscriptionID,
+		&invoiceID,
+		&customerID,
+		domain.EntryRefund,
+		domain.DirectionCredit,
+		amount,
+		currency,
+		"Refund issued: "+reason,
+		idempotencyKey,
+		nil,
+	)
+}
+
+// RecordProration writes a DEBIT entry for a mid-cycle upgrade charge.
+func (s *Service) RecordProration(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, amount int64, currency, idempotencyKey string) (*domain.LedgerEntry, error) {
+	return s.repo.Append(ctx,
+		tenantID,
+		&subscriptionID,
+		nil,
+		&customerID,
+		domain.EntryProration,
+		domain.DirectionDebit,
+		amount,
+		currency,
+		"Proration charge for plan upgrade",
+		idempotencyKey,
+		nil,
+	)
+}
+
+// RecordCredit writes a CREDIT entry for a mid-cycle downgrade.
+func (s *Service) RecordCredit(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, amount int64, currency, idempotencyKey string) (*domain.LedgerEntry, error) {
+	return s.repo.Append(ctx,
+		tenantID,
+		&subscriptionID,
+		nil,
+		&customerID,
+		domain.EntryCredit,
+		domain.DirectionCredit,
+		amount,
+		currency,
+		"Credit applied from plan downgrade",
+		idempotencyKey,
+		nil,
+	)
+}
+
+// RecordTrialStart writes an audit marker when a trial begins. Amount is zero.
+func (s *Service) RecordTrialStart(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, currency, idempotencyKey string) (*domain.LedgerEntry, error) {
+	return s.repo.Append(ctx,
+		tenantID,
+		&subscriptionID,
+		nil,
+		&customerID,
+		domain.EntryTrialStart,
+		domain.DirectionDebit,
+		0,
+		currency,
+		"Trial period started",
+		idempotencyKey,
+		nil,
+	)
+}
+
+// RecordTrialEnd writes an audit marker when a trial ends. Amount is zero.
+func (s *Service) RecordTrialEnd(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, currency, idempotencyKey string) (*domain.LedgerEntry, error) {
+	return s.repo.Append(ctx,
+		tenantID,
+		&subscriptionID,
+		nil,
+		&customerID,
+		domain.EntryTrialEnd,
+		domain.DirectionDebit,
+		0,
+		currency,
+		"Trial period ended",
+		idempotencyKey,
+		nil,
+	)
+}
+
+// RecordAdminOverride writes an OVERRIDE entry when an admin force-sets subscription state.
+func (s *Service) RecordAdminOverride(ctx context.Context, tenantID, subscriptionID uuid.UUID, currency, idempotencyKey, reason string, metadata []byte) (*domain.LedgerEntry, error) {
+	return s.repo.Append(ctx,
+		tenantID,
+		&subscriptionID,
+		nil,
+		nil,
+		domain.EntryOverride,
+		domain.DirectionDebit,
+		0,
+		currency,
+		"Admin override: "+reason,
+		idempotencyKey,
+		metadata,
+	)
+}
+
+// GetSummary returns aggregated financial totals for a tenant over a date range.
+func (s *Service) GetSummary(ctx context.Context, tenantID uuid.UUID, from, to time.Time) (*domain.LedgerSummary, error) {
+	summary, err := s.repo.GetSummary(ctx, tenantID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	summary.NetRevenue = summary.TotalCharged - summary.TotalRefunded - summary.TotalCreditsApplied
+	summary.Currency = "NGN"
+	return summary, nil
+}
+
+// GetByIdempotencyKey checks whether a charge already succeeded.
+// Call this before every charge attempt to enforce idempotency.
+func (s *Service) GetByIdempotencyKey(ctx context.Context, key string) (*domain.LedgerEntry, error) {
+	return s.repo.GetByIdempotencyKey(ctx, key)
+}
+
+func (s *Service) ListBySubscription(ctx context.Context, tenantID, subscriptionID uuid.UUID, limit, offset int) ([]*domain.LedgerEntry, error) {
+	return s.repo.ListBySubscription(ctx, tenantID, subscriptionID, limit, offset)
+}
+
+func (s *Service) ListByCustomer(ctx context.Context, tenantID, customerID uuid.UUID, limit, offset int) ([]*domain.LedgerEntry, error) {
+	return s.repo.ListByCustomer(ctx, tenantID, customerID, limit, offset)
+}
+
+func (s *Service) ListByDateRange(ctx context.Context, tenantID uuid.UUID, from, to time.Time, limit, offset int) ([]*domain.LedgerEntry, error) {
+	return s.repo.ListByDateRange(ctx, tenantID, from, to, limit, offset)
+}
+
+func (s *Service) ListByTypeAndDateRange(ctx context.Context, tenantID uuid.UUID, types []string, from, to time.Time, limit, offset int) ([]*domain.LedgerEntry, error) {
+	return s.repo.ListByTypeAndDateRange(ctx, tenantID, types, from, to, limit, offset)
+}
+
+func (s *Service) GetMRR(ctx context.Context, tenantID uuid.UUID, from, to time.Time) (int64, error) {
+	return s.repo.GetMRR(ctx, tenantID, from, to)
+}
