@@ -56,6 +56,21 @@ export const getChurn = () => api.get<{ data: ChurnResult }>("/v1/finance/churn"
 export const getDunningRecovery = () => api.get<{ data: DunningRecoveryResult }>("/v1/finance/dunning-recovery");
 export const getLedgerSummary = () => api.get<{ data: LedgerSummary }>("/v1/ledger/summary");
 
+export const logout = () => {
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("refresh_token");
+};
+
+export const getMe = () => api.get<{ data: Tenant }>("/v1/me");
+
+export interface Tenant {
+  id: string;
+  name: string;
+  email: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 // Types
 export interface Plan {
   id: string;
