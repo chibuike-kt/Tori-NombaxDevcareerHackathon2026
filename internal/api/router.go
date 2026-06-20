@@ -60,7 +60,7 @@ func NewRouter(deps Deps) http.Handler {
 
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.JWTAuth(jwtSecret, deps.Tenants))
-
+		r.Get("/v1/me", authH.Me)
 		r.Post("/v1/plans", planH.Create)
 		r.Get("/v1/plans", planH.List)
 		r.Get("/v1/plans/{id}", planH.Get)
