@@ -7,27 +7,70 @@ import {
   getDunningRecovery,
   getLedgerSummary,
 } from "@/lib/api";
-import { StatCard } from "@/components/stat-card";
-import { formatKobo } from "@/lib/utils";
+import { formatKobo, formatKoboShort } from "@/lib/utils";
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
+  LineChart,
+  Line,
 } from "recharts";
 
-const mockMRRTrend = [
-  { month: "Jan", mrr: 0 },
-  { month: "Feb", mrr: 0 },
-  { month: "Mar", mrr: 0 },
-  { month: "Apr", mrr: 0 },
-  { month: "May", mrr: 0 },
-  { month: "Jun", mrr: 0 },
+function StatCard({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className="bg-white border rounded-xl p-5"
+      style={{ borderColor: "#EAECEF" }}
+    >
+      <p className="text-xs font-semibold mb-2" style={{ color: "#8A94A6" }}>
+        {label}
+      </p>
+      <p
+        className="text-2xl font-extrabold"
+        style={{
+          color: accent ? "#00B37E" : "#0F1728",
+          letterSpacing: "-0.02em",
+        }}
+      >
+        {value}
+      </p>
+      {sub && (
+        <p className="text-xs font-medium mt-1" style={{ color: "#98A2B3" }}>
+          {sub}
+        </p>
+      )}
+    </div>
+  );
+}
+
+const mockTrend = [
+  { month: "Jan", revenue: 0 },
+  { month: "Feb", revenue: 0 },
+  { month: "Mar", revenue: 12500000 },
+  { month: "Apr", revenue: 28000000 },
+  { month: "May", revenue: 45000000 },
+  { month: "Jun", revenue: 91500000 },
+];
+
+const mockDunning = [
+  { label: "Attempt 1", recovered: 3 },
+  { label: "Attempt 2", recovered: 2 },
+  { label: "Attempt 3", recovered: 1 },
+  { label: "Attempt 4", recovered: 0 },
 ];
 
 export default function FinancePage() {
@@ -50,191 +93,176 @@ export default function FinancePage() {
   const recovery = recoveryData?.data;
   const summary = summaryData?.data;
 
-  const trendData = mockMRRTrend.map((d, i) => ({
-    ...d,
-    mrr: i === mockMRRTrend.length - 1 ? (mrr?.mrr_kobo ?? 0) / 100 : d.mrr,
-  }));
-
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--heading)" }}>
+        <h1
+          className="text-2xl font-extrabold"
+          style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
+        >
           Finance
         </h1>
-        <p className="text-sm mt-0.5" style={{ color: "var(--muted)" }}>
+        <p className="text-sm font-medium mt-0.5" style={{ color: "#8A94A6" }}>
           Revenue, churn, and dunning recovery metrics
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-6 lg:grid-cols-4">
+      <div className="grid grid-cols-4 gap-3 mb-5">
         <StatCard
           label="MRR"
-          value={mrr ? formatKobo(mrr.mrr_kobo) : "—"}
+          value={mrr ? formatKoboShort(mrr.mrr_kobo) : "—"}
           sub={mrr?.period}
           accent
         />
         <StatCard
           label="ARR (est.)"
-          value={mrr ? formatKobo(mrr.mrr_kobo * 12) : "—"}
+          value={mrr ? formatKoboShort(mrr.mrr_kobo * 12) : "—"}
           sub="annualised"
         />
         <StatCard
-          label="Net Revenue"
-          value={summary ? formatKobo(summary.net_revenue) : "—"}
-          sub="all time"
-        />
-        <StatCard
-          label="Churn Rate"
+          label="Churn rate"
           value={churn ? `${churn.churn_rate_pct.toFixed(1)}%` : "—"}
           sub={`${churn?.cancelled_count ?? 0} cancelled`}
         />
+        <StatCard
+          label="Dunning recovered"
+          value={recovery ? formatKoboShort(recovery.recovered_kobo) : "—"}
+          sub="this period"
+          accent
+        />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 mb-4 lg:grid-cols-2">
+      <div className="grid grid-cols-3 gap-4 mb-4">
         <div
-          className="rounded-lg border p-5"
-          style={{
-            borderColor: "var(--border)",
-            background: "var(--background)",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-          }}
+          className="bg-white border rounded-xl p-5"
+          style={{ borderColor: "#EAECEF" }}
         >
-          <h2
-            className="text-sm font-semibold mb-4"
-            style={{ color: "var(--heading)" }}
+          <p
+            className="text-xs font-semibold mb-1"
+            style={{ color: "#8A94A6" }}
           >
-            MRR trend
-          </h2>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis
-                dataKey="month"
-                tick={{ fontSize: 12, fill: "var(--muted)" }}
-              />
+            Gross revenue
+          </p>
+          <p
+            className="text-2xl font-extrabold mb-4"
+            style={{ color: "#0F1728" }}
+          >
+            {summary ? formatKobo(summary.total_charged) : "—"}
+          </p>
+          <div
+            className="flex justify-between text-xs font-medium"
+            style={{ color: "#8A94A6" }}
+          >
+            <span>Refunds</span>
+            <span style={{ color: "#E24B4A" }}>
+              {summary ? formatKobo(summary.total_refunded) : "—"}
+            </span>
+          </div>
+          <div
+            className="flex justify-between text-xs font-semibold mt-1.5 pt-1.5 border-t"
+            style={{ borderColor: "#F0F2F4" }}
+          >
+            <span style={{ color: "#0F1728" }}>Net revenue</span>
+            <span style={{ color: "#00B37E" }}>
+              {summary ? formatKobo(summary.net_revenue) : "—"}
+            </span>
+          </div>
+        </div>
+
+        <div
+          className="col-span-2 bg-white border rounded-xl p-5"
+          style={{ borderColor: "#EAECEF" }}
+        >
+          <p className="text-sm font-bold mb-4" style={{ color: "#0F1728" }}>
+            Revenue trend
+          </p>
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={mockTrend}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F0F2F4" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#98A2B3" }} />
               <YAxis
-                tick={{ fontSize: 12, fill: "var(--muted)" }}
-                tickFormatter={(v) => `₦${(v / 1000).toFixed(0)}k`}
+                tick={{ fontSize: 11, fill: "#98A2B3" }}
+                tickFormatter={(v) => `₦${(v / 1000000).toFixed(1)}M`}
               />
-              <Tooltip
-                formatter={(v) => [`₦${Number(v).toLocaleString()}`, "MRR"]}
-              />
+              <Tooltip formatter={(v: number) => [formatKobo(v), "Revenue"]} />
               <Line
                 type="monotone"
-                dataKey="mrr"
-                stroke="var(--primary)"
+                dataKey="revenue"
+                stroke="#00B37E"
                 strokeWidth={2}
                 dot={false}
               />
             </LineChart>
           </ResponsiveContainer>
         </div>
+      </div>
 
+      <div className="grid grid-cols-2 gap-4">
         <div
-          className="rounded-lg border p-5"
-          style={{
-            borderColor: "var(--border)",
-            background: "var(--background)",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-          }}
+          className="bg-white border rounded-xl p-5"
+          style={{ borderColor: "#EAECEF" }}
         >
-          <h2
-            className="text-sm font-semibold mb-4"
-            style={{ color: "var(--heading)" }}
-          >
-            Dunning recovery
-          </h2>
-          <div className="flex items-center gap-6 mb-4">
-            <div>
-              <p className="text-sm" style={{ color: "var(--muted)" }}>
-                Recovered
-              </p>
-              <p
-                className="text-xl font-semibold"
-                style={{ color: "var(--primary)" }}
-              >
-                {recovery ? formatKobo(recovery.recovered_kobo) : "—"}
-              </p>
-            </div>
-          </div>
-          <ResponsiveContainer width="100%" height={150}>
-            <BarChart
-              data={[
-                {
-                  name: "At risk",
-                  value: (recovery?.recovered_kobo ?? 0) / 100,
-                },
-                {
-                  name: "Recovered",
-                  value: (recovery?.recovered_kobo ?? 0) / 100,
-                },
-                { name: "Lost", value: 0 },
-              ]}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis
-                dataKey="name"
-                tick={{ fontSize: 12, fill: "var(--muted)" }}
-              />
-              <YAxis tick={{ fontSize: 12, fill: "var(--muted)" }} />
+          <p className="text-sm font-bold mb-4" style={{ color: "#0F1728" }}>
+            Dunning recovery by attempt
+          </p>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={mockDunning}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F0F2F4" />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#98A2B3" }} />
+              <YAxis tick={{ fontSize: 11, fill: "#98A2B3" }} />
               <Tooltip />
-              <Bar
-                dataKey="value"
-                fill="var(--primary)"
-                radius={[4, 4, 0, 0]}
-              />
+              <Bar dataKey="recovered" fill="#00B37E" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
 
-      <div
-        className="rounded-lg border p-5"
-        style={{
-          borderColor: "var(--border)",
-          background: "var(--background)",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-        }}
-      >
-        <h2
-          className="text-sm font-semibold mb-4"
-          style={{ color: "var(--heading)" }}
+        <div
+          className="bg-white border rounded-xl p-5"
+          style={{ borderColor: "#EAECEF" }}
         >
-          Revenue summary
-        </h2>
-        <div className="grid grid-cols-3 gap-6">
-          <div>
-            <p className="text-sm" style={{ color: "var(--muted)" }}>
-              Gross revenue
-            </p>
-            <p
-              className="text-xl font-semibold mt-1"
-              style={{ color: "var(--heading)" }}
-            >
-              {summary ? formatKobo(summary.total_charged) : "—"}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm" style={{ color: "var(--muted)" }}>
-              Refunds
-            </p>
-            <p
-              className="text-xl font-semibold mt-1"
-              style={{ color: "var(--danger)" }}
-            >
-              {summary ? formatKobo(summary.total_refunded) : "—"}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm" style={{ color: "var(--muted)" }}>
-              Net revenue
-            </p>
-            <p
-              className="text-xl font-semibold mt-1"
-              style={{ color: "var(--primary)" }}
-            >
-              {summary ? formatKobo(summary.net_revenue) : "—"}
-            </p>
+          <p className="text-sm font-bold mb-4" style={{ color: "#0F1728" }}>
+            Ledger breakdown
+          </p>
+          <div className="space-y-3">
+            {[
+              ["Total charges", summary?.total_charged, "#0F1728"],
+              ["Total refunds", summary?.total_refunded, "#E24B4A"],
+              ["Credits applied", summary?.total_credits_applied, "#2563A8"],
+              ["Net revenue", summary?.net_revenue, "#00B37E"],
+            ].map(([label, val, color]) => (
+              <div
+                key={label as string}
+                className="flex justify-between items-center py-2 border-b"
+                style={{ borderColor: "#F4F6F8" }}
+              >
+                <span
+                  className="text-xs font-semibold"
+                  style={{ color: "#6B7280" }}
+                >
+                  {label}
+                </span>
+                <span
+                  className="text-sm font-extrabold"
+                  style={{ color: color as string }}
+                >
+                  {val !== undefined ? formatKobo(val as number) : "—"}
+                </span>
+              </div>
+            ))}
+            <div className="flex justify-between items-center pt-1">
+              <span
+                className="text-xs font-semibold"
+                style={{ color: "#6B7280" }}
+              >
+                Total entries
+              </span>
+              <span
+                className="text-sm font-extrabold"
+                style={{ color: "#0F1728" }}
+              >
+                {summary?.entry_count ?? 0}
+              </span>
+            </div>
           </div>
         </div>
       </div>
