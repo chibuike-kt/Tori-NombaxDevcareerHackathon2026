@@ -184,7 +184,7 @@ export default function FinancePage() {
                 tick={{ fontSize: 11, fill: "#98A2B3" }}
                 tickFormatter={(v) => `₦${(v / 1000000).toFixed(1)}M`}
               />
-              <Tooltip formatter={(v: number) => [formatKobo(v), "Revenue"]} />
+              <Tooltip formatter={(v) => [formatKobo(Number(v)), "Revenue"]} />
               <Line
                 type="monotone"
                 dataKey="revenue"
