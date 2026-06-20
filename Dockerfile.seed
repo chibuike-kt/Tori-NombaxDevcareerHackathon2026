@@ -1,0 +1,7 @@
+FROM golang:1.26.4-alpine
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+ENV DATABASE_URL=postgres://app:ToriNomba2026@postgres:5432/subscriptions_engine?sslmode=disable
+CMD ["go", "run", "./cmd/seed/main.go"]
