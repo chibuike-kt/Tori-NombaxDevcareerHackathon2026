@@ -13,6 +13,7 @@ export default function PlansPage() {
   });
   const plans = data?.data ?? [];
   const [showForm, setShowForm] = useState(false);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({
     name: "",
     amount: "",
@@ -24,7 +25,7 @@ export default function PlansPage() {
     mutationFn: () =>
       createPlan({
         name: form.name,
-        amount: parseInt(form.amount) * 100, // naira to kobo
+        amount: Math.round(parseFloat(form.amount) * 100),
         interval: form.interval,
         trial_period_days: parseInt(form.trial_period_days),
         currency: "NGN",
@@ -38,97 +39,149 @@ export default function PlansPage() {
         interval: "monthly",
         trial_period_days: "0",
       });
+      setError("");
     },
+    onError: (e: unknown) =>
+      setError(e instanceof Error ? e.message : "Failed to create plan"),
   });
 
+  const intervalLabel: Record<string, string> = {
+    monthly: "/mo",
+    annual: "/yr",
+    custom: " custom",
+  };
+
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1
-            className="text-xl font-semibold"
-            style={{ color: "var(--heading)" }}
+            className="text-2xl font-extrabold"
+            style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
           >
             Plans
           </h1>
-          <p className="text-sm mt-0.5" style={{ color: "var(--muted)" }}>
-            {plans.length} active plans
+          <p
+            className="text-sm font-medium mt-0.5"
+            style={{ color: "#8A94A6" }}
+          >
+            {plans.length} active pricing plans
           </p>
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="text-sm px-4 py-2 rounded-lg font-medium text-white"
-          style={{ background: "var(--primary)" }}
+          className="flex items-center gap-1.5 text-sm px-4 py-2.5 rounded-lg font-bold text-white"
+          style={{ background: "#00B37E" }}
         >
-          Create plan
+          <i className="ti ti-plus" /> Create plan
         </button>
       </div>
 
       {showForm && (
         <div
-          className="rounded-lg border p-4 mb-4"
-          style={{
-            borderColor: "var(--border)",
-            background: "var(--background)",
-          }}
+          className="bg-white border rounded-xl p-5 mb-5"
+          style={{ borderColor: "#EAECEF" }}
         >
-          <h2
-            className="text-sm font-medium mb-3"
-            style={{ color: "var(--heading)" }}
-          >
+          <h2 className="text-sm font-bold mb-4" style={{ color: "#0F1728" }}>
             New plan
           </h2>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <input
-              placeholder="Plan name"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              className="border rounded px-3 py-1.5 text-sm outline-none"
-              style={{ borderColor: "var(--border)", color: "var(--body)" }}
-            />
-            <input
-              placeholder="Amount in ₦ (e.g. 5000)"
-              value={form.amount}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, amount: e.target.value }))
-              }
-              className="border rounded px-3 py-1.5 text-sm outline-none"
-              style={{ borderColor: "var(--border)", color: "var(--body)" }}
-            />
-            <select
-              value={form.interval}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, interval: e.target.value }))
-              }
-              className="border rounded px-3 py-1.5 text-sm outline-none"
-              style={{ borderColor: "var(--border)", color: "var(--body)" }}
-            >
-              <option value="monthly">Monthly</option>
-              <option value="annual">Annual</option>
-              <option value="custom">Custom</option>
-            </select>
-            <input
-              placeholder="Trial days (0 = no trial)"
-              value={form.trial_period_days}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, trial_period_days: e.target.value }))
-              }
-              className="border rounded px-3 py-1.5 text-sm outline-none"
-              style={{ borderColor: "var(--border)", color: "var(--body)" }}
-            />
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div>
+              <label
+                className="text-xs font-semibold block mb-1.5"
+                style={{ color: "#4B5563" }}
+              >
+                Plan name
+              </label>
+              <input
+                value={form.name}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, name: e.target.value }))
+                }
+                placeholder="Pro"
+                className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium"
+                style={{ background: "#F8F9FA", color: "#0F1728" }}
+              />
+            </div>
+            <div>
+              <label
+                className="text-xs font-semibold block mb-1.5"
+                style={{ color: "#4B5563" }}
+              >
+                Amount (₦)
+              </label>
+              <input
+                value={form.amount}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, amount: e.target.value }))
+                }
+                placeholder="15000"
+                className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium"
+                style={{ background: "#F8F9FA", color: "#0F1728" }}
+              />
+            </div>
+            <div>
+              <label
+                className="text-xs font-semibold block mb-1.5"
+                style={{ color: "#4B5563" }}
+              >
+                Billing interval
+              </label>
+              <select
+                value={form.interval}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, interval: e.target.value }))
+                }
+                className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium"
+                style={{ background: "#F8F9FA", color: "#0F1728" }}
+              >
+                <option value="monthly">Monthly</option>
+                <option value="annual">Annual</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+            <div>
+              <label
+                className="text-xs font-semibold block mb-1.5"
+                style={{ color: "#4B5563" }}
+              >
+                Trial days
+              </label>
+              <input
+                value={form.trial_period_days}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, trial_period_days: e.target.value }))
+                }
+                placeholder="0"
+                className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium"
+                style={{ background: "#F8F9FA", color: "#0F1728" }}
+              />
+            </div>
           </div>
+          {error && (
+            <p
+              className="text-xs font-medium mb-3"
+              style={{ color: "#DC2626" }}
+            >
+              {error}
+            </p>
+          )}
           <div className="flex gap-2">
             <button
               onClick={() => create.mutate()}
-              className="text-sm px-4 py-1.5 rounded font-medium text-white"
-              style={{ background: "var(--primary)" }}
+              disabled={create.isPending}
+              className="text-sm px-4 py-2 rounded-lg font-bold text-white"
+              style={{ background: create.isPending ? "#9CA3AF" : "#0F1728" }}
             >
               {create.isPending ? "Creating..." : "Create plan"}
             </button>
             <button
-              onClick={() => setShowForm(false)}
-              className="text-sm px-3 py-1.5 rounded border"
-              style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+              onClick={() => {
+                setShowForm(false);
+                setError("");
+              }}
+              className="text-sm px-4 py-2 rounded-lg font-bold border"
+              style={{ borderColor: "#E5E7EB", color: "#6B7280" }}
             >
               Cancel
             </button>
@@ -136,61 +189,121 @@ export default function PlansPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {isLoading ? (
-          <div className="text-sm" style={{ color: "var(--muted)" }}>
-            Loading...
-          </div>
-        ) : plans.length === 0 ? (
+      {isLoading ? (
+        <div
+          className="p-12 text-center text-sm font-medium"
+          style={{ color: "#8A94A6" }}
+        >
+          Loading plans...
+        </div>
+      ) : plans.length === 0 ? (
+        <div
+          className="bg-white border rounded-xl p-12 text-center"
+          style={{ borderColor: "#EAECEF" }}
+        >
           <div
-            className="col-span-3 text-center text-sm py-10"
-            style={{ color: "var(--muted)" }}
+            className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
+            style={{ background: "#F1F3F5", color: "#9CA3AF" }}
           >
-            No plans yet. Create your first billing plan.
+            <i className="ti ti-file-text" style={{ fontSize: 22 }} />
           </div>
-        ) : (
-          plans.map((plan) => (
+          <p className="text-sm font-bold" style={{ color: "#0F1728" }}>
+            No plans yet
+          </p>
+          <p
+            className="text-xs font-medium mt-1 mb-4"
+            style={{ color: "#8A94A6" }}
+          >
+            Create your first billing plan to start subscriptions.
+          </p>
+          <button
+            onClick={() => setShowForm(true)}
+            className="text-sm px-4 py-2 rounded-lg font-bold text-white"
+            style={{ background: "#0F1728" }}
+          >
+            Create plan
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-4">
+          {plans.map((plan) => (
             <div
               key={plan.id}
-              className="rounded-lg border p-4"
-              style={{
-                borderColor: "var(--border)",
-                background: "var(--background)",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-              }}
+              className="bg-white border rounded-xl p-5"
+              style={{ borderColor: "#EAECEF" }}
             >
-              <div className="flex items-start justify-between mb-2">
-                <h3
-                  className="text-sm font-medium"
-                  style={{ color: "var(--heading)" }}
+              <div className="flex items-start justify-between mb-3">
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center"
+                  style={{ background: "#E6F8F2", color: "#00B37E" }}
                 >
-                  {plan.name}
-                </h3>
+                  <i className="ti ti-file-text" style={{ fontSize: 20 }} />
+                </div>
                 <span
-                  className="text-sm px-1.5 py-0.5 rounded"
-                  style={{ background: "#E6F8F2", color: "var(--primary)" }}
+                  className="text-[10px] font-bold px-2 py-1 rounded-full"
+                  style={{
+                    background: plan.is_active ? "#E3F7EF" : "#F1F3F5",
+                    color: plan.is_active ? "#0A7A56" : "#6B7280",
+                  }}
+                >
+                  {plan.is_active ? "ACTIVE" : "INACTIVE"}
+                </span>
+              </div>
+              <h3
+                className="text-base font-extrabold mb-0.5"
+                style={{ color: "#0F1728" }}
+              >
+                {plan.name}
+              </h3>
+              <div className="flex items-baseline gap-0.5 mb-3">
+                <span
+                  className="text-2xl font-extrabold"
+                  style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
+                >
+                  {formatKobo(plan.amount)}
+                </span>
+                <span
+                  className="text-sm font-medium"
+                  style={{ color: "#8A94A6" }}
+                >
+                  {intervalLabel[plan.interval] ?? ""}
+                </span>
+              </div>
+              {plan.trial_period_days > 0 && (
+                <div className="flex items-center gap-1.5 mb-3">
+                  <i
+                    className="ti ti-clock"
+                    style={{ fontSize: 13, color: "#8A94A6" }}
+                  />
+                  <span
+                    className="text-xs font-medium"
+                    style={{ color: "#8A94A6" }}
+                  >
+                    {plan.trial_period_days}-day free trial
+                  </span>
+                </div>
+              )}
+              <div
+                className="pt-3 border-t flex items-center justify-between"
+                style={{ borderColor: "#F0F2F4" }}
+              >
+                <span
+                  className="text-[11px] font-medium"
+                  style={{ color: "#98A2B3" }}
+                >
+                  Created {formatDate(plan.created_at)}
+                </span>
+                <span
+                  className="text-[11px] font-bold capitalize"
+                  style={{ color: "#6B7280" }}
                 >
                   {plan.interval}
                 </span>
               </div>
-              <p
-                className="text-2xl font-semibold mb-1"
-                style={{ color: "var(--heading)" }}
-              >
-                {formatKobo(plan.amount)}
-              </p>
-              {plan.trial_period_days > 0 && (
-                <p className="text-sm" style={{ color: "var(--muted)" }}>
-                  {plan.trial_period_days} day trial
-                </p>
-              )}
-              <p className="text-sm mt-3" style={{ color: "var(--muted)" }}>
-                Created {formatDate(plan.created_at)}
-              </p>
             </div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
