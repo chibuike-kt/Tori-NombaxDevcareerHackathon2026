@@ -4,9 +4,9 @@
   --background: #ffffff;
   --background-secondary: #FAFAF8;
   --panel: #F8F9FA;
-  --primary: #FFC105;
-  --primary-dark: #B8860B;
-  --primary-soft: #FFF8E1;
+  --primary: #00B37E;
+  --primary-dark: #0F6E56;
+  --primary-soft: #E6F8F2;
   --ink: #0F1728;
   --body: #4B5563;
   --muted: #6B7280;
@@ -20,8 +20,9 @@
 * { box-sizing: border-box; }
 
 body {
+  font-family: 'Montserrat', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: "pnum" on, "lnum" on, "cv11" on;
+  font-feature-settings: "pnum" on, "lnum" on;
   letter-spacing: -0.01em;
 }
