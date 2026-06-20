@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getCustomers, createCustomer } from "@/lib/api";
-import { formatDate } from "@/lib/utils";
+import { formatDate, avatarFor } from "@/lib/utils";
 
 export default function CustomersPage() {
   const qc = useQueryClient();
@@ -13,8 +13,10 @@ export default function CustomersPage() {
   });
   const customers = data?.data ?? [];
   const [showForm, setShowForm] = useState(false);
+  const [search, setSearch] = useState("");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [error, setError] = useState("");
 
   const create = useMutation({
     mutationFn: () => createCustomer({ email, name }),
@@ -23,72 +25,109 @@ export default function CustomersPage() {
       setShowForm(false);
       setEmail("");
       setName("");
+      setError("");
     },
+    onError: (e: unknown) =>
+      setError(e instanceof Error ? e.message : "Failed to create customer"),
   });
 
+  const filtered = customers.filter(
+    (c) =>
+      !search ||
+      c.email.toLowerCase().includes(search.toLowerCase()) ||
+      (c.name ?? "").toLowerCase().includes(search.toLowerCase()),
+  );
+
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1
-            className="text-xl font-semibold"
-            style={{ color: "var(--heading)" }}
+            className="text-2xl font-extrabold"
+            style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
           >
             Customers
           </h1>
-          <p className="text-sm mt-0.5" style={{ color: "var(--muted)" }}>
-            {customers.length} total
+          <p
+            className="text-sm font-medium mt-0.5"
+            style={{ color: "#8A94A6" }}
+          >
+            {customers.length} total customers
           </p>
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="text-sm px-4 py-2 rounded-lg font-medium text-white"
-          style={{ background: "var(--primary)" }}
+          className="flex items-center gap-1.5 text-sm px-4 py-2.5 rounded-lg font-bold text-white"
+          style={{ background: "#00B37E" }}
         >
-          Add customer
+          <i className="ti ti-plus" /> Add customer
         </button>
       </div>
 
       {showForm && (
         <div
-          className="rounded-lg border p-4 mb-4"
-          style={{
-            borderColor: "var(--border)",
-            background: "var(--background)",
-          }}
+          className="bg-white border rounded-xl p-5 mb-4"
+          style={{ borderColor: "#EAECEF" }}
         >
-          <h2
-            className="text-sm font-medium mb-3"
-            style={{ color: "var(--heading)" }}
-          >
+          <h2 className="text-sm font-bold mb-4" style={{ color: "#0F1728" }}>
             New customer
           </h2>
-          <div className="flex gap-3">
-            <input
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="flex-1 border rounded px-3 py-1.5 text-sm outline-none"
-              style={{ borderColor: "var(--border)", color: "var(--body)" }}
-            />
-            <input
-              placeholder="Name (optional)"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="flex-1 border rounded px-3 py-1.5 text-sm outline-none"
-              style={{ borderColor: "var(--border)", color: "var(--body)" }}
-            />
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label
+                className="text-xs font-semibold block mb-1.5"
+                style={{ color: "#4B5563" }}
+              >
+                Email
+              </label>
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="customer@business.ng"
+                className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium"
+                style={{ background: "#F8F9FA", color: "#0F1728" }}
+              />
+            </div>
+            <div>
+              <label
+                className="text-xs font-semibold block mb-1.5"
+                style={{ color: "#4B5563" }}
+              >
+                Name (optional)
+              </label>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Amaka Obi"
+                className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium"
+                style={{ background: "#F8F9FA", color: "#0F1728" }}
+              />
+            </div>
+          </div>
+          {error && (
+            <p
+              className="text-xs font-medium mb-3"
+              style={{ color: "#DC2626" }}
+            >
+              {error}
+            </p>
+          )}
+          <div className="flex gap-2">
             <button
               onClick={() => create.mutate()}
-              className="text-sm px-4 py-1.5 rounded font-medium text-white"
-              style={{ background: "var(--primary)" }}
+              disabled={create.isPending}
+              className="text-sm px-4 py-2 rounded-lg font-bold text-white"
+              style={{ background: create.isPending ? "#9CA3AF" : "#0F1728" }}
             >
-              {create.isPending ? "Creating..." : "Create"}
+              {create.isPending ? "Creating..." : "Create customer"}
             </button>
             <button
-              onClick={() => setShowForm(false)}
-              className="text-sm px-3 py-1.5 rounded border"
-              style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+              onClick={() => {
+                setShowForm(false);
+                setError("");
+              }}
+              className="text-sm px-4 py-2 rounded-lg font-bold border"
+              style={{ borderColor: "#E5E7EB", color: "#6B7280" }}
             >
               Cancel
             </button>
@@ -97,36 +136,72 @@ export default function CustomersPage() {
       )}
 
       <div
-        className="rounded-lg border"
-        style={{
-          borderColor: "var(--border)",
-          background: "var(--background)",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-        }}
+        className="flex items-center gap-2 mb-4 border rounded-lg px-3.5 py-2.5 bg-white w-80"
+        style={{ borderColor: "#E5E7EB" }}
+      >
+        <i
+          className="ti ti-search"
+          style={{ fontSize: 14, color: "#9CA3AF" }}
+        />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search customers..."
+          className="outline-none text-sm font-medium flex-1"
+          style={{ color: "#0F1728" }}
+        />
+      </div>
+
+      <div
+        className="bg-white border rounded-xl"
+        style={{ borderColor: "#EAECEF" }}
       >
         {isLoading ? (
           <div
-            className="px-5 py-10 text-center text-sm"
-            style={{ color: "var(--muted)" }}
+            className="p-12 text-center text-sm font-medium"
+            style={{ color: "#8A94A6" }}
           >
-            Loading...
+            Loading customers...
           </div>
-        ) : customers.length === 0 ? (
-          <div
-            className="px-5 py-10 text-center text-sm"
-            style={{ color: "var(--muted)" }}
-          >
-            No customers yet. Add your first customer above.
+        ) : filtered.length === 0 ? (
+          <div className="p-12 text-center">
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
+              style={{ background: "#F1F3F5", color: "#9CA3AF" }}
+            >
+              <i className="ti ti-users" style={{ fontSize: 22 }} />
+            </div>
+            <p className="text-sm font-bold" style={{ color: "#0F1728" }}>
+              No customers yet
+            </p>
+            <p
+              className="text-xs font-medium mt-1 mb-4"
+              style={{ color: "#8A94A6" }}
+            >
+              Add your first customer to start billing.
+            </p>
+            <button
+              onClick={() => setShowForm(true)}
+              className="text-sm px-4 py-2 rounded-lg font-bold text-white"
+              style={{ background: "#0F1728" }}
+            >
+              Add customer
+            </button>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full">
             <thead>
-              <tr style={{ borderBottom: `1px solid var(--border)` }}>
-                {["Email", "Name", "External ID", "Created"].map((h) => (
+              <tr
+                style={{
+                  background: "#FAFBFC",
+                  borderBottom: "0.5px solid #EAECEF",
+                }}
+              >
+                {["Customer", "Name", "External ID", "Created"].map((h) => (
                   <th
                     key={h}
-                    className="px-5 py-2.5 text-left text-sm font-medium"
-                    style={{ color: "var(--muted)" }}
+                    className="text-left px-4 py-3 text-[11px] font-semibold"
+                    style={{ color: "#98A2B3" }}
                   >
                     {h}
                   </th>
@@ -134,37 +209,47 @@ export default function CustomersPage() {
               </tr>
             </thead>
             <tbody>
-              {customers.map((c) => (
-                <tr
-                  key={c.id}
-                  style={{ borderBottom: `1px solid var(--border)` }}
-                >
-                  <td
-                    className="px-5 py-3 text-sm"
-                    style={{ color: "var(--body)" }}
-                  >
-                    {c.email}
-                  </td>
-                  <td
-                    className="px-5 py-3 text-sm"
-                    style={{ color: "var(--body)" }}
-                  >
-                    {c.name || "—"}
-                  </td>
-                  <td
-                    className="px-5 py-3 font-mono text-sm"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    {c.external_id || "—"}
-                  </td>
-                  <td
-                    className="px-5 py-3 text-sm"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    {formatDate(c.created_at)}
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((c) => {
+                const av = avatarFor(c.email);
+                return (
+                  <tr key={c.id} style={{ borderTop: "0.5px solid #F2F4F6" }}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className="w-8 h-8 rounded-full inline-flex items-center justify-center text-xs font-bold flex-shrink-0"
+                          style={{ background: av.bg, color: av.color }}
+                        >
+                          {av.initials}
+                        </span>
+                        <span
+                          className="text-xs font-semibold"
+                          style={{ color: "#1F2733" }}
+                        >
+                          {c.email}
+                        </span>
+                      </div>
+                    </td>
+                    <td
+                      className="px-4 py-3 text-xs font-medium"
+                      style={{ color: "#4B5563" }}
+                    >
+                      {c.name ?? "—"}
+                    </td>
+                    <td
+                      className="px-4 py-3 text-xs font-mono"
+                      style={{ color: "#98A2B3" }}
+                    >
+                      {c.external_id ?? "—"}
+                    </td>
+                    <td
+                      className="px-4 py-3 text-xs font-medium"
+                      style={{ color: "#98A2B3" }}
+                    >
+                      {formatDate(c.created_at)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
