@@ -54,13 +54,17 @@ func NewRouter(deps Deps) http.Handler {
 	finopsH := handlers.NewFinOpsHandler(finopsSvc)
 	webhookH := handlers.NewWebhookHandler(deps.Webhooks)
 
+	// Public
 	r.Post("/v1/auth/register", authH.Register)
 	r.Post("/v1/auth/login", authH.Login)
 	r.Post("/v1/auth/refresh", authH.Refresh)
 
+	// Dashboard API — JWT auth
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.JWTAuth(jwtSecret, deps.Tenants))
+
 		r.Get("/v1/me", authH.Me)
+
 		r.Post("/v1/plans", planH.Create)
 		r.Get("/v1/plans", planH.List)
 		r.Get("/v1/plans/{id}", planH.Get)
@@ -99,6 +103,7 @@ func NewRouter(deps Deps) http.Handler {
 		r.Post("/v1/webhooks/logs/{id}/retry", webhookH.RetryDelivery)
 	})
 
+	// Platform API — API key auth (server-to-server)
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.APIKeyAuth(deps.Tenants))
 
@@ -112,12 +117,6 @@ func NewRouter(deps Deps) http.Handler {
 		r.Post("/v1/platform/subscriptions/{id}/cancel", subH.Cancel)
 		r.Post("/v1/platform/subscriptions/{id}/pause", subH.Pause)
 		r.Post("/v1/platform/subscriptions/{id}/resume", subH.Resume)
-		r.Get("/v1/ledger", ledgerH.List)
-		r.Get("/v1/ledger/summary", ledgerH.Summary)
-		r.Get("/v1/finance/mrr", finopsH.MRR)
-		r.Get("/v1/finance/arr", finopsH.ARR)
-		r.Get("/v1/finance/churn", finopsH.Churn)
-		r.Get("/v1/finance/revenue-report", finopsH.RevenueReport)
 	})
 
 	return r
