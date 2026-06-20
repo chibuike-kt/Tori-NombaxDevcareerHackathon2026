@@ -1,9 +1,11 @@
-import { statusColor } from "@/lib/utils";
+import { statusPill } from "@/lib/utils";
 
 export function StatusPill({ status }: { status: string }) {
+  const { bg, color } = statusPill(status);
   return (
     <span
-      className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide ${statusColor(status)}`}
+      className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide"
+      style={{ background: bg, color }}
     >
       {status}
     </span>

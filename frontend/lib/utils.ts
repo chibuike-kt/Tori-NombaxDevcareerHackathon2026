@@ -4,7 +4,15 @@ export function formatKobo(amount: number, currency = "NGN"): string {
     style: "currency",
     currency,
     minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(naira);
+}
+
+export function formatKoboShort(amount: number): string {
+  const naira = amount / 100;
+  if (naira >= 1_000_000) return `₦${(naira / 1_000_000).toFixed(2)}M`;
+  if (naira >= 1_000) return `₦${(naira / 1_000).toFixed(1)}K`;
+  return `₦${naira.toLocaleString()}`;
 }
 
 export function formatDate(dateStr: string): string {
@@ -15,15 +23,36 @@ export function formatDate(dateStr: string): string {
   });
 }
 
-export function statusColor(status: string): string {
-  const map: Record<string, string> = {
-    ACTIVE: "bg-green-100 text-green-700",
-    TRIALING: "bg-indigo-100 text-indigo-700",
-    PAST_DUE: "bg-amber-100 text-amber-700",
-    DUNNING: "bg-orange-100 text-orange-700",
-    PAUSED: "bg-blue-100 text-blue-700",
-    SUSPENDED: "bg-red-100 text-red-700",
-    CANCELLED: "bg-gray-100 text-gray-500",
+export function statusPill(status: string): { bg: string; color: string } {
+  const map: Record<string, { bg: string; color: string }> = {
+    ACTIVE: { bg: "#E3F7EF", color: "#0A7A56" },
+    TRIALING: { bg: "#EEEDFE", color: "#4F46B5" },
+    PAST_DUE: { bg: "#FDF0D5", color: "#8A5A00" },
+    DUNNING: { bg: "#FDF0D5", color: "#8A5A00" },
+    PAUSED: { bg: "#E8EFF9", color: "#2563A8" },
+    SUSPENDED: { bg: "#FDECEC", color: "#A32D2D" },
+    CANCELLED: { bg: "#F1F3F5", color: "#6B7280" },
   };
-  return map[status] ?? "bg-gray-100 text-gray-500";
+  return map[status] ?? { bg: "#F1F3F5", color: "#6B7280" };
+}
+
+const avatarColors = [
+  { bg: "#E3F7EF", color: "#0A7A56" },
+  { bg: "#E8EFF9", color: "#2563A8" },
+  { bg: "#EEEDFE", color: "#4F46B5" },
+  { bg: "#FDF0D5", color: "#8A5A00" },
+  { bg: "#FBEAF0", color: "#993556" },
+];
+
+export function avatarFor(seed: string): {
+  bg: string;
+  color: string;
+  initials: string;
+} {
+  const initials = seed.slice(0, 2).toUpperCase();
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++)
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  const c = avatarColors[Math.abs(hash) % avatarColors.length];
+  return { ...c, initials };
 }
