@@ -121,8 +121,11 @@ export interface DunningRecoveryResult {
 }
 
 export interface LedgerSummary {
+  total_debits: number;
+  total_credits: number;
   total_charged: number;
   total_refunded: number;
+  total_credits_applied: number;
   net_revenue: number;
   entry_count: number;
   currency: string;
