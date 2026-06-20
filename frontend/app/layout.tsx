@@ -1,18 +1,17 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Montserrat } from "next/font/google";
 import { Providers } from "@/lib/providers";
 import "./globals.css";
 
-const inter = Inter({
+const montserrat = Montserrat({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-inter",
+  weight: ["400", "500", "600", "700", "800"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Tori — Subscriptions Engine",
-  description: "Managed recurring billing infrastructure for Nomba",
+  title: "Tori | Recurring billing for Nigerian businesses",
+  description: "The subscription infrastructure layer missing from Nomba",
 };
 
 export default function RootLayout({
@@ -22,10 +21,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/dist/tabler-icons.min.css"
+        />
+      </head>
       <body
-        className={inter.className}
+        className={montserrat.className}
         style={{
-          fontFamily: inter.style.fontFamily,
+          fontFamily: montserrat.style.fontFamily,
           WebkitFontSmoothing: "antialiased",
         }}
       >
