@@ -2,12 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { login } from "@/lib/api";
+import { AuthNav } from "@/components/auth-nav";
+import { AuthFooter } from "@/components/auth-footer";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -27,91 +31,87 @@ export default function LoginPage() {
   };
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center"
-      style={{ background: "var(--background-secondary)" }}
-    >
-      <div
-        className="w-full max-w-sm rounded-xl border p-8"
-        style={{
-          borderColor: "var(--border)",
-          background: "var(--background)",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-        }}
-      >
-        <div className="mb-8">
+    <div className="min-h-screen flex flex-col" style={{ background: "#fff" }}>
+      <AuthNav
+        rightText="Don't have an account?"
+        rightLink="/signup"
+        rightLabel="Sign up"
+      />
+      <div className="flex-1 flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-md">
           <h1
-            className="text-2xl font-bold mb-1"
-            style={{ color: "var(--heading)" }}
+            className="text-4xl font-extrabold text-center mb-2"
+            style={{ color: "#0F1728" }}
           >
-            Tori
+            Welcome
           </h1>
-          <p className="text-sm" style={{ color: "var(--muted)" }}>
-            Subscriptions engine · Powered by Nomba
+          <p
+            className="text-sm text-center mb-8 font-medium"
+            style={{ color: "#6B7280" }}
+          >
+            Login to your{" "}
+            <strong style={{ color: "#0F1728" }}>business account</strong>.
+            Please enter your details below.
           </p>
-        </div>
 
-        <div className="space-y-3">
-          <div>
-            <label
-              className="text-sm font-medium block mb-1.5"
-              style={{ color: "var(--body)" }}
-            >
-              Email
-            </label>
+          <div className="space-y-4">
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-              placeholder="dev@tori.ng"
-              className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2"
-              style={{ borderColor: "var(--border)", color: "var(--body)" }}
+              placeholder="Email address"
+              className="w-full rounded-lg px-4 py-3.5 text-sm outline-none font-medium"
+              style={{ background: "#F8F9FA", color: "#0F1728" }}
             />
-          </div>
-          <div>
-            <label
-              className="text-sm font-medium block mb-1.5"
-              style={{ color: "var(--body)" }}
-            >
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-              placeholder="••••••••"
-              className="w-full border rounded-lg px-3 py-2 text-sm outline-none"
-              style={{ borderColor: "var(--border)", color: "var(--body)" }}
-            />
-          </div>
+            <div className="relative">
+              <input
+                type={showPw ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                placeholder="Password"
+                className="w-full rounded-lg px-4 py-3.5 text-sm outline-none font-medium pr-16"
+                style={{ background: "#F8F9FA", color: "#0F1728" }}
+              />
+              <button
+                onClick={() => setShowPw(!showPw)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold"
+                style={{ color: "#6B7280" }}
+              >
+                {showPw ? "Hide" : "Show"}
+              </button>
+            </div>
 
-          {error && (
-            <p className="text-sm" style={{ color: "var(--danger)" }}>
-              {error}
+            <p className="text-sm font-medium" style={{ color: "#6B7280" }}>
+              Forgot Password?{" "}
+              <span
+                style={{ color: "#00B37E", fontWeight: 600, cursor: "pointer" }}
+              >
+                Reset it
+              </span>
             </p>
-          )}
 
-          <button
-            onClick={handleLogin}
-            disabled={loading}
-            className="w-full py-2.5 rounded-lg text-sm font-semibold text-white mt-2"
-            style={{
-              background: loading ? "var(--neutral)" : "var(--primary)",
-            }}
-          >
-            {loading ? "Signing in..." : "Sign in"}
-          </button>
+            {error && (
+              <p className="text-sm font-medium" style={{ color: "#DC2626" }}>
+                {error}
+              </p>
+            )}
+
+            <button
+              onClick={handleLogin}
+              disabled={loading}
+              className="w-full py-3.5 rounded-lg font-bold"
+              style={{
+                background: loading ? "#E5E7EB" : "#00B37E",
+                color: loading ? "#9CA3AF" : "white",
+              }}
+            >
+              {loading ? "Signing in..." : "Login"}
+            </button>
+          </div>
         </div>
-
-        <p
-          className="text-xs mt-6 text-center"
-          style={{ color: "var(--muted)" }}
-        >
-          Nomba × DevCareer Hackathon 2026
-        </p>
       </div>
+      <AuthFooter />
     </div>
   );
 }
