@@ -138,3 +138,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		"tenant":        tenant,
 	})
 }
+
+func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
+	tenant := middleware.GetTenant(r.Context())
+	if tenant == nil {
+		respond.Unauthorised(w, r, "not authenticated")
+		return
+	}
+	respond.JSON(w, r, http.StatusOK, tenant)
+}
