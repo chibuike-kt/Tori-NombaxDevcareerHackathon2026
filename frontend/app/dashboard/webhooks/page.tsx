@@ -28,6 +28,7 @@ export default function WebhooksPage() {
   const [showForm, setShowForm] = useState(false);
   const [url, setUrl] = useState("");
   const [newSecret, setNewSecret] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const { data: endpointsData } = useQuery({
     queryKey: ["webhook-endpoints"],
@@ -43,14 +44,9 @@ export default function WebhooksPage() {
   const deliveries = deliveriesData?.data ?? [];
 
   const create = useMutation({
-    mutationFn: () =>
-      api.post<{ data: { endpoint: Endpoint; secret: string } }>(
-        "/v1/webhooks/endpoints",
-        {
-          url,
-          events: ["*"],
-        },
-      ),
+    mutationFn: () => api.post<{ data: { endpoint: Endpoint; secret: string } }>("/v1/webhooks/endpoints", {
+      url, events: ["*"],
+    }),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["webhook-endpoints"] });
       setNewSecret(res.data.secret);
@@ -59,183 +55,111 @@ export default function WebhooksPage() {
     },
   });
 
-  const deliveryStatusColor = (status: string) => {
-    if (status === "delivered") return "text-green-600";
-    if (status === "failed") return "text-red-600";
-    return "text-amber-600";
+  const copySecret = () => {
+    if (!newSecret) return;
+    navigator.clipboard.writeText(newSecret);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
+  const deliveryStatus = (status: string) => {
+    if (status === "delivered") return { bg: "#E3F7EF", color: "#0A7A56" };
+    if (status === "failed") return { bg: "#FDECEC", color: "#A32D2D" };
+    return { bg: "#FDF0D5", color: "#8A5A00" };
+  };
+
+  const events = [
+    "subscription.activated", "subscription.paused", "subscription.cancelled",
+    "subscription.suspended", "payment.succeeded", "payment.failed",
+    "dunning.started", "dunning.recovered", "dunning.exhausted",
+  ];
+
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1
-            className="text-2xl font-bold"
-            style={{ color: "var(--heading)" }}
-          >
-            Webhooks
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: "var(--muted)" }}>
-            Manage endpoints and view delivery logs
-          </p>
+          <h1 className="text-2xl font-extrabold" style={{ color: "#0F1728", letterSpacing: "-0.02em" }}>Webhooks</h1>
+          <p className="text-sm font-medium mt-0.5" style={{ color: "#8A94A6" }}>Manage endpoints and monitor delivery logs</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="text-sm px-4 py-2 rounded-lg font-medium text-white"
-          style={{ background: "var(--primary)" }}
-        >
-          Add endpoint
+        <button onClick={() => setShowForm(true)} className="flex items-center gap-1.5 text-sm px-4 py-2.5 rounded-lg font-bold text-white" style={{ background: "#00B37E" }}>
+          <i className="ti ti-plus" /> Add endpoint
         </button>
       </div>
 
       {newSecret && (
-        <div
-          className="rounded-lg border p-4 mb-4"
-          style={{ borderColor: "var(--primary)", background: "#E6F8F2" }}
-        >
-          <p
-            className="text-sm font-semibold mb-1"
-            style={{ color: "var(--heading)" }}
-          >
-            Endpoint secret — save this now
-          </p>
-          <p className="text-xs mb-2" style={{ color: "var(--muted)" }}>
-            This will not be shown again. Use it to verify webhook signatures.
-          </p>
-          <code
-            className="text-sm font-mono block p-2 rounded"
-            style={{ background: "var(--background)", color: "var(--heading)" }}
-          >
-            {newSecret}
-          </code>
-          <button
-            onClick={() => setNewSecret(null)}
-            className="text-xs mt-2"
-            style={{ color: "var(--muted)" }}
-          >
-            Dismiss
-          </button>
+        <div className="rounded-xl border p-5 mb-5" style={{ borderColor: "#00B37E", background: "#E6F8F2" }}>
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "#00B37E" }}>
+              <i className="ti ti-key text-white" style={{ fontSize: 18 }} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold mb-0.5" style={{ color: "#0F1728" }}>Save your signing secret</p>
+              <p className="text-xs font-medium mb-3" style={{ color: "#4B5563" }}>This will never be shown again. Use it to verify webhook signatures.</p>
+              <div className="flex items-center gap-2 bg-white rounded-lg px-4 py-2.5 border" style={{ borderColor: "#D1FAE5" }}>
+                <code className="text-xs font-mono flex-1 break-all" style={{ color: "#0F1728" }}>{newSecret}</code>
+                <button onClick={copySecret} className="text-xs font-bold px-3 py-1.5 rounded-md flex-shrink-0" style={{ background: copied ? "#0F1728" : "#00B37E", color: "white" }}>
+                  {copied ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
+            <button onClick={() => setNewSecret(null)} className="text-sm" style={{ color: "#6B7280" }}>
+              <i className="ti ti-x" style={{ fontSize: 18 }} />
+            </button>
+          </div>
         </div>
       )}
 
       {showForm && (
-        <div
-          className="rounded-lg border p-4 mb-4"
-          style={{
-            borderColor: "var(--border)",
-            background: "var(--background)",
-          }}
-        >
-          <h2
-            className="text-sm font-semibold mb-3"
-            style={{ color: "var(--heading)" }}
-          >
-            New endpoint
-          </h2>
-          <div className="flex gap-3">
-            <input
-              placeholder="https://yourapp.com/webhooks/tori"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              className="flex-1 border rounded px-3 py-1.5 text-sm outline-none"
-              style={{ borderColor: "var(--border)", color: "var(--body)" }}
-            />
-            <button
-              onClick={() => create.mutate()}
-              className="text-sm px-4 py-1.5 rounded font-medium text-white"
-              style={{ background: "var(--primary)" }}
-            >
-              {create.isPending ? "Adding..." : "Add"}
+        <div className="bg-white border rounded-xl p-5 mb-4" style={{ borderColor: "#EAECEF" }}>
+          <h2 className="text-sm font-bold mb-4" style={{ color: "#0F1728" }}>New webhook endpoint</h2>
+          <div className="mb-3">
+            <label className="text-xs font-semibold block mb-1.5" style={{ color: "#4B5563" }}>Endpoint URL</label>
+            <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://yourapp.ng/webhooks/tori" className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium" style={{ background: "#F8F9FA", color: "#0F1728" }} />
+          </div>
+          <p className="text-xs font-medium mb-3" style={{ color: "#8A94A6" }}>All events will be delivered to this endpoint. You can filter by event type after creation.</p>
+          <div className="flex gap-2">
+            <button onClick={() => create.mutate()} disabled={create.isPending} className="text-sm px-4 py-2 rounded-lg font-bold text-white" style={{ background: create.isPending ? "#9CA3AF" : "#0F1728" }}>
+              {create.isPending ? "Adding..." : "Add endpoint"}
             </button>
-            <button
-              onClick={() => setShowForm(false)}
-              className="text-sm px-3 py-1.5 rounded border"
-              style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-            >
-              Cancel
-            </button>
+            <button onClick={() => setShowForm(false)} className="text-sm px-4 py-2 rounded-lg font-bold border" style={{ borderColor: "#E5E7EB", color: "#6B7280" }}>Cancel</button>
           </div>
         </div>
       )}
 
-      <div
-        className="rounded-lg border mb-4"
-        style={{
-          borderColor: "var(--border)",
-          background: "var(--background)",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-        }}
-      >
-        <div
-          className="px-5 py-3.5 border-b"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <h2
-            className="text-sm font-semibold"
-            style={{ color: "var(--heading)" }}
-          >
-            Endpoints
-          </h2>
+      <div className="bg-white border rounded-xl mb-4" style={{ borderColor: "#EAECEF" }}>
+        <div className="px-5 py-4 border-b" style={{ borderColor: "#F0F2F4" }}>
+          <h2 className="text-sm font-bold" style={{ color: "#0F1728" }}>Endpoints</h2>
         </div>
         {endpoints.length === 0 ? (
-          <div
-            className="px-5 py-8 text-center text-sm"
-            style={{ color: "var(--muted)" }}
-          >
-            No endpoints registered.
+          <div className="p-12 text-center">
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: "#F1F3F5", color: "#9CA3AF" }}>
+              <i className="ti ti-webhook" style={{ fontSize: 22 }} />
+            </div>
+            <p className="text-sm font-bold" style={{ color: "#0F1728" }}>No endpoints registered</p>
+            <p className="text-xs font-medium mt-1 mb-4" style={{ color: "#8A94A6" }}>Add an endpoint to start receiving billing events.</p>
+            <button onClick={() => setShowForm(true)} className="text-sm px-4 py-2 rounded-lg font-bold text-white" style={{ background: "#0F1728" }}>Add endpoint</button>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full">
             <thead>
-              <tr style={{ borderBottom: `1px solid var(--border)` }}>
-                {["URL", "Events", "Version", "Status", "Created"].map((h) => (
-                  <th
-                    key={h}
-                    className="px-5 py-2.5 text-left text-xs font-medium"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    {h}
-                  </th>
+              <tr style={{ background: "#FAFBFC", borderBottom: "0.5px solid #EAECEF" }}>
+                {["URL", "Events", "Version", "Status", "Created"].map(h => (
+                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold" style={{ color: "#98A2B3" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {endpoints.map((ep) => (
-                <tr
-                  key={ep.id}
-                  style={{ borderBottom: `1px solid var(--border)` }}
-                >
-                  <td
-                    className="px-5 py-3 text-sm font-mono"
-                    style={{ color: "var(--body)" }}
-                  >
-                    {ep.url}
-                  </td>
-                  <td
-                    className="px-5 py-3 text-xs"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    {ep.events.join(", ")}
-                  </td>
-                  <td
-                    className="px-5 py-3 text-xs font-mono"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    {ep.api_version}
-                  </td>
-                  <td className="px-5 py-3">
-                    <span
-                      className={`text-xs font-medium ${ep.is_active ? "text-green-600" : "text-gray-400"}`}
-                    >
-                      {ep.is_active ? "Active" : "Inactive"}
+              {endpoints.map(ep => (
+                <tr key={ep.id} style={{ borderTop: "0.5px solid #F2F4F6" }}>
+                  <td className="px-4 py-3 font-mono text-xs" style={{ color: "#0F1728" }}>{ep.url}</td>
+                  <td className="px-4 py-3 text-xs font-medium" style={{ color: "#6B7280" }}>{ep.events.join(", ")}</td>
+                  <td className="px-4 py-3 text-xs font-mono" style={{ color: "#98A2B3" }}>{ep.api_version}</td>
+                  <td className="px-4 py-3">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: ep.is_active ? "#E3F7EF" : "#F1F3F5", color: ep.is_active ? "#0A7A56" : "#6B7280" }}>
+                      {ep.is_active ? "ACTIVE" : "INACTIVE"}
                     </span>
                   </td>
-                  <td
-                    className="px-5 py-3 text-xs"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    {formatDate(ep.created_at)}
-                  </td>
+                  <td className="px-4 py-3 text-xs font-medium" style={{ color: "#98A2B3" }}>{formatDate(ep.created_at)}</td>
                 </tr>
               ))}
             </tbody>
@@ -243,91 +167,55 @@ export default function WebhooksPage() {
         )}
       </div>
 
-      <div
-        className="rounded-lg border"
-        style={{
-          borderColor: "var(--border)",
-          background: "var(--background)",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-        }}
-      >
-        <div
-          className="px-5 py-3.5 border-b"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <h2
-            className="text-sm font-semibold"
-            style={{ color: "var(--heading)" }}
-          >
-            Delivery log
-          </h2>
-        </div>
-        {deliveries.length === 0 ? (
-          <div
-            className="px-5 py-8 text-center text-sm"
-            style={{ color: "var(--muted)" }}
-          >
-            No deliveries yet.
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="bg-white border rounded-xl p-5" style={{ borderColor: "#EAECEF" }}>
+          <h2 className="text-sm font-bold mb-4" style={{ color: "#0F1728" }}>Supported events</h2>
+          <div className="space-y-2">
+            {events.map(e => (
+              <div key={e} className="flex items-center gap-2.5 py-1.5 border-b" style={{ borderColor: "#F4F6F8" }}>
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#00B37E", flexShrink: 0 }} />
+                <code className="text-xs font-mono" style={{ color: "#4B5563" }}>{e}</code>
+              </div>
+            ))}
           </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: `1px solid var(--border)` }}>
-                {["Event", "Status", "Attempts", "Response", "Time"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="px-5 py-2.5 text-left text-xs font-medium"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {deliveries.map((d) => (
-                <tr
-                  key={d.id}
-                  style={{ borderBottom: `1px solid var(--border)` }}
-                >
-                  <td
-                    className="px-5 py-3 text-sm font-mono"
-                    style={{ color: "var(--body)" }}
-                  >
-                    {d.event_type}
-                  </td>
-                  <td className="px-5 py-3">
-                    <span
-                      className={`text-xs font-semibold ${deliveryStatusColor(d.status)}`}
-                    >
-                      {d.status}
-                    </span>
-                  </td>
-                  <td
-                    className="px-5 py-3 text-sm"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    {d.attempt_count}
-                  </td>
-                  <td
-                    className="px-5 py-3 text-sm"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    {d.response_status ?? "—"}
-                  </td>
-                  <td
-                    className="px-5 py-3 text-xs"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    {formatDate(d.created_at)}
-                  </td>
+        </div>
+
+        <div className="bg-white border rounded-xl" style={{ borderColor: "#EAECEF" }}>
+          <div className="px-5 py-4 border-b" style={{ borderColor: "#F0F2F4" }}>
+            <h2 className="text-sm font-bold" style={{ color: "#0F1728" }}>Delivery log</h2>
+          </div>
+          {deliveries.length === 0 ? (
+            <div className="p-10 text-center">
+              <p className="text-sm font-bold" style={{ color: "#0F1728" }}>No deliveries yet</p>
+              <p className="text-xs font-medium mt-1" style={{ color: "#8A94A6" }}>Deliveries appear here when billing events fire.</p>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr style={{ background: "#FAFBFC" }}>
+                  {["Event", "Status", "Attempts", "Time"].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold" style={{ color: "#98A2B3" }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              </thead>
+              <tbody>
+                {deliveries.map(d => {
+                  const s = deliveryStatus(d.status);
+                  return (
+                    <tr key={d.id} style={{ borderTop: "0.5px solid #F2F4F6" }}>
+                      <td className="px-4 py-3 text-xs font-mono" style={{ color: "#0F1728" }}>{d.event_type}</td>
+                      <td className="px-4 py-3">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: s.bg, color: s.color }}>{d.status}</span>
+                      </td>
+                      <td className="px-4 py-3 text-xs font-medium" style={{ color: "#6B7280" }}>{d.attempt_count}</td>
+                      <td className="px-4 py-3 text-xs font-medium" style={{ color: "#98A2B3" }}>{formatDate(d.created_at)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
   );
