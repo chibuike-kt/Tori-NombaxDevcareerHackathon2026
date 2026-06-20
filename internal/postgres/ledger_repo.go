@@ -174,6 +174,17 @@ func toInt64(v interface{}) int64 {
 		return int64(val)
 	case float64:
 		return int64(val)
+	case pgtype.Numeric:
+		if !val.Valid {
+			return 0
+		}
+		var result int64
+		if err := val.Scan(&result); err != nil {
+			// fallback: convert via float
+			f, _ := val.Float64Value()
+			return int64(f.Float64)
+		}
+		return result
 	default:
 		return 0
 	}
