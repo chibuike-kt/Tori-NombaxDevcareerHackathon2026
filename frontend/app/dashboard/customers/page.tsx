@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getCustomers, createCustomer } from "@/lib/api";
@@ -17,6 +18,7 @@ export default function CustomersPage() {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const router = useRouter();
 
   const create = useMutation({
     mutationFn: () => createCustomer({ email, name }),
@@ -212,7 +214,15 @@ export default function CustomersPage() {
               {filtered.map((c) => {
                 const av = avatarFor(c.email);
                 return (
-                  <tr key={c.id} style={{ borderTop: "0.5px solid #F2F4F6" }}>
+                  <tr
+                    key={c.id}
+                    onClick={() => router.push(`/dashboard/customers/${c.id}`)}
+                    style={{
+                      borderTop: "0.5px solid #F2F4F6",
+                      cursor: "pointer",
+                    }}
+                    className="hover:bg-gray-50"
+                  >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         <span
