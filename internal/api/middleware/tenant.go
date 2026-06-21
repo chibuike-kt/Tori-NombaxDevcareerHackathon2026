@@ -22,11 +22,6 @@ func HashAPIKey(key string) string {
 	return hex.EncodeToString(h[:])
 }
 
-func sha256Hex(s string) string {
-	h := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(h[:])
-}
-
 func APIKeyAuth(tenants domain.TenantRepository) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
