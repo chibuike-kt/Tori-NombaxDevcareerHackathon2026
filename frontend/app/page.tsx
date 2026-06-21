@@ -39,7 +39,7 @@ export default function LandingPage() {
               Stop rebuilding<br />billing from scratch<br /><span style={{ color: "#00B37E" }}>every single time.</span>
             </h1>
             <p className="text-xl mb-4" style={{ color: "#4B5563", lineHeight: 1.6 }}>
-              Every Nigerian SaaS, edtech, and creator platform that charges customers monthly has had to build the same billing system from scratch. Subscriptions, payment retries, churn tracking, invoices — all of it, from zero, every time.
+              Every Nigerian SaaS, edtech, and creator platform that charges customers monthly has had to build the same billing system from scratch. Subscriptions, payment retries, churn tracking, invoices. All of it, from zero, every time.
             </p>
             <p className="text-xl mb-8 font-semibold" style={{ color: "#0F1728", lineHeight: 1.6 }}>
               Tori is that billing system. Built once. Available to every business on Nomba.
@@ -154,7 +154,7 @@ export default function LandingPage() {
             </div>
             <ul className="space-y-3">
               {[
-                "Create a plan in one API call — ₦15,000/month, done",
+                "Create a plan in one API call. ₦15,000/month, done.",
                 "Add a customer and start their subscription in two more calls",
                 "Tori charges them automatically every month via Nomba",
                 "When a card fails, Tori classifies it and retries intelligently",
@@ -181,10 +181,10 @@ export default function LandingPage() {
             {[
               ["ti-building-store", "SaaS founders", "You built software that solves a real problem and charge ₦5,000–₦50,000/month. You need billing that just works so you can focus on the product."],
               ["ti-school", "Edtech platforms", "You charge school fees termly or tuition monthly. You need a billing system that handles irregular schedules and gives parents a clean way to pay."],
-              ["ti-microphone", "Creator platforms", "You sell memberships, courses, or exclusive content. High volume, low value per charge — you need dunning recovery to not leave money on the table."],
+              ["ti-microphone", "Creator platforms", "You sell memberships, courses, or exclusive content. High volume, low value per charge. You need dunning recovery to not leave money on the table."],
               ["ti-heart-handshake", "Membership businesses", "Gyms, professional associations, subscription boxes. You need pause and resume, not just cancel, because life happens and customers come back."],
               ["ti-device-laptop", "Developer platforms", "API-first tools charging per seat or per month. You need a platform API your own customers can integrate with, not just a dashboard."],
-              ["ti-chart-bar", "Fintech builders", "You're building on Nomba's rails and need the financial infrastructure layer — ledger, audit trail, and revenue metrics — without starting from scratch."],
+              ["ti-chart-bar", "Fintech builders", "You're building on Nomba's rails and need the financial infrastructure layer: ledger, audit trail, and revenue metrics, without starting from scratch."],
             ].map(([icon, title, desc]) => (
               <div key={title} className="bg-white rounded-xl p-5 border" style={{ borderColor: "#E5E7EB" }}>
                 <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3" style={{ background: "#E6F8F2", color: "#00B37E" }}>
@@ -205,10 +205,10 @@ export default function LandingPage() {
         <p className="text-lg mb-12" style={{ color: "#6B7280" }}>No billing engineer required. No months of work. Just three API calls and a webhook listener.</p>
         <div className="space-y-5">
           {[
-            ["1", "Create a billing plan", "Define what you charge and how often. ₦15,000/month, ₦150,000/year, or a custom interval — termly fees, quarterly retainers, anything. Set a free trial period if you want customers to experience the product before paying.", 'POST /v1/platform/plans\n{ "name": "Pro", "amount": 1500000, "interval": "monthly", "trial_period_days": 14 }'],
+            ["1", "Create a billing plan", "Define what you charge and how often. ₦15,000/month, ₦150,000/year, or a custom interval: termly fees, quarterly retainers, anything. Set a free trial period if you want customers to experience the product before paying.", 'POST /v1/platform/plans\n{ "name": "Pro", "amount": 1500000, "interval": "monthly", "trial_period_days": 14 }'],
             ["2", "Add your customer", "When someone signs up on your product, create a matching customer in Tori. Pass your own customer ID so you can always link the two. Tori stores their billing relationship from that point.", 'POST /v1/platform/customers\n{ "email": "amaka@startup.ng", "external_id": "your-user-123" }'],
             ["3", "Start their subscription", "Link the customer to a plan and Tori takes over. It charges them through Nomba every cycle, handles failures, retries intelligently, and keeps the financial record.", 'POST /v1/platform/subscriptions\n{ "customer_id": "cus_...", "plan_id": "plan_..." }'],
-            ["4", "React to events in your product", "Tori sends a webhook to your server every time something billing-related happens. Your product listens and acts — suspend access on payment failure, restore it when recovered, send a receipt on success.", 'subscription.activated → unlock access\npayment.failed → show payment warning\ndunning.recovered → restore full access\nsubscription.cancelled → offboard gracefully'],
+            ["4", "React to events in your product", "Tori sends a webhook to your server every time something billing-related happens. Your product listens and acts: suspend access on payment failure, restore it when recovered, send a receipt on success.", 'subscription.activated → unlock access\npayment.failed → show payment warning\ndunning.recovered → restore full access\nsubscription.cancelled → offboard gracefully'],
           ].map(([num, title, desc, code]) => (
             <div key={num} className="grid grid-cols-2 gap-8 items-start p-6 rounded-2xl border" style={{ borderColor: "#E5E7EB" }}>
               <div>
@@ -234,9 +234,9 @@ export default function LandingPage() {
           </p>
           <div className="grid grid-cols-3 gap-5 mb-10">
             {[
-              ["ti-credit-card-off", "Blocked cards", "Many Nigerian cards are issued blocked for online transactions by default. Tori recognises this immediately and stops retrying — so you don't waste 4 attempts on a card that can never succeed."],
-              ["ti-calendar", "Payday retries", "Insufficient funds often clear after salary day. Tori spaces retries to land after typical payday windows — Day 3, Day 7, Day 14, Day 21 — maximising recovery."],
-              ["ti-wifi-off", "Bank outages", "Nigerian bank systems go down. When a failure looks like a temporary issuer issue, Tori classifies it as retriable and waits — not a reason to immediately suspend the customer."],
+              ["ti-credit-card-off", "Blocked cards", "Many Nigerian cards are issued blocked for online transactions by default. Tori recognises this immediately and stops retrying, so you don't waste 4 attempts on a card that can never succeed."],
+              ["ti-calendar", "Payday retries", "Insufficient funds often clear after salary day. Tori spaces retries to land after typical payday windows: Day 3, Day 7, Day 14, Day 21, maximising recovery."],
+              ["ti-wifi-off", "Bank outages", "Nigerian bank systems go down. When a failure looks like a temporary issuer issue, Tori classifies it as retriable and waits instead of immediately suspending the customer."],
             ].map(([icon, title, desc]) => (
               <div key={title} className="bg-white rounded-xl p-5 border" style={{ borderColor: "#E5E7EB" }}>
                 <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3" style={{ background: "#E6F8F2", color: "#00B37E" }}>
@@ -255,7 +255,7 @@ export default function LandingPage() {
               <div>
                 <h3 className="text-base font-extrabold mb-1" style={{ color: "#0F1728" }}>What dunning recovery actually means in money</h3>
                 <p className="text-sm font-medium leading-relaxed" style={{ color: "#166534" }}>
-                  If you have 500 subscribers at ₦10,000/month and 8% of payments fail each month, that&apos;s ₦400,000 at risk every cycle. Without smart dunning, you lose most of it. With Tori&apos;s Nigerian-tuned retry logic, a significant portion of that comes back — automatically, with no action from you.
+                  If you have 500 subscribers at ₦10,000/month and 8% of payments fail each month, that&apos;s ₦400,000 at risk every cycle. Without smart dunning, you lose most of it. With Tori&apos;s Nigerian-tuned retry logic, a significant portion of that comes back automatically, with no action from you.
                 </p>
               </div>
             </div>
@@ -272,7 +272,7 @@ export default function LandingPage() {
         </p>
         <div className="grid grid-cols-2 gap-5 mb-10">
           {[
-            ["MRR (Monthly Recurring Revenue)", "The total amount your subscribers pay you every month. Tori computes this directly from actual charges — not forecasts or estimates."],
+            ["MRR (Monthly Recurring Revenue)", "The total amount your subscribers pay you every month. Tori computes this directly from actual charges, not forecasts or estimates."],
             ["Churn rate", "The percentage of customers who cancelled in a given period. Lower is better. Tori tracks this automatically so you always know if you're growing or shrinking."],
             ["Dunning recovery rate", "Of all the payments that failed, how many did Tori eventually recover through retries? This is money you would have lost without a smart retry system."],
             ["Net revenue", "Gross charges minus refunds and credits. The real money in your account after everything is accounted for. Reconcilable to the cent."],
@@ -289,7 +289,7 @@ export default function LandingPage() {
             <span className="text-sm font-extrabold" style={{ color: "#0F1728" }}>The tamper-proof ledger</span>
           </div>
           <p className="text-sm font-medium leading-relaxed" style={{ color: "#4B5563" }}>
-            Every financial event — every charge, refund, credit, and adjustment — writes one immutable row to the ledger. Nothing is ever edited or deleted. If your investor asks &quot;show me exactly where this number comes from&quot;, you can show them the exact entries behind it. That&apos;s the level of financial trust Tori is built to provide.
+            Every financial event (every charge, refund, credit, and adjustment) writes one immutable row to the ledger. Nothing is ever edited or deleted. If your investor asks &quot;show me exactly where this number comes from&quot;, you can show them the exact entries behind it. That&apos;s the level of financial trust Tori is built to provide.
           </p>
         </div>
       </section>
