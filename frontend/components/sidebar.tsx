@@ -25,10 +25,26 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
 
-  const handleLogout = () => {
-    logout();
+const handleLogout = async () => {
+  try {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/v1/auth/logout`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+    }
+  } catch {
+    // proceed with local logout even if server call fails
+  } finally {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
     router.push("/login");
-  };
+  }
+};
 
   return (
     <aside
