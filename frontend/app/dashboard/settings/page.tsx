@@ -36,10 +36,26 @@ export default function SettingsPage() {
     },
   });
 
-  const handleLogout = () => {
-    logout();
+const handleLogout = async () => {
+  try {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/v1/auth/logout`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+    }
+  } catch {
+    // proceed regardless
+  } finally {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
     router.push("/login");
-  };
+  }
+};
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
