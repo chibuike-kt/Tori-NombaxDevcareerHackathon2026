@@ -9,6 +9,7 @@ import (
 	"time"
 
 	api "github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/cache"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/postgres"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -18,6 +19,11 @@ func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if len(jwtSecret) < 32 {
+		log.Fatal().Msg("JWT_SECRET must be set and at least 32 characters — refusing to start")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -26,13 +32,13 @@ func main() {
 		log.Fatal().Err(err).Msg("failed to connect to database")
 	}
 	defer pool.Close()
-
 	log.Info().Msg("database connection established")
 
-jwtSecret := os.Getenv("JWT_SECRET")
-if len(jwtSecret) < 32 {
-    log.Fatal().Msg("JWT_SECRET must be set and at least 32 characters — refusing to start")
-}
+	tokenStore, err := cache.NewTokenStore()
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to connect to Redis")
+	}
+	log.Info().Msg("Redis connection established")
 
 	deps := api.Deps{
 		Tenants:       postgres.NewTenantRepo(pool),
@@ -43,6 +49,7 @@ if len(jwtSecret) < 32 {
 		Ledger:        postgres.NewLedgerRepo(pool),
 		Jobs:          postgres.NewJobRepo(pool),
 		Webhooks:      postgres.NewWebhookRepo(pool),
+		Tokens:        tokenStore,
 	}
 
 	router := api.NewRouter(deps)
@@ -78,6 +85,5 @@ if len(jwtSecret) < 32 {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Fatal().Err(err).Msg("forced shutdown")
 	}
-
 	log.Info().Msg("API server stopped")
 }
