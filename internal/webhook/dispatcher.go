@@ -95,6 +95,7 @@ func (d *Dispatcher) deliver(ctx context.Context, endpoint *domain.WebhookEndpoi
 	if err != nil {
 		nextRetry := time.Now().Add(5 * time.Minute)
 		_ = d.repo.MarkDeliveryFailed(ctx, delivery.ID, 0, err.Error(), nextRetry)
+		d.checkCircuitBreaker(ctx, endpoint.ID)
 		return err
 	}
 	defer resp.Body.Close()
@@ -106,7 +107,23 @@ func (d *Dispatcher) deliver(ctx context.Context, endpoint *domain.WebhookEndpoi
 
 	nextRetry := nextRetryAt(delivery.AttemptCount + 1)
 	_ = d.repo.MarkDeliveryFailed(ctx, delivery.ID, resp.StatusCode, fmt.Sprintf("non-2xx status: %d", resp.StatusCode), nextRetry)
+	d.checkCircuitBreaker(ctx, endpoint.ID)
 	return fmt.Errorf("endpoint returned %d", resp.StatusCode)
+}
+
+// checkCircuitBreaker disables an endpoint if it has failed 10+ times in 24 hours.
+func (d *Dispatcher) checkCircuitBreaker(ctx context.Context, endpointID uuid.UUID) {
+	count, err := d.repo.CountRecentFailedDeliveries(ctx, endpointID)
+	if err != nil {
+		return
+	}
+	if count >= 10 {
+		_ = d.repo.DisableWebhookEndpoint(ctx, endpointID)
+		log.Warn().
+			Str("endpoint_id", endpointID.String()).
+			Int64("failure_count", count).
+			Msg("webhook endpoint disabled after 10 consecutive failures in 24 hours")
+	}
 }
 
 // sign produces HMAC-SHA256 signature of the payload using the endpoint secret.
