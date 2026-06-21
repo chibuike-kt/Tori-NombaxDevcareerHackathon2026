@@ -10,6 +10,9 @@ import (
 type TokenRevoker interface {
 	Revoke(ctx context.Context, token string, expiresAt time.Time) error
 	IsRevoked(ctx context.Context, token string) bool
+	RecordLoginFailure(ctx context.Context, email string) (int, error)
+	IsLoginLocked(ctx context.Context, email string) bool
+	ClearLoginFailures(ctx context.Context, email string)
 }
 
 type TenantRepository interface {
