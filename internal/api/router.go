@@ -9,6 +9,7 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/finops"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/ledger"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/webhook"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
@@ -47,7 +48,8 @@ func NewRouter(deps Deps) http.Handler {
 	authH := handlers.NewAuthHandler(deps.Tenants)
 	planH := handlers.NewPlanHandler(deps.Plans)
 	customerH := handlers.NewCustomerHandler(deps.Customers)
-	subH := handlers.NewSubscriptionHandler(deps.Subscriptions, deps.Plans, deps.Customers)
+	dispatcher := webhook.NewDispatcher(deps.Webhooks)
+	subH := handlers.NewSubscriptionHandler(deps.Subscriptions, deps.Plans, deps.Customers, dispatcher)
 	ledgerSvc := ledger.NewService(deps.Ledger)
 	ledgerH := handlers.NewLedgerHandler(ledgerSvc)
 	finopsSvc := finops.NewService(deps.Ledger, deps.Subscriptions)
@@ -64,6 +66,7 @@ func NewRouter(deps Deps) http.Handler {
 		r.Use(middleware.JWTAuth(jwtSecret, deps.Tenants))
 
 		r.Get("/v1/me", authH.Me)
+		r.Patch("/v1/me", authH.UpdateMe)
 
 		apiKeyH := handlers.NewAPIKeyHandler(deps.Tenants)
 		r.Post("/v1/api-keys", apiKeyH.CreateAPIKey)
