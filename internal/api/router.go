@@ -91,6 +91,13 @@ func NewRouter(deps Deps) http.Handler {
 	r.Post("/v1/auth/register", authH.Register)
 	r.Post("/v1/auth/login", authH.Login)
 	r.Post("/v1/auth/refresh", authH.Refresh)
+	portalH := handlers.NewPortalHandler(deps.Customers, deps.Subscriptions, deps.Plans)
+r.Group(func(r chi.Router) {
+    r.Get("/v1/portal", portalH.GetPortalData)
+    r.Post("/v1/portal/subscriptions/{id}/cancel", portalH.PortalCancel)
+    r.Post("/v1/portal/subscriptions/{id}/pause", portalH.PortalPause)
+    r.Post("/v1/portal/subscriptions/{id}/resume", portalH.PortalResume)
+})
 
 	// Dashboard API — JWT auth + per-tenant rate limiting
 	r.Group(func(r chi.Router) {
