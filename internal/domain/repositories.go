@@ -17,6 +17,7 @@ type TenantRepository interface {
 	Update(ctx context.Context, id uuid.UUID, name, email string) (*Tenant, error)
 	Deactivate(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context) ([]*Tenant, error)
+	UpdateAPIKeyHash(ctx context.Context, id uuid.UUID, hash string) error
 }
 
 type CustomerRepository interface {
