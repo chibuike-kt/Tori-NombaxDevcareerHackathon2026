@@ -14,89 +14,30 @@ export default function SignupPage() {
     const token = localStorage.getItem("access_token");
     if (token) router.replace("/dashboard");
   }, [router]);
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [apiKey, setApiKey] = useState<string | null>(null);
 
   const handleSignup = async () => {
     setError("");
     setLoading(true);
     try {
       const res = await api.post<{
-        data: { access_token: string; refresh_token: string; api_key: string };
+        data: { access_token: string; refresh_token: string };
       }>("/v1/auth/register", { name, email, password });
       localStorage.setItem("access_token", res.data.access_token);
       localStorage.setItem("refresh_token", res.data.refresh_token);
-      setApiKey(res.data.api_key);
+      router.push("/dashboard");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Signup failed");
     } finally {
       setLoading(false);
     }
   };
-
-  if (apiKey) {
-    return (
-      <div
-        className="min-h-screen flex flex-col"
-        style={{ background: "#fff" }}
-      >
-        <AuthNav showClose />
-        <div className="flex-1 flex items-center justify-center px-6">
-          <div className="w-full max-w-md text-center">
-            <div
-              className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5"
-              style={{ background: "#E6F8F2", color: "#00B37E" }}
-            >
-              <i className="ti ti-check" style={{ fontSize: 28 }} />
-            </div>
-            <h1
-              className="text-3xl font-extrabold mb-2"
-              style={{ color: "#0F1728" }}
-            >
-              You&apos;re all set
-            </h1>
-            <p
-              className="text-sm mb-6 font-medium"
-              style={{ color: "#6B7280" }}
-            >
-              Save your API key now — it won&apos;t be shown again.
-            </p>
-            <div
-              className="rounded-lg p-4 mb-6 flex items-center justify-between gap-3"
-              style={{ background: "#F8F9FA", border: "1px solid #E5E7EB" }}
-            >
-              <code
-                className="text-xs font-mono break-all text-left"
-                style={{ color: "#0F1728" }}
-              >
-                {apiKey}
-              </code>
-              <button
-                onClick={() => navigator.clipboard.writeText(apiKey)}
-                className="text-xs px-3 py-1.5 rounded font-bold text-white flex-shrink-0"
-                style={{ background: "#00B37E" }}
-              >
-                Copy
-              </button>
-            </div>
-            <button
-              onClick={() => router.push("/dashboard")}
-              className="w-full py-3.5 rounded-lg font-bold text-white"
-              style={{ background: "#0F1728" }}
-            >
-              Go to dashboard →
-            </button>
-          </div>
-        </div>
-        <AuthFooter />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#fff" }}>
@@ -194,7 +135,7 @@ export default function SignupPage() {
                 color: loading ? "#9CA3AF" : "white",
               }}
             >
-              {loading ? "Creating account..." : "Continue"}
+              {loading ? "Creating account..." : "Create account"}
             </button>
           </div>
 
