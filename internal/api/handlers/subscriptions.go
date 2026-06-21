@@ -1,10 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
-	"context"
 
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
@@ -21,6 +21,7 @@ type SubscriptionHandler struct {
 	plans      domain.PlanRepository
 	customers  domain.CustomerRepository
 	dispatcher *webhook.Dispatcher
+	jobs       domain.JobRepository
 }
 
 func NewSubscriptionHandler(
@@ -28,16 +29,26 @@ func NewSubscriptionHandler(
 	plans domain.PlanRepository,
 	customers domain.CustomerRepository,
 	dispatcher *webhook.Dispatcher,
+	jobs domain.JobRepository,
 ) *SubscriptionHandler {
 	return &SubscriptionHandler{
 		subs:       subs,
 		plans:      plans,
 		customers:  customers,
 		dispatcher: dispatcher,
+		jobs:       jobs,
 	}
 }
 
-// fireEvent dispatches a webhook event asynchronously so it never blocks the API response.
+func (h *SubscriptionHandler) cancelPendingJobs(subID string) {
+	go func() {
+		ctx := context.Background()
+		if err := h.jobs.CancelPendingJobsForSubscription(ctx, subID); err != nil {
+			log.Error().Err(err).Str("sub_id", subID).Msg("failed to cancel pending jobs")
+		}
+	}()
+}
+
 func (h *SubscriptionHandler) fireEvent(tenantID uuid.UUID, eventType domain.WebhookEventType, data interface{}) {
 	go func() {
 		ctx := context.Background()
@@ -115,7 +126,6 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.fireEvent(tenantID, domain.EventSubscriptionCreated, sub)
-
 	respond.JSON(w, r, http.StatusCreated, sub)
 }
 
@@ -127,7 +137,6 @@ func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 		limit = 20
 	}
 
-	// Filter by customer_id if provided
 	if customerIDStr := r.URL.Query().Get("customer_id"); customerIDStr != "" {
 		customerID, err := uuid.Parse(customerIDStr)
 		if err != nil {
@@ -143,7 +152,6 @@ func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Filter by status if provided
 	if status := r.URL.Query().Get("status"); status != "" {
 		subs, err := h.subs.ListByStatus(r.Context(), tenantID, domain.SubscriptionStatus(status), limit, offset)
 		if err != nil {
@@ -205,8 +213,8 @@ func (h *SubscriptionHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.cancelPendingJobs(id.String())
 	h.fireEvent(tenantID, domain.EventSubscriptionCancelled, updated)
-
 	respond.JSON(w, r, http.StatusOK, updated)
 }
 
@@ -237,7 +245,6 @@ func (h *SubscriptionHandler) Pause(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.fireEvent(tenantID, domain.EventSubscriptionPaused, updated)
-
 	respond.JSON(w, r, http.StatusOK, updated)
 }
 
@@ -267,7 +274,7 @@ func (h *SubscriptionHandler) Resume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.cancelPendingJobs(id.String())
 	h.fireEvent(tenantID, domain.EventSubscriptionResumed, updated)
-
 	respond.JSON(w, r, http.StatusOK, updated)
 }
