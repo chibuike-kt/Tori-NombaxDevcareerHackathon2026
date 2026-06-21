@@ -14,7 +14,6 @@ function ScoreRing({ score, color }: { score: number; color: string }) {
   const r = 28;
   const circ = 2 * Math.PI * r;
   const filled = (score / 100) * circ;
-
   return (
     <svg width="72" height="72" viewBox="0 0 72 72">
       <circle
@@ -53,13 +52,31 @@ function ScoreRing({ score, color }: { score: number; color: string }) {
 }
 
 function HealthBadge({ label, color }: { label: string; color: string }) {
-  const bg = color + "20";
   return (
     <span
       className="text-[10px] font-extrabold px-2 py-0.5 rounded-full"
-      style={{ background: bg, color }}
+      style={{ background: color + "20", color }}
     >
       {label.toUpperCase()}
+    </span>
+  );
+}
+
+function ChurnBadge({ signal }: { signal: string }) {
+  const config: Record<string, { color: string; bg: string; label: string }> = {
+    none: { color: "#6B7280", bg: "#F1F3F5", label: "No risk" },
+    low: { color: "#16A34A", bg: "#E3F7EF", label: "Low risk" },
+    medium: { color: "#D97706", bg: "#FEF3C7", label: "Medium risk" },
+    high: { color: "#EA580C", bg: "#FFF0E6", label: "High risk" },
+    critical: { color: "#DC2626", bg: "#FDECEC", label: "Critical" },
+  };
+  const c = config[signal] ?? config.none;
+  return (
+    <span
+      className="text-[10px] font-extrabold px-2 py-0.5 rounded-full"
+      style={{ background: c.bg, color: c.color }}
+    >
+      {c.label.toUpperCase()}
     </span>
   );
 }
@@ -95,13 +112,24 @@ export default function HealthPage() {
         ? "#D97706"
         : "#DC2626";
 
+  const churnRisk =
+    portfolio?.subscriptions.filter(
+      (s) => s.churn.signal === "high" || s.churn.signal === "critical",
+    ) ?? [];
+
   const atRisk =
     portfolio?.subscriptions.filter(
       (s) => s.health.score < 70 && s.health.score >= 30,
     ) ?? [];
+
   const critical =
     portfolio?.subscriptions.filter((s) => s.health.score < 30) ?? [];
-  const needsAttention = [...critical, ...atRisk];
+
+  const needsAttention = [
+    ...new Map(
+      [...critical, ...atRisk, ...churnRisk].map((s) => [s.id, s]),
+    ).values(),
+  ];
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -113,7 +141,8 @@ export default function HealthPage() {
           Billing health
         </h1>
         <p className="text-sm font-medium mt-0.5" style={{ color: "#8A94A6" }}>
-          Real-time health scores across your entire subscriber base
+          Real-time health scores and churn prediction across your subscriber
+          base
         </p>
       </div>
 
@@ -127,9 +156,9 @@ export default function HealthPage() {
       ) : !portfolio ? null : (
         <>
           {/* Portfolio summary */}
-          <div className="grid grid-cols-4 gap-4 mb-5">
+          <div className="grid grid-cols-5 gap-4 mb-5">
             <div
-              className="bg-white border rounded-xl p-5 flex items-center gap-4"
+              className="col-span-2 bg-white border rounded-xl p-5 flex items-center gap-4"
               style={{ borderColor: "#EAECEF" }}
             >
               <ScoreRing score={portfolio.average_score} color={avgColor} />
@@ -141,7 +170,7 @@ export default function HealthPage() {
                   Portfolio health
                 </p>
                 <p
-                  className="text-base font-extrabold"
+                  className="text-lg font-extrabold"
                   style={{ color: "#0F1728" }}
                 >
                   {portfolio.average_score >= 70
@@ -151,7 +180,8 @@ export default function HealthPage() {
                       : "Needs attention"}
                 </p>
                 <p className="text-xs font-medium" style={{ color: "#9CA3AF" }}>
-                  avg across all subs
+                  avg score across {portfolio.subscriptions.length} active
+                  subscriptions
                 </p>
               </div>
             </div>
@@ -170,6 +200,12 @@ export default function HealthPage() {
                 "ti-alert-triangle",
               ],
               ["Critical", portfolio.critical_count, "#DC2626", "ti-circle-x"],
+              [
+                "Churn risk",
+                portfolio.churn_risk_count,
+                "#7C3AED",
+                "ti-user-minus",
+              ],
             ].map(([label, count, color, icon]) => (
               <div
                 key={label as string}
@@ -204,42 +240,172 @@ export default function HealthPage() {
             ))}
           </div>
 
-          {/* Needs attention banner */}
+          {/* Attention banner */}
           {needsAttention.length > 0 && (
             <div
-              className="rounded-xl border p-4 mb-5 flex items-start gap-3"
+              className="rounded-xl border p-4 mb-5"
               style={{ borderColor: "#FDE68A", background: "#FFFBEB" }}
             >
-              <i
-                className="ti ti-alert-triangle"
-                style={{
-                  fontSize: 18,
-                  color: "#D97706",
-                  flexShrink: 0,
-                  marginTop: 1,
-                }}
-              />
-              <div>
-                <p
-                  className="text-sm font-extrabold mb-0.5"
-                  style={{ color: "#0F1728" }}
-                >
-                  {needsAttention.length} subscription
-                  {needsAttention.length > 1 ? "s" : ""} need
-                  {needsAttention.length === 1 ? "s" : ""} attention
-                </p>
-                <p className="text-xs font-medium" style={{ color: "#6B7280" }}>
-                  {critical.length > 0 &&
-                    `${critical.length} critical (score below 30). `}
-                  {atRisk.length > 0 &&
-                    `${atRisk.length} at risk (score 30-69). `}
-                  Review these subscriptions before they churn.
-                </p>
+              <div className="flex items-start gap-3">
+                <i
+                  className="ti ti-alert-triangle"
+                  style={{
+                    fontSize: 18,
+                    color: "#D97706",
+                    flexShrink: 0,
+                    marginTop: 1,
+                  }}
+                />
+                <div className="flex-1">
+                  <p
+                    className="text-sm font-extrabold mb-1"
+                    style={{ color: "#0F1728" }}
+                  >
+                    {needsAttention.length} subscription
+                    {needsAttention.length > 1 ? "s" : ""} need
+                    {needsAttention.length === 1 ? "s" : ""} your attention
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {needsAttention.slice(0, 5).map((s) => {
+                      const cust = custById.get(s.customer_id);
+                      const av = avatarFor(cust?.email ?? s.customer_id);
+                      return (
+                        <div
+                          key={s.id}
+                          className="flex items-center gap-1.5 bg-white rounded-lg px-3 py-1.5 border"
+                          style={{ borderColor: "#E5E7EB" }}
+                        >
+                          <span
+                            className="w-5 h-5 rounded-full inline-flex items-center justify-center text-[9px] font-bold"
+                            style={{ background: av.bg, color: av.color }}
+                          >
+                            {av.initials}
+                          </span>
+                          <span
+                            className="text-xs font-semibold"
+                            style={{ color: "#0F1728" }}
+                          >
+                            {cust?.email ?? "Unknown"}
+                          </span>
+                          <ChurnBadge signal={s.churn.signal} />
+                        </div>
+                      );
+                    })}
+                    {needsAttention.length > 5 && (
+                      <span
+                        className="text-xs font-medium px-3 py-1.5"
+                        style={{ color: "#6B7280" }}
+                      >
+                        +{needsAttention.length - 5} more
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Full subscription health table */}
+          {/* Churn risk detail */}
+          {churnRisk.length > 0 && (
+            <div
+              className="bg-white border rounded-xl mb-4"
+              style={{ borderColor: "#EAECEF" }}
+            >
+              <div
+                className="px-5 py-4 border-b flex items-center gap-2"
+                style={{ borderColor: "#F0F2F4" }}
+              >
+                <i
+                  className="ti ti-user-minus"
+                  style={{ fontSize: 16, color: "#7C3AED" }}
+                />
+                <h2 className="text-sm font-bold" style={{ color: "#0F1728" }}>
+                  Churn prediction: {churnRisk.length} high-risk subscription
+                  {churnRisk.length > 1 ? "s" : ""}
+                </h2>
+              </div>
+              <div className="divide-y" style={{ borderColor: "#F0F2F4" }}>
+                {churnRisk.map((sub) => {
+                  const cust = custById.get(sub.customer_id);
+                  const plan = planById.get(sub.plan_id);
+                  const av = avatarFor(cust?.email ?? sub.customer_id);
+                  return (
+                    <div key={sub.id} className="px-5 py-4">
+                      <div className="flex items-start gap-3">
+                        <span
+                          className="w-8 h-8 rounded-full inline-flex items-center justify-center text-xs font-bold flex-shrink-0"
+                          style={{ background: av.bg, color: av.color }}
+                        >
+                          {av.initials}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span
+                              className="text-sm font-bold"
+                              style={{ color: "#0F1728" }}
+                            >
+                              {cust?.email ?? "Unknown"}
+                            </span>
+                            <ChurnBadge signal={sub.churn.signal} />
+                            <span
+                              className="text-xs font-medium"
+                              style={{ color: "#8A94A6" }}
+                            >
+                              {plan?.name ?? "Unknown plan"}
+                            </span>
+                          </div>
+                          <ul className="space-y-0.5 mb-2">
+                            {sub.churn.reasons.map((reason, i) => (
+                              <li
+                                key={i}
+                                className="flex items-center gap-1.5 text-xs font-medium"
+                                style={{ color: "#6B7280" }}
+                              >
+                                <i
+                                  className="ti ti-point-filled"
+                                  style={{ fontSize: 8, color: "#D97706" }}
+                                />
+                                {reason}
+                              </li>
+                            ))}
+                          </ul>
+                          <div
+                            className="rounded-lg px-3 py-2 text-xs font-semibold"
+                            style={{ background: "#F8F9FA", color: "#4B5563" }}
+                          >
+                            <i
+                              className="ti ti-bulb mr-1.5"
+                              style={{ color: "#00B37E" }}
+                            />
+                            {sub.churn.recommended_action}
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0 text-right">
+                          <div
+                            className="text-xs font-semibold mb-0.5"
+                            style={{ color: "#8A94A6" }}
+                          >
+                            Churn score
+                          </div>
+                          <div
+                            className="text-2xl font-extrabold"
+                            style={{
+                              color: "#DC2626",
+                              letterSpacing: "-0.02em",
+                            }}
+                          >
+                            {sub.churn.score}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Full table */}
           <div
             className="bg-white border rounded-xl"
             style={{ borderColor: "#EAECEF" }}
@@ -271,6 +437,7 @@ export default function HealthPage() {
                     "Customer",
                     "Plan",
                     "Status",
+                    "Churn risk",
                     "Reason",
                     "Period end",
                   ].map((h) => (
@@ -297,7 +464,7 @@ export default function HealthPage() {
                         style={{ borderTop: "0.5px solid #F2F4F6" }}
                       >
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-2.5">
+                          <div className="flex items-center gap-2">
                             <ScoreRing
                               score={sub.health.score}
                               color={sub.health.color}
@@ -337,6 +504,9 @@ export default function HealthPage() {
                           >
                             {sub.status}
                           </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <ChurnBadge signal={sub.churn.signal} />
                         </td>
                         <td
                           className="px-4 py-3 text-xs font-medium max-w-xs"
