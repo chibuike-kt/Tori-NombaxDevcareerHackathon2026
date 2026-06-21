@@ -113,6 +113,9 @@ export const createCheckout = (
     };
   }>("/v1/checkout", { email, plan_id: planId, name, external_id: externalId });
 
+  export const getPortfolioHealth = () =>
+    api.get<{ data: PortfolioHealth }>("/v1/health");
+
 export interface Tenant {
   id: string;
   name: string;
@@ -200,5 +203,23 @@ export interface PortfolioHealth {
   subscriptions: SubscriptionWithHealth[];
 }
 
-export const getPortfolioHealth = () =>
-  api.get<{ data: PortfolioHealth }>("/v1/health");
+export interface ChurnPrediction {
+  signal: "none" | "low" | "medium" | "high" | "critical";
+  score: number;
+  reasons: string[];
+  recommended_action: string;
+}
+
+export interface SubscriptionWithHealth extends Subscription {
+  health: HealthScore;
+  churn: ChurnPrediction;
+}
+
+export interface PortfolioHealth {
+  average_score: number;
+  healthy_count: number;
+  at_risk_count: number;
+  critical_count: number;
+  churn_risk_count: number;
+  subscriptions: SubscriptionWithHealth[];
+}
