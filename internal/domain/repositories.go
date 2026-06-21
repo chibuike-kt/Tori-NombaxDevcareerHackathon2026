@@ -26,6 +26,7 @@ type TenantRepository interface {
 	Deactivate(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context) ([]*Tenant, error)
 	UpdateAPIKeyHash(ctx context.Context, id uuid.UUID, hash string) error
+	UpdateAPIKeyHashAndHint(ctx context.Context, id uuid.UUID, hash, hint string) (*Tenant, error)
 }
 
 type CustomerRepository interface {
