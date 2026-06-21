@@ -133,3 +133,10 @@ func tenantFromRow(row db.Tenant) *domain.Tenant {
 func (r *TenantRepo) SetPassword(ctx context.Context, id uuid.UUID, passwordHash string) error {
 	return r.q.SetTenantPassword(ctx, db.SetTenantPasswordParams{ID: id, PasswordHash: passwordHash})
 }
+
+func (r *TenantRepo) UpdateAPIKeyHash(ctx context.Context, id uuid.UUID, hash string) error {
+	return r.q.UpdateTenantAPIKeyHash(ctx, db.UpdateTenantAPIKeyHashParams{
+		ID:         id,
+		ApiKeyHash: hash,
+	})
+}
