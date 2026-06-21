@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 
-	apicontext "github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/context"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
@@ -42,10 +41,9 @@ func generateKey() (raw, hash, hint string, err error) {
 	return
 }
 
-// CreateAPIKey generates a new API key for the tenant.
-// The raw key is returned exactly once. Tori stores only the hash.
+// CreateAPIKey generates a new API key, stores the hash and hint, returns the raw key once.
 func (h *APIKeyHandler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
-	tenantID := apicontext.GetTenantID(r.Context())
+	tenantID := middleware.GetTenantID(r.Context())
 
 	var req createAPIKeyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -62,7 +60,7 @@ func (h *APIKeyHandler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.tenants.UpdateAPIKeyHash(r.Context(), tenantID, hash); err != nil {
+	if _, err := h.tenants.UpdateAPIKeyHashAndHint(r.Context(), tenantID, hash, hint); err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}
@@ -74,10 +72,9 @@ func (h *APIKeyHandler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// RotateAPIKey replaces the current key with a new one.
-// The old key stops working the moment this returns.
+// RotateAPIKey replaces the current key. Old key stops working immediately.
 func (h *APIKeyHandler) RotateAPIKey(w http.ResponseWriter, r *http.Request) {
-	tenantID := apicontext.GetTenantID(r.Context())
+	tenantID := middleware.GetTenantID(r.Context())
 
 	key, hash, hint, err := generateKey()
 	if err != nil {
@@ -85,7 +82,7 @@ func (h *APIKeyHandler) RotateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.tenants.UpdateAPIKeyHash(r.Context(), tenantID, hash); err != nil {
+	if _, err := h.tenants.UpdateAPIKeyHashAndHint(r.Context(), tenantID, hash, hint); err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}
@@ -94,5 +91,27 @@ func (h *APIKeyHandler) RotateAPIKey(w http.ResponseWriter, r *http.Request) {
 		Key:  key,
 		Name: "Rotated key",
 		Hint: hint,
+	})
+}
+
+// GetAPIKeyHint returns the stored hint for the current tenant's active key.
+// Never returns the raw key — only the hint (prefix...suffix).
+func (h *APIKeyHandler) GetAPIKeyHint(w http.ResponseWriter, r *http.Request) {
+	tenant := middleware.GetTenant(r.Context())
+	if tenant == nil {
+		respond.Unauthorised(w, r, "not authenticated")
+		return
+	}
+
+	if tenant.APIKeyHint == "" {
+		respond.JSON(w, r, http.StatusOK, map[string]string{
+			"hint": "",
+			"note": "No API key created yet",
+		})
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, map[string]string{
+		"hint": tenant.APIKeyHint,
 	})
 }
