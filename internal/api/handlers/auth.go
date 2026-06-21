@@ -17,12 +17,12 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
+const maxLoginAttempts = 5
+
 type AuthHandler struct {
 	tenants domain.TenantRepository
 	tokens  domain.TokenRevoker
 }
-
-const maxLoginAttempts = 5
 
 func NewAuthHandler(tenants domain.TenantRepository, tokens domain.TokenRevoker) *AuthHandler {
 	return &AuthHandler{tenants: tenants, tokens: tokens}
@@ -63,6 +63,9 @@ func verifyPassword(password, stored string) bool {
 	salt := []byte("tori-static-salt")
 	hash := argon2.IDKey([]byte(password), salt, 1, 64*1024, 4, 32)
 	legacy := hex.EncodeToString(hash)
+	if len(legacy) != len(stored) {
+		return false
+	}
 	return subtle.ConstantTimeCompare([]byte(legacy), []byte(stored)) == 1
 }
 
@@ -145,7 +148,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if account is locked due to too many failed attempts
 	if h.tokens.IsLoginLocked(r.Context(), body.Email) {
 		respond.Error(w, r, http.StatusTooManyRequests, "account_locked",
 			"too many failed login attempts — account locked for 15 minutes")
@@ -154,7 +156,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	tenant, err := h.tenants.GetByEmail(r.Context(), body.Email)
 	if err != nil {
-		// Still record failure even if account does not exist — prevents enumeration
 		h.tokens.RecordLoginFailure(r.Context(), body.Email)
 		respond.Unauthorised(w, r, "invalid credentials")
 		return
@@ -167,8 +168,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	if !verifyPassword(body.Password, tenant.PasswordHash) {
 		count, _ := h.tokens.RecordLoginFailure(r.Context(), body.Email)
-		remaining := maxLoginAttempts - count
-		if remaining <= 0 {
+		if maxLoginAttempts-count <= 0 {
 			respond.Error(w, r, http.StatusTooManyRequests, "account_locked",
 				"too many failed login attempts — account locked for 15 minutes")
 			return
@@ -177,7 +177,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Successful login — clear failure counter
 	h.tokens.ClearLoginFailures(r.Context(), body.Email)
 
 	accessToken, err := middleware.GenerateJWT(tenant.ID)
@@ -243,7 +242,6 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Revoke for 7 days to cover the refresh token lifetime
 	expiresAt := time.Now().Add(7 * 24 * time.Hour)
 	if err := h.tokens.Revoke(r.Context(), token, expiresAt); err != nil {
 		respond.InternalError(w, r, err)
