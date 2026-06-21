@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { logout } from "@/lib/api";
 
 const nav = [
   { href: "/dashboard", label: "Overview", icon: "ti-layout-dashboard" },
