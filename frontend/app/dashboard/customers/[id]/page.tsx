@@ -64,13 +64,14 @@ export default function CustomerDetailPage({
 
   const av = avatarFor(customer.email);
 
-  const totalRevenue = subs
-    .map((s) => planById.get(s.plan_id)?.amount ?? 0)
-    .reduce((a, b) => a + b, 0);
-
-  const activeSubs = subs.filter(
-    (s) => s.status === "ACTIVE" || s.status === "TRIALING",
-  ).length;
+const activeSubs = subs.filter(
+  (s) => s.status === "ACTIVE" || s.status === "TRIALING",
+).length;
+const cancelledSubs = subs.filter((s) => s.status === "CANCELLED").length;
+const activePlanValue = subs
+  .filter((s) => s.status === "ACTIVE")
+  .map((s) => planById.get(s.plan_id)?.amount ?? 0)
+  .reduce((a, b) => a + b, 0);
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -151,9 +152,14 @@ export default function CustomerDetailPage({
 
       <div className="grid grid-cols-3 gap-3 mb-4">
         {[
-          ["Subscriptions", subs.length.toString(), "#0F1728"],
+          ["Total subscriptions", subs.length.toString(), "#0F1728"],
           ["Active", activeSubs.toString(), "#00B37E"],
-          ["Plan value", formatKobo(totalRevenue), "#0F1728"],
+          ["Cancelled", cancelledSubs.toString(), "#6B7280"],
+          [
+            "Active MRR",
+            activePlanValue > 0 ? formatKobo(activePlanValue) : "None",
+            "#0F1728",
+          ],
         ].map(([label, value, color]) => (
           <div
             key={label}
