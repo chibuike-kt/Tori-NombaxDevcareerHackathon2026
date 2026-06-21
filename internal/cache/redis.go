@@ -64,3 +64,36 @@ func (s *TokenStore) IsRevoked(ctx context.Context, token string) bool {
 	}
 	return val == "1"
 }
+
+const maxLoginAttempts = 5
+const lockoutDuration = 15 * time.Minute
+
+// RecordLoginFailure increments the failed login counter for an email.
+// Returns the current attempt count.
+func (s *TokenStore) RecordLoginFailure(ctx context.Context, email string) (int, error) {
+	key := "login_failures:" + email
+	count, err := s.client.Incr(ctx, key).Result()
+	if err != nil {
+		return 0, err
+	}
+	// Set expiry on first attempt
+	if count == 1 {
+		s.client.Expire(ctx, key, lockoutDuration)
+	}
+	return int(count), nil
+}
+
+// IsLoginLocked returns true if the email has exceeded the max login attempts.
+func (s *TokenStore) IsLoginLocked(ctx context.Context, email string) bool {
+	key := "login_failures:" + email
+	count, err := s.client.Get(ctx, key).Int()
+	if err != nil {
+		return false
+	}
+	return count >= maxLoginAttempts
+}
+
+// ClearLoginFailures resets the counter on successful login.
+func (s *TokenStore) ClearLoginFailures(ctx context.Context, email string) {
+	s.client.Del(ctx, "login_failures:"+email)
+}
