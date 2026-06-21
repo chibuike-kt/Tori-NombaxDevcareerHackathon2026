@@ -24,6 +24,7 @@ type Deps struct {
 	Ledger        domain.LedgerRepository
 	Jobs          domain.JobRepository
 	Webhooks      domain.WebhookRepository
+	Tokens        domain.TokenRevoker
 }
 
 // maxBodySize limits request bodies to 1MB to prevent OOM attacks.
@@ -72,7 +73,7 @@ func NewRouter(deps Deps) http.Handler {
 	})
 
 	// Handlers
-	authH := handlers.NewAuthHandler(deps.Tenants)
+	authH := handlers.NewAuthHandler(deps.Tenants, deps.Tokens)
 	planH := handlers.NewPlanHandler(deps.Plans)
 	customerH := handlers.NewCustomerHandler(deps.Customers)
 	dispatcher := webhook.NewDispatcher(deps.Webhooks)
@@ -93,11 +94,12 @@ func NewRouter(deps Deps) http.Handler {
 
 	// Dashboard API — JWT auth + per-tenant rate limiting
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.JWTAuth(jwtSecret, deps.Tenants))
+		r.Use(middleware.JWTAuth(jwtSecret, deps.Tenants, deps.Tokens))
 		r.Use(tenantRateLimiter(300)) // 300 req/min per tenant
 
 		r.Get("/v1/me", authH.Me)
 		r.Patch("/v1/me", authH.UpdateMe)
+		r.Post("/v1/auth/logout", authH.Logout)
 
 		r.Post("/v1/checkout", checkoutH.CreateCheckout)
 
