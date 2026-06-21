@@ -104,20 +104,23 @@ func NewRouter(deps Deps) http.Handler {
 	})
 
 	// Platform API — API key auth (server-to-server)
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.APIKeyAuth(deps.Tenants))
+r.Group(func(r chi.Router) {
+    r.Use(middleware.APIKeyAuth(deps.Tenants))
 
-		r.Post("/v1/platform/customers", customerH.Create)
-		r.Get("/v1/platform/customers/{id}", customerH.Get)
-		r.Get("/v1/platform/customers/{id}/portal-token", customerH.GeneratePortalToken)
-		r.Post("/v1/platform/plans", planH.Create)
-		r.Get("/v1/platform/plans/{id}", planH.Get)
-		r.Post("/v1/platform/subscriptions", subH.Create)
-		r.Get("/v1/platform/subscriptions/{id}", subH.Get)
-		r.Post("/v1/platform/subscriptions/{id}/cancel", subH.Cancel)
-		r.Post("/v1/platform/subscriptions/{id}/pause", subH.Pause)
-		r.Post("/v1/platform/subscriptions/{id}/resume", subH.Resume)
-	})
+    r.Post("/v1/platform/customers", customerH.Create)
+    r.Get("/v1/platform/customers/{id}", customerH.Get)
+    r.Get("/v1/platform/customers/{id}/portal-token", customerH.GeneratePortalToken)
+    r.Post("/v1/platform/plans", planH.Create)
+    r.Get("/v1/platform/plans/{id}", planH.Get)
+    r.Post("/v1/platform/subscriptions", subH.Create)
+    r.Get("/v1/platform/subscriptions/{id}", subH.Get)
+    r.Post("/v1/platform/subscriptions/{id}/cancel", subH.Cancel)
+    r.Post("/v1/platform/subscriptions/{id}/pause", subH.Pause)
+    r.Post("/v1/platform/subscriptions/{id}/resume", subH.Resume)
+
+    checkoutH := handlers.NewCheckoutHandler(deps.Customers, deps.Plans, deps.Subscriptions, deps.Jobs)
+    r.Post("/v1/platform/checkout", checkoutH.CreateCheckout)
+})
 
 	return r
 }
