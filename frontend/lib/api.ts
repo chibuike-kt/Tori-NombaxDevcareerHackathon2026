@@ -71,9 +71,18 @@ export const getLedgerSummary = (from?: string, to?: string) =>
     `/v1/ledger/summary${from ? `?from=${from}&to=${to}` : ""}`,
   );
 
-export const logout = () => {
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("refresh_token");
+export const logout = async (): Promise<void> => {
+  try {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      await api.post("/v1/auth/logout", {});
+    }
+  } catch {
+    // proceed regardless
+  } finally {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+  }
 };
 
 export const createAPIKey = (name: string) =>
