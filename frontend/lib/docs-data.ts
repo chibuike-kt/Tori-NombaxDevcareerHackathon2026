@@ -118,16 +118,16 @@ export const TABS: Tab[] = [
                 type: "code",
                 lang: "bash",
                 code: `# Tori: one call, no prior customer needed
-POST /v1/platform/checkout
-{
-  "email": "amaka@startup.ng",
-  "plan_id": "plan_...",
-  "external_id": "your-user-123"
-}
+                POST /v1/platform/checkout
+                {
+                  "email": "amaka@startup.ng",
+                  "plan_id": "plan_...",
+                  "external_id": "your-user-123"
+                }
 
-# Response: customer object + subscription object + customer_created flag
-# If amaka already exists, Tori finds her. If not, Tori creates her.
-# Either way, the subscription starts.`,
+                # Response: customer object + subscription object + customer_created flag
+                # If amaka already exists, Tori finds her. If not, Tori creates her.
+                # Either way, the subscription starts.`,
               },
               {
                 type: "h2",
@@ -278,6 +278,518 @@ POST /v1/platform/checkout
     | Naira moves
     v
   Customer's bank account`,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        group: "Integration Guides",
+        items: [
+          {
+            id: "guide-saas",
+            label: "SaaS: ClassPay walkthrough",
+            icon: "ti-building-store",
+            blocks: [
+              {
+                type: "p",
+                text: "This guide walks through a complete, real integration. The product is ClassPay, a Nigerian edtech platform that charges schools ₦25,000/month for Basic and ₦75,000/month for Pro. The backend is Laravel. The goal is recurring billing with zero custom billing logic.",
+              },
+              {
+                type: "p",
+                text: "The same pattern applies to any Nigerian SaaS, membership platform, creator tool, or API business. The product changes. The integration is identical every time.",
+              },
+              {
+                type: "h2",
+                text: "Step 1: Create your plans",
+                id: "guide-plans",
+              },
+              {
+                type: "p",
+                text: "Log into the Tori dashboard, go to Plans, and create one plan for each pricing tier. ClassPay creates two:",
+              },
+              {
+                type: "code",
+                lang: "json",
+                code: `// Basic plan
+{
+  "name": "Basic",
+  "amount": 2500000,
+  "interval": "monthly",
+  "trial_period_days": 14
+}
+
+// Pro plan
+{
+  "name": "Pro",
+  "amount": 7500000,
+  "interval": "monthly",
+  "trial_period_days": 14
+}`,
+              },
+              {
+                type: "p",
+                text: "Copy the plan IDs from the response and store them in your environment config alongside your API key and webhook secret:",
+              },
+              {
+                type: "code",
+                lang: "bash",
+                code: `TORI_API_KEY=tori_live_...
+TORI_PLAN_BASIC=plan_abc123...
+TORI_PLAN_PRO=plan_xyz456...
+TORI_WEBHOOK_SECRET=whsec_...`,
+              },
+              {
+                type: "h2",
+                text: "Step 2: Create your API key",
+                id: "guide-apikey",
+              },
+              {
+                type: "p",
+                text: "Go to API Keys in the dashboard, click Create key, name it something meaningful like Production server, and copy the key immediately. It is shown once. Store it in your secret manager or environment config. Never put it in client-side code.",
+              },
+              {
+                type: "h2",
+                text: "Step 3: Wire signup into Tori",
+                id: "guide-signup",
+              },
+              {
+                type: "p",
+                text: "When a school completes registration and picks a plan, your backend makes one call to Tori. Pass the school's email, the plan ID, and your own database ID as the external_id. Tori finds or creates the customer and starts the subscription automatically.",
+              },
+              {
+                type: "code",
+                lang: "php",
+                code: `// SchoolRegistrationController.php
+
+public function complete(Request $request)
+{
+    // Create the school in your own database
+    $school = School::create([
+        'name'  => $request->name,
+        'email' => $request->email,
+        'plan'  => $request->plan,
+    ]);
+
+    // Start their Tori subscription in one call
+    $planId = $request->plan === 'pro'
+        ? env('TORI_PLAN_PRO')
+        : env('TORI_PLAN_BASIC');
+
+    $response = Http::withHeaders([
+        'X-API-Key'    => env('TORI_API_KEY'),
+        'Content-Type' => 'application/json',
+    ])->post('https://api.tori.ng/v1/platform/checkout', [
+        'email'           => $school->email,
+        'plan_id'         => $planId,
+        'name'            => $school->name,
+        'external_id'     => (string) $school->id,
+        'idempotency_key' => 'signup_' . $school->id,
+    ]);
+
+    // Store Tori subscription ID for later reference
+    $school->update([
+        'tori_subscription_id' => $response['data']['subscription']['id'],
+    ]);
+
+    // Grant trial access
+    $school->update(['access' => 'trial']);
+
+    return redirect()->route('dashboard');
+}`,
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "The idempotency_key prevents duplicate subscriptions if your server retries the request due to a timeout. Use a value that is unique per signup attempt, such as your own user ID prefixed with the action name.",
+              },
+              {
+                type: "h2",
+                text: "Step 4: Listen for webhooks",
+                id: "guide-webhooks",
+              },
+              {
+                type: "p",
+                text: "Register your webhook URL in the Tori dashboard under Webhooks. Tori sends a signed POST request to your server every time a billing event happens. Your handler verifies the signature and updates your local state accordingly.",
+              },
+              {
+                type: "p",
+                text: "The key insight is that you never call Tori on every request to check subscription status. You store the state locally when Tori sends the webhook, and read from your own database on every request. Fast, no external dependency on the hot path.",
+              },
+              {
+                type: "code",
+                lang: "php",
+                code: `// ToriWebhookController.php
+
+public function handle(Request $request)
+{
+    // Always verify the signature first
+    $signature = $request->header('X-Tori-Signature');
+    $payload   = $request->getContent();
+    $expected  = 'sha256=' . hash_hmac(
+        'sha256',
+        $payload,
+        env('TORI_WEBHOOK_SECRET')
+    );
+
+    if (!hash_equals($expected, $signature)) {
+        return response('Invalid signature', 401);
+    }
+
+    $event  = $request->json()->all();
+    $school = School::where(
+        'tori_subscription_id',
+        $event['data']['id']
+    )->first();
+
+    if (!$school) {
+        return response('ok', 200);
+    }
+
+    switch ($event['event_type']) {
+
+        case 'subscription.activated':
+            // Trial ended, first payment succeeded
+            $school->update([
+                'access'              => 'full',
+                'subscription_status' => 'active',
+                'payment_warning'     => false,
+            ]);
+            break;
+
+        case 'payment.failed':
+            // Charge failed, Tori will retry
+            $school->update(['payment_warning' => true]);
+            break;
+
+        case 'dunning.started':
+            // Retries underway, soft restriction
+            $school->update(['access' => 'restricted']);
+            break;
+
+        case 'dunning.recovered':
+            // Retry succeeded, restore full access
+            $school->update([
+                'access'          => 'full',
+                'payment_warning' => false,
+            ]);
+            break;
+
+        case 'dunning.exhausted':
+            // All retries failed, suspend access
+            $school->update([
+                'access'              => 'suspended',
+                'subscription_status' => 'suspended',
+            ]);
+            break;
+
+        case 'subscription.cancelled':
+            $school->update([
+                'access'              => 'none',
+                'subscription_status' => 'cancelled',
+            ]);
+            break;
+
+        case 'subscription.paused':
+            $school->update(['access' => 'paused']);
+            break;
+
+        case 'subscription.resumed':
+            $school->update(['access' => 'full']);
+            break;
+    }
+
+    // Always return 200 immediately
+    // Do heavy work (emails, etc.) asynchronously
+    return response('ok', 200);
+}`,
+              },
+              {
+                type: "h2",
+                text: "Step 5: Access control",
+                id: "guide-access",
+              },
+              {
+                type: "p",
+                text: "Every route that requires an active subscription checks one field in your database. You stored it when the webhook arrived. No API call on the hot path.",
+              },
+              {
+                type: "code",
+                lang: "php",
+                code: `// Middleware: CheckSubscriptionAccess.php
+
+public function handle(Request $request, Closure $next)
+{
+    $school = auth()->user()->school;
+
+    match ($school->access) {
+        'suspended' => redirect()->route('billing.suspended'),
+        'none'      => redirect()->route('billing.cancelled'),
+        'restricted' => tap($next($request), function () {
+            session(['billing_warning' => true]);
+        }),
+        default     => $next($request),
+    };
+}`,
+              },
+              {
+                type: "h2",
+                text: "Step 6: Let customers manage their subscription",
+                id: "guide-selfserve",
+              },
+              {
+                type: "p",
+                text: "When a school admin wants to pause or cancel, your backend calls Tori. Tori fires the webhook. Your webhook handler updates local state. The school sees the change immediately on their next page load.",
+              },
+              {
+                type: "code",
+                lang: "php",
+                code: `// BillingController.php
+
+public function pause(Request $request)
+{
+    $school = auth()->user()->school;
+
+    Http::withHeaders(['X-API-Key' => env('TORI_API_KEY')])
+        ->post(
+            "https://api.tori.ng/v1/platform/subscriptions"
+            . "/{$school->tori_subscription_id}/pause"
+        );
+
+    // Tori fires subscription.paused
+    // Your webhook handler updates access to 'paused'
+    return back()->with('message', 'Subscription paused.');
+}
+
+public function cancel(Request $request)
+{
+    $school = auth()->user()->school;
+
+    Http::withHeaders(['X-API-Key' => env('TORI_API_KEY')])
+        ->post(
+            "https://api.tori.ng/v1/platform/subscriptions"
+            . "/{$school->tori_subscription_id}/cancel"
+        );
+
+    return back()->with('message', 'Subscription cancelled.');
+}`,
+              },
+              {
+                type: "h2",
+                text: "What Tori handles automatically from this point",
+                id: "guide-auto",
+              },
+              {
+                type: "list",
+                items: [
+                  "Charges the school every month via Nomba on the correct date with correct month-end handling",
+                  "When a charge fails, classifies the reason: blocked card stops immediately, insufficient funds retries on Day 3, 7, 14, and 21",
+                  "Fires webhooks to your server for every state change so ClassPay reacts without polling",
+                  "Writes every charge, refund, and adjustment to the immutable ledger",
+                  "Computes MRR, churn rate, and dunning recovery rate visible on your Tori dashboard",
+                  "Transitions the subscription through the full lifecycle: TRIALING to ACTIVE to DUNNING to SUSPENDED or back to ACTIVE on recovery",
+                ],
+              },
+              {
+                type: "h2",
+                text: "What you never had to build",
+                id: "guide-never",
+              },
+              {
+                type: "list",
+                items: [
+                  "No cron job for monthly charges",
+                  "No retry logic for failed payments",
+                  "No Nigerian card failure classification",
+                  "No dunning schedule or payday-aware retry timing",
+                  "No revenue reporting or MRR calculation",
+                  "No immutable ledger or audit trail",
+                  "No webhook delivery system",
+                ],
+              },
+              {
+                type: "callout",
+                variant: "success",
+                text: "You built ClassPay. Tori handled billing. The same four-step pattern (create plans, wire signup, handle webhooks, control access) works for any Nigerian product charging recurring revenue.",
+              },
+            ],
+          },
+          {
+            id: "guide-node",
+            label: "Node.js integration",
+            icon: "ti-brand-nodejs",
+            blocks: [
+              {
+                type: "p",
+                text: "The same integration pattern in Node.js with Express. One checkout call at signup, one webhook handler for all billing events.",
+              },
+              { type: "h2", text: "Signup", id: "node-signup" },
+              {
+                type: "code",
+                lang: "js",
+                code: `// routes/auth.js
+
+router.post('/register', async (req, res) => {
+  const { name, email, plan } = req.body;
+
+  // Create user in your database
+  const user = await db.users.create({ name, email, plan });
+
+  const planId = plan === 'pro'
+    ? process.env.TORI_PLAN_PRO
+    : process.env.TORI_PLAN_BASIC;
+
+  // Start subscription in one call
+  const toriRes = await fetch(
+    'https://api.tori.ng/v1/platform/checkout',
+    {
+      method: 'POST',
+      headers: {
+        'X-API-Key': process.env.TORI_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        plan_id: planId,
+        name,
+        external_id: String(user.id),
+        idempotency_key: \`signup_\${user.id}\`,
+      }),
+    }
+  );
+
+  const { data } = await toriRes.json();
+
+  await db.users.update(user.id, {
+    tori_subscription_id: data.subscription.id,
+    access: 'trial',
+  });
+
+  res.json({ success: true });
+});`,
+              },
+              { type: "h2", text: "Webhook handler", id: "node-webhooks" },
+              {
+                type: "code",
+                lang: "js",
+                code: `// routes/webhooks.js
+const crypto = require('crypto');
+
+router.post('/tori', express.raw({ type: 'application/json' }), async (req, res) => {
+  const signature = req.headers['x-tori-signature'];
+  const expected  = 'sha256=' + crypto
+    .createHmac('sha256', process.env.TORI_WEBHOOK_SECRET)
+    .update(req.body)
+    .digest('hex');
+
+  if (!crypto.timingSafeEqual(
+    Buffer.from(expected),
+    Buffer.from(signature)
+  )) {
+    return res.status(401).send('Invalid signature');
+  }
+
+  const event = JSON.parse(req.body);
+  const user  = await db.users.findBy({
+    tori_subscription_id: event.data.id
+  });
+
+  if (!user) return res.status(200).send('ok');
+
+  const accessMap = {
+    'subscription.activated': 'full',
+    'dunning.recovered':      'full',
+    'subscription.resumed':   'full',
+    'dunning.started':        'restricted',
+    'subscription.paused':    'paused',
+    'dunning.exhausted':      'suspended',
+    'subscription.cancelled': 'none',
+  };
+
+  if (accessMap[event.event_type]) {
+    await db.users.update(user.id, {
+      access: accessMap[event.event_type],
+    });
+  }
+
+  if (event.event_type === 'payment.failed') {
+    await db.users.update(user.id, { payment_warning: true });
+  }
+
+  // Always 200 immediately
+  res.status(200).send('ok');
+});`,
+              },
+              {
+                type: "callout",
+                variant: "warn",
+                text: "Pass the raw request body to the HMAC function, not the parsed JSON. Express parses the body before your handler runs. Use express.raw() on the webhook route specifically, or store the raw body in a middleware before parsing.",
+              },
+            ],
+          },
+          {
+            id: "guide-checklist",
+            label: "Integration checklist",
+            icon: "ti-checklist",
+            blocks: [
+              {
+                type: "p",
+                text: "Use this checklist before going live with a Tori integration.",
+              },
+              { type: "h2", text: "Setup", id: "checklist-setup" },
+              {
+                type: "list",
+                items: [
+                  "API key created from the dashboard and stored in secret manager, not in source code",
+                  "Webhook endpoint registered in the Tori dashboard with the correct URL",
+                  "Webhook secret stored in environment config",
+                  "Plan IDs stored in environment config",
+                  "Tori subscription ID stored against each user or account in your database",
+                ],
+              },
+              { type: "h2", text: "Signup flow", id: "checklist-signup" },
+              {
+                type: "list",
+                items: [
+                  "Checkout call made server-side, never from the browser",
+                  "Idempotency key passed on every checkout call",
+                  "external_id set to your own user or account ID",
+                  "Tori subscription ID saved to your database after checkout",
+                  "Initial access state set to trial if plan has a trial period",
+                ],
+              },
+              { type: "h2", text: "Webhook handler", id: "checklist-webhooks" },
+              {
+                type: "list",
+                items: [
+                  "Signature verified on every incoming webhook before processing",
+                  "Handler returns 200 immediately and processes events asynchronously",
+                  "Handler is idempotent: processing the same event twice produces the same result",
+                  "All relevant event types handled: activated, failed, dunning started, dunning recovered, dunning exhausted, paused, resumed, cancelled",
+                  "Local access state updated in your database on each event",
+                ],
+              },
+              { type: "h2", text: "Access control", id: "checklist-access" },
+              {
+                type: "list",
+                items: [
+                  "Subscription status read from your own database, not from Tori API on every request",
+                  "Suspended and cancelled states block access to paid features",
+                  "Restricted state shows a payment warning without fully blocking access",
+                  "Trial state shows remaining trial days",
+                ],
+              },
+              { type: "h2", text: "Before go-live", id: "checklist-golive" },
+              {
+                type: "list",
+                items: [
+                  "Test the full dunning flow using test cards in the sandbox",
+                  "Verify webhook signature verification rejects tampered payloads",
+                  "Confirm idempotency: calling checkout twice with the same key returns the same subscription",
+                  "Confirm access is suspended when dunning exhausted fires",
+                  "Confirm access is restored when dunning recovered fires",
+                  "Check that cancelled subscriptions cannot be reactivated",
+                ],
               },
             ],
           },

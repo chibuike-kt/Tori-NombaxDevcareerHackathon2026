@@ -487,14 +487,12 @@ export default function SubscriptionsPage() {
                           >
                             {cust?.email ?? "Unknown"}
                           </div>
-                          {cust?.name && (
-                            <div
-                              className="text-[10px] font-medium"
-                              style={{ color: "#98A2B3" }}
-                            >
-                              {cust.name}
-                            </div>
-                          )}
+                          <div
+                            className="text-[10px] font-mono"
+                            style={{ color: "#C4CACD" }}
+                          >
+                            {sub.id.slice(0, 8)}...
+                          </div>
                         </div>
                       </div>
                     </td>

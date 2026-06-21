@@ -5,6 +5,44 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPlans, createPlan } from "@/lib/api";
 import { formatKobo, formatDate } from "@/lib/utils";
 
+function PlanIDRow({ id }: { id: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = () => {
+    navigator.clipboard.writeText(id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div
+      className="rounded-lg px-3 py-2 mb-3 flex items-center gap-2"
+      style={{ background: "#F8F9FA" }}
+    >
+      <i
+        className="ti ti-key"
+        style={{ fontSize: 12, color: "#9CA3AF", flexShrink: 0 }}
+      />
+      <code
+        className="text-[10px] font-mono flex-1 truncate"
+        style={{ color: "#6B7280" }}
+      >
+        {id}
+      </code>
+      <button
+        onClick={copy}
+        className="text-[10px] font-bold flex-shrink-0 px-2 py-0.5 rounded"
+        style={{
+          background: copied ? "#E3F7EF" : "#E5E7EB",
+          color: copied ? "#0A7A56" : "#4B5563",
+        }}
+      >
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </div>
+  );
+}
+
 export default function PlansPage() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
@@ -283,6 +321,7 @@ export default function PlansPage() {
                   </span>
                 </div>
               )}
+              <PlanIDRow id={plan.id} />
               <div
                 className="pt-3 border-t flex items-center justify-between"
                 style={{ borderColor: "#F0F2F4" }}

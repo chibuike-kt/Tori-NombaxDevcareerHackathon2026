@@ -3,10 +3,10 @@
 import { use } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { getCustomer, getCustomerSubscriptions, getPlans } from "@/lib/api";
+import { getCustomer, getCustomerSubscriptions } from "@/lib/api";
+import type { Plan, Customer } from "@/lib/api";
 import { StatusPill } from "@/components/status-pill";
 import { formatKobo, formatDate, avatarFor } from "@/lib/utils";
-import type { Plan } from "@/lib/api";
 
 export default function CustomerDetailPage({
   params,
@@ -25,10 +25,10 @@ export default function CustomerDetailPage({
     queryFn: () => getCustomerSubscriptions(id),
   });
 
-  const { data: plansData } = useQuery({
-    queryKey: ["plans"],
-    queryFn: () => import("@/lib/api").then((m) => m.getPlans()),
-  });
+const { data: plansData } = useQuery({
+  queryKey: ["plans"],
+  queryFn: () => import("@/lib/api").then((m) => m.getPlans()),
+});
 
   const customer = customerData?.data;
   const subs = subsData?.data ?? [];
