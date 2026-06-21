@@ -1,18 +1,40 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getMe, logout, type Tenant } from "@/lib/api";
+import { useMutation } from "@tanstack/react-query";
+import { getMe, updateMe, logout, type Tenant } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 export default function SettingsPage() {
   const router = useRouter();
   const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
     getMe()
-      .then((res) => setTenant(res.data))
+      .then((res) => {
+        setTenant(res.data);
+        setName(res.data.name ?? "");
+        setEmail(res.data.email ?? "");
+      })
       .catch(() => {});
   }, []);
+
+  const save = useMutation({
+    mutationFn: () => updateMe(name, email),
+    onSuccess: (res) => {
+      setTenant(res.data);
+      setSaved(true);
+      setSaveError("");
+      setTimeout(() => setSaved(false), 2500);
+    },
+    onError: (e: unknown) => {
+      setSaveError(e instanceof Error ? e.message : "Failed to save changes");
+    },
+  });
 
   const handleLogout = () => {
     logout();
@@ -42,24 +64,24 @@ export default function SettingsPage() {
             Account details
           </h2>
         </div>
-        <div className="p-5 space-y-4">
-          <div className="flex items-center gap-4">
+        <div className="p-5">
+          <div className="flex items-center gap-4 mb-5">
             <div
               className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-extrabold"
               style={{ background: "#E6F8F2", color: "#00B37E" }}
             >
-              {tenant?.name?.slice(0, 2).toUpperCase() ?? "T"}
+              {name?.slice(0, 2).toUpperCase() ?? "T"}
             </div>
             <div>
               <p className="text-base font-bold" style={{ color: "#0F1728" }}>
-                {tenant?.name ?? "—"}
+                {tenant?.name ?? "..."}
               </p>
               <p className="text-sm font-medium" style={{ color: "#8A94A6" }}>
-                {tenant?.email ?? "—"}
+                {tenant?.email ?? "..."}
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 pt-2">
+          <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label
                 className="text-xs font-semibold block mb-1.5"
@@ -68,7 +90,8 @@ export default function SettingsPage() {
                 Business name
               </label>
               <input
-                defaultValue={tenant?.name ?? ""}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium border"
                 style={{ borderColor: "#E5E7EB", color: "#0F1728" }}
               />
@@ -81,17 +104,34 @@ export default function SettingsPage() {
                 Email
               </label>
               <input
-                defaultValue={tenant?.email ?? ""}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium border"
                 style={{ borderColor: "#E5E7EB", color: "#0F1728" }}
               />
             </div>
           </div>
+          {saveError && (
+            <p
+              className="text-xs font-medium mb-3"
+              style={{ color: "#DC2626" }}
+            >
+              {saveError}
+            </p>
+          )}
           <button
+            onClick={() => save.mutate()}
+            disabled={save.isPending}
             className="text-sm px-4 py-2 rounded-lg font-bold text-white"
-            style={{ background: "#0F1728" }}
+            style={{
+              background: saved
+                ? "#00B37E"
+                : save.isPending
+                  ? "#9CA3AF"
+                  : "#0F1728",
+            }}
           >
-            Save changes
+            {saved ? "Saved" : save.isPending ? "Saving..." : "Save changes"}
           </button>
         </div>
       </div>
