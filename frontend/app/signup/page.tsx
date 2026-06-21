@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -10,6 +10,10 @@ import { LiveChat } from "@/components/live-chat";
 
 export default function SignupPage() {
   const router = useRouter();
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) router.replace("/dashboard");
+  }, [router]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
