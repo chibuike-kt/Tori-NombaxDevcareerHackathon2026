@@ -4,7 +4,7 @@ import { use } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { getCustomer, getCustomerSubscriptions } from "@/lib/api";
-import type { Plan, Customer } from "@/lib/api";
+import type { Plan } from "@/lib/api";
 import { StatusPill } from "@/components/status-pill";
 import { formatKobo, formatDate, avatarFor } from "@/lib/utils";
 
