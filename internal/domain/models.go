@@ -108,6 +108,7 @@ type Tenant struct {
 	DunningConfig DunningConfig `json:"dunning_config"`
 	IsActive      bool          `json:"is_active"`
 	CreatedAt     time.Time     `json:"created_at"`
+	APIKeyHint string `json:"api_key_hint"`
 }
 
 type DunningConfig struct {
