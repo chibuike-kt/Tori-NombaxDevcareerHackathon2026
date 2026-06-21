@@ -1,27 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [checked, setChecked] = useState(false);
-  const didCheck = useRef(false);
+  const pathname = usePathname();
 
   useEffect(() => {
-    if (didCheck.current) return;
-    didCheck.current = true;
     const token = localStorage.getItem("access_token");
-    if (!token) {
-      router.push("/login");
+    const isAuthPage = pathname === "/login" || pathname === "/signup";
+
+    if (!token && !isAuthPage) {
+      router.replace("/login");
       return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    setChecked(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
-  if (!checked) return null;
+    if (token && isAuthPage) {
+      router.replace("/dashboard");
+    }
+  }, [pathname, router]);
 
   return <>{children}</>;
 }
