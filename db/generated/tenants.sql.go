@@ -196,6 +196,22 @@ func (q *Queries) UpdateTenant(ctx context.Context, arg UpdateTenantParams) (Ten
 	return i, err
 }
 
+const updateTenantAPIKeyHash = `-- name: UpdateTenantAPIKeyHash :exec
+UPDATE tenants
+SET api_key_hash = $1
+WHERE id = $2
+`
+
+type UpdateTenantAPIKeyHashParams struct {
+	ApiKeyHash string    `json:"api_key_hash"`
+	ID         uuid.UUID `json:"id"`
+}
+
+func (q *Queries) UpdateTenantAPIKeyHash(ctx context.Context, arg UpdateTenantAPIKeyHashParams) error {
+	_, err := q.db.Exec(ctx, updateTenantAPIKeyHash, arg.ApiKeyHash, arg.ID)
+	return err
+}
+
 const updateTenantDunningConfig = `-- name: UpdateTenantDunningConfig :one
 UPDATE tenants SET dunning_config = $2 WHERE id = $1 RETURNING id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash
 `

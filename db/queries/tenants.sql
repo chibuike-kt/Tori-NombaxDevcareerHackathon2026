@@ -29,3 +29,8 @@ UPDATE tenants SET password_hash = $2 WHERE id = $1;
 
 -- name: SetTenantPassword :exec
 UPDATE tenants SET password_hash = $2 WHERE id = $1;
+
+-- name: UpdateTenantAPIKeyHash :exec
+UPDATE tenants
+SET api_key_hash = @api_key_hash
+WHERE id = @id;
