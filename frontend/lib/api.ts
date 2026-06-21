@@ -223,3 +223,18 @@ export interface PortfolioHealth {
   churn_risk_count: number;
   subscriptions: SubscriptionWithHealth[];
 }
+
+export interface RevenueForecast {
+  period_label: string;
+  expected_low: number;
+  expected_high: number;
+  expected_mid: number;
+  active_subscriptions: number;
+  at_risk_revenue: number;
+  recovery_rate_pct: number;
+  confidence: "high" | "medium" | "low";
+  note: string;
+}
+
+export const getRevenueForecast = () =>
+  api.get<{ data: RevenueForecast }>("/v1/health/forecast");
