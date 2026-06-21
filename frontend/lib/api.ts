@@ -73,6 +73,9 @@ export const rotateAPIKey = () =>
     {},
   );
 
+  export const updateMe = (name: string, email: string) =>
+    api.patch<{ data: Tenant }>("/v1/me", { name, email });
+
 export const getMe = () => api.get<{ data: Tenant }>("/v1/me");
 
 export interface Tenant {
