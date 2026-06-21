@@ -1,0 +1,26 @@
+-- Ledger table partitioning plan for scale.
+-- At 10K+ active subscriptions, ledger_entries will grow at ~10K rows/month.
+-- When GetSummary queries begin exceeding 100ms, apply this migration:
+--
+-- 1. Rename existing table:
+--    ALTER TABLE ledger_entries RENAME TO ledger_entries_unpartitioned;
+--
+-- 2. Create partitioned table:
+--    CREATE TABLE ledger_entries (
+--      LIKE ledger_entries_unpartitioned INCLUDING ALL
+--    ) PARTITION BY RANGE (created_at);
+--
+-- 3. Create monthly partitions:
+--    CREATE TABLE ledger_entries_2026_06
+--      PARTITION OF ledger_entries
+--      FOR VALUES FROM ('2026-06-01') TO ('2026-07-01');
+--
+-- 4. Migrate existing data:
+--    INSERT INTO ledger_entries SELECT * FROM ledger_entries_unpartitioned;
+--
+-- 5. Drop old table:
+--    DROP TABLE ledger_entries_unpartitioned;
+--
+-- This migration is intentionally a no-op at hackathon scale.
+-- Apply when monthly ledger row count exceeds 100K.
+SELECT 1;
