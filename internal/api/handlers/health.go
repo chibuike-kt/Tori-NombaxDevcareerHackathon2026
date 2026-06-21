@@ -12,11 +12,12 @@ import (
 )
 
 type HealthHandler struct {
-	subs domain.SubscriptionRepository
+	subs  domain.SubscriptionRepository
+	plans domain.PlanRepository
 }
 
-func NewHealthHandler(subs domain.SubscriptionRepository) *HealthHandler {
-	return &HealthHandler{subs: subs}
+func NewHealthHandler(subs domain.SubscriptionRepository, plans domain.PlanRepository) *HealthHandler {
+	return &HealthHandler{subs: subs, plans: plans}
 }
 
 type subscriptionWithHealth struct {
@@ -101,4 +102,37 @@ func (h *HealthHandler) GetPortfolioHealth(w http.ResponseWriter, r *http.Reques
 		ChurnRiskCount: churnRiskCount,
 		Subscriptions:  result,
 	})
+}
+
+// GetRevenueForecast projects next month's expected revenue.
+func (h *HealthHandler) GetRevenueForecast(w http.ResponseWriter, r *http.Request) {
+	tenantID := apicontext.GetTenantID(r.Context())
+	if tenantID == uuid.Nil {
+		respond.Unauthorised(w, r, "missing tenant")
+		return
+	}
+
+	subs, err := h.subs.List(r.Context(), tenantID, 500, 0)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	plans, err := h.plans.ListAll(r.Context(), tenantID)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	planMap := make(map[string]*domain.Plan, len(plans))
+	for _, p := range plans {
+		planMap[p.ID.String()] = p
+	}
+
+	// Use a default recovery rate for now.
+	// When real charge history exists, compute from ledger.
+	recoveryRate := 0.65
+
+	forecast := billing.ForecastRevenue(subs, planMap, recoveryRate)
+	respond.JSON(w, r, http.StatusOK, forecast)
 }
