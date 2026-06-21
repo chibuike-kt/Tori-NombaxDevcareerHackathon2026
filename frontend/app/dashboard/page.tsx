@@ -76,19 +76,22 @@ function MetricCard({
 }
 
 export default function DashboardPage() {
-  const { data: mrrData } = useQuery({ queryKey: ["mrr"], queryFn: getMRR });
-  const { data: churnData } = useQuery({
-    queryKey: ["churn"],
-    queryFn: getChurn,
-  });
-  const { data: recoveryData } = useQuery({
-    queryKey: ["recovery"],
-    queryFn: getDunningRecovery,
-  });
-  const { data: summaryData } = useQuery({
-    queryKey: ["ledger-summary"],
-    queryFn: getLedgerSummary,
-  });
+const { data: mrrData } = useQuery({
+  queryKey: ["mrr"],
+  queryFn: () => getMRR(),
+});
+const { data: churnData } = useQuery({
+  queryKey: ["churn"],
+  queryFn: () => getChurn(),
+});
+const { data: recoveryData } = useQuery({
+  queryKey: ["recovery"],
+  queryFn: () => getDunningRecovery(),
+});
+const { data: summaryData } = useQuery({
+  queryKey: ["ledger-summary"],
+  queryFn: () => getLedgerSummary(),
+});
   const { data: subsData } = useQuery({
     queryKey: ["subscriptions"],
     queryFn: getSubscriptions,
