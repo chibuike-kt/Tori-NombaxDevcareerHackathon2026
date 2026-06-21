@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   getMRR,
@@ -19,6 +20,25 @@ import {
   LineChart,
   Line,
 } from "recharts";
+
+type Range = "7D" | "30D" | "90D" | "1Y";
+
+function rangeParams(range: Range): {
+  from: string;
+  to: string;
+  period: string;
+} {
+  const to = new Date();
+  const from = new Date();
+  if (range === "7D") from.setDate(to.getDate() - 7);
+  else if (range === "30D") from.setDate(to.getDate() - 30);
+  else if (range === "90D") from.setDate(to.getDate() - 90);
+  else from.setFullYear(to.getFullYear() - 1);
+
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const period = `${to.getFullYear()}-${String(to.getMonth() + 1).padStart(2, "0")}`;
+  return { from: fmt(from), to: fmt(to), period };
+}
 
 function StatCard({
   label,
@@ -74,18 +94,24 @@ const mockDunning = [
 ];
 
 export default function FinancePage() {
-  const { data: mrrData } = useQuery({ queryKey: ["mrr"], queryFn: getMRR });
+  const [range, setRange] = useState<Range>("30D");
+  const { from, to, period } = rangeParams(range);
+
+  const { data: mrrData } = useQuery({
+    queryKey: ["mrr", period],
+    queryFn: () => getMRR(period),
+  });
   const { data: churnData } = useQuery({
-    queryKey: ["churn"],
-    queryFn: getChurn,
+    queryKey: ["churn", from, to],
+    queryFn: () => getChurn(from, to),
   });
   const { data: recoveryData } = useQuery({
-    queryKey: ["recovery"],
-    queryFn: getDunningRecovery,
+    queryKey: ["recovery", from, to],
+    queryFn: () => getDunningRecovery(from, to),
   });
   const { data: summaryData } = useQuery({
-    queryKey: ["ledger-summary"],
-    queryFn: getLedgerSummary,
+    queryKey: ["ledger-summary", from, to],
+    queryFn: () => getLedgerSummary(from, to),
   });
 
   const mrr = mrrData?.data;
@@ -93,40 +119,66 @@ export default function FinancePage() {
   const recovery = recoveryData?.data;
   const summary = summaryData?.data;
 
+  const ranges: Range[] = ["7D", "30D", "90D", "1Y"];
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1
-          className="text-2xl font-extrabold"
-          style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1
+            className="text-2xl font-extrabold"
+            style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
+          >
+            Finance
+          </h1>
+          <p
+            className="text-sm font-medium mt-0.5"
+            style={{ color: "#8A94A6" }}
+          >
+            Revenue, churn, and dunning recovery metrics
+          </p>
+        </div>
+        <div
+          className="flex gap-1.5 p-1 rounded-lg"
+          style={{ background: "#F1F3F5" }}
         >
-          Finance
-        </h1>
-        <p className="text-sm font-medium mt-0.5" style={{ color: "#8A94A6" }}>
-          Revenue, churn, and dunning recovery metrics
-        </p>
+          {ranges.map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className="text-xs font-bold px-3 py-1.5 rounded-md"
+              style={{
+                background: range === r ? "#fff" : "transparent",
+                color: range === r ? "#0F1728" : "#6B7280",
+                boxShadow: range === r ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+              }}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-4 gap-3 mb-5">
         <StatCard
           label="MRR"
-          value={mrr ? formatKoboShort(mrr.mrr_kobo) : "—"}
+          value={mrr ? formatKoboShort(mrr.mrr_kobo) : "..."}
           sub={mrr?.period}
           accent
         />
         <StatCard
           label="ARR (est.)"
-          value={mrr ? formatKoboShort(mrr.mrr_kobo * 12) : "—"}
+          value={mrr ? formatKoboShort(mrr.mrr_kobo * 12) : "..."}
           sub="annualised"
         />
         <StatCard
           label="Churn rate"
-          value={churn ? `${churn.churn_rate_pct.toFixed(1)}%` : "—"}
+          value={churn ? `${churn.churn_rate_pct.toFixed(1)}%` : "..."}
           sub={`${churn?.cancelled_count ?? 0} cancelled`}
         />
         <StatCard
           label="Dunning recovered"
-          value={recovery ? formatKoboShort(recovery.recovered_kobo) : "—"}
+          value={recovery ? formatKoboShort(recovery.recovered_kobo) : "..."}
           sub="this period"
           accent
         />
@@ -147,7 +199,7 @@ export default function FinancePage() {
             className="text-2xl font-extrabold mb-4"
             style={{ color: "#0F1728" }}
           >
-            {summary ? formatKobo(summary.total_charged) : "—"}
+            {summary ? formatKobo(summary.total_charged) : "..."}
           </p>
           <div
             className="flex justify-between text-xs font-medium"
@@ -155,7 +207,7 @@ export default function FinancePage() {
           >
             <span>Refunds</span>
             <span style={{ color: "#E24B4A" }}>
-              {summary ? formatKobo(summary.total_refunded) : "—"}
+              {summary ? formatKobo(summary.total_refunded) : "..."}
             </span>
           </div>
           <div
@@ -164,7 +216,7 @@ export default function FinancePage() {
           >
             <span style={{ color: "#0F1728" }}>Net revenue</span>
             <span style={{ color: "#00B37E" }}>
-              {summary ? formatKobo(summary.net_revenue) : "—"}
+              {summary ? formatKobo(summary.net_revenue) : "..."}
             </span>
           </div>
         </div>
@@ -245,7 +297,7 @@ export default function FinancePage() {
                   className="text-sm font-extrabold"
                   style={{ color: color as string }}
                 >
-                  {val !== undefined ? formatKobo(val as number) : "—"}
+                  {val !== undefined ? formatKobo(val as number) : "..."}
                 </span>
               </div>
             ))}
