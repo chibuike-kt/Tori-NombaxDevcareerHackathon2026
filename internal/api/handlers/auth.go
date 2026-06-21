@@ -145,3 +145,35 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 	respond.JSON(w, r, http.StatusOK, tenant)
 }
+
+func (h *AuthHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
+	tenant := middleware.GetTenant(r.Context())
+	if tenant == nil {
+		respond.Unauthorised(w, r, "not authenticated")
+		return
+	}
+
+	var body struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respond.BadRequest(w, r, "invalid_body", "request body is not valid JSON")
+		return
+	}
+
+	if body.Name == "" {
+		body.Name = tenant.Name
+	}
+	if body.Email == "" {
+		body.Email = tenant.Email
+	}
+
+	updated, err := h.tenants.Update(r.Context(), tenant.ID, body.Name, body.Email)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, updated)
+}
