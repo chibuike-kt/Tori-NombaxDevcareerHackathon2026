@@ -68,6 +68,7 @@ type SubscriptionRepository interface {
 	ListTrialingDue(ctx context.Context, asOf time.Time, limit int) ([]*Subscription, error)
 	ListDueForRetry(ctx context.Context, asOf time.Time, limit int) ([]*Subscription, error)
 	UpdateStatusOptimistic(ctx context.Context, id, tenantID uuid.UUID, status SubscriptionStatus, lastUpdatedAt time.Time) (*Subscription, error)
+	ListByCustomerNoTenant(ctx context.Context, customerID uuid.UUID) ([]*Subscription, error)
 }
 
 type InvoiceRepository interface {
