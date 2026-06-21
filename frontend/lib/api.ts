@@ -93,6 +93,12 @@ export const rotateAPIKey = () =>
 
 export const getMe = () => api.get<{ data: Tenant }>("/v1/me");
 
+export const getCustomer = (id: string) =>
+  api.get<{ data: Customer }>(`/v1/customers/${id}`);
+
+export const getCustomerSubscriptions = (id: string) =>
+  api.get<{ data: Subscription[] }>(`/v1/subscriptions?customer_id=${id}`);
+
 export interface Tenant {
   id: string;
   name: string;
