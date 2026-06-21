@@ -4,23 +4,47 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"context"
 
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/subscription"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/webhook"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 )
 
 type SubscriptionHandler struct {
-	subs      domain.SubscriptionRepository
-	plans     domain.PlanRepository
-	customers domain.CustomerRepository
+	subs       domain.SubscriptionRepository
+	plans      domain.PlanRepository
+	customers  domain.CustomerRepository
+	dispatcher *webhook.Dispatcher
 }
 
-func NewSubscriptionHandler(subs domain.SubscriptionRepository, plans domain.PlanRepository, customers domain.CustomerRepository) *SubscriptionHandler {
-	return &SubscriptionHandler{subs: subs, plans: plans, customers: customers}
+func NewSubscriptionHandler(
+	subs domain.SubscriptionRepository,
+	plans domain.PlanRepository,
+	customers domain.CustomerRepository,
+	dispatcher *webhook.Dispatcher,
+) *SubscriptionHandler {
+	return &SubscriptionHandler{
+		subs:       subs,
+		plans:      plans,
+		customers:  customers,
+		dispatcher: dispatcher,
+	}
+}
+
+// fireEvent dispatches a webhook event asynchronously so it never blocks the API response.
+func (h *SubscriptionHandler) fireEvent(tenantID uuid.UUID, eventType domain.WebhookEventType, data interface{}) {
+	go func() {
+		ctx := context.Background()
+		if err := h.dispatcher.Dispatch(ctx, tenantID, eventType, data); err != nil {
+			log.Error().Err(err).Str("event_type", string(eventType)).Msg("webhook dispatch failed")
+		}
+	}()
 }
 
 func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -59,7 +83,6 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check idempotency
 	if body.IdempotencyKey != nil {
 		existing, _ := h.subs.GetByIdempotencyKey(r.Context(), *body.IdempotencyKey, tenantID)
 		if existing != nil {
@@ -90,6 +113,8 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respond.InternalError(w, r, err)
 		return
 	}
+
+	h.fireEvent(tenantID, domain.EventSubscriptionCreated, sub)
 
 	respond.JSON(w, r, http.StatusCreated, sub)
 }
@@ -164,6 +189,8 @@ func (h *SubscriptionHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.fireEvent(tenantID, domain.EventSubscriptionCancelled, updated)
+
 	respond.JSON(w, r, http.StatusOK, updated)
 }
 
@@ -193,6 +220,8 @@ func (h *SubscriptionHandler) Pause(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.fireEvent(tenantID, domain.EventSubscriptionPaused, updated)
+
 	respond.JSON(w, r, http.StatusOK, updated)
 }
 
@@ -221,6 +250,8 @@ func (h *SubscriptionHandler) Resume(w http.ResponseWriter, r *http.Request) {
 		respond.InternalError(w, r, err)
 		return
 	}
+
+	h.fireEvent(tenantID, domain.EventSubscriptionResumed, updated)
 
 	respond.JSON(w, r, http.StatusOK, updated)
 }
