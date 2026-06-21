@@ -49,7 +49,7 @@ func NewRouter(deps Deps) http.Handler {
 	planH := handlers.NewPlanHandler(deps.Plans)
 	customerH := handlers.NewCustomerHandler(deps.Customers)
 	dispatcher := webhook.NewDispatcher(deps.Webhooks)
-	subH := handlers.NewSubscriptionHandler(deps.Subscriptions, deps.Plans, deps.Customers, dispatcher)
+	subH := handlers.NewSubscriptionHandler(deps.Subscriptions, deps.Plans, deps.Customers, dispatcher, deps.Jobs)
 	ledgerSvc := ledger.NewService(deps.Ledger)
 	ledgerH := handlers.NewLedgerHandler(ledgerSvc)
 	finopsSvc := finops.NewService(deps.Ledger, deps.Subscriptions)
