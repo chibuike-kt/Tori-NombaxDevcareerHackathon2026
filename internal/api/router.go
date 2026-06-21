@@ -26,25 +26,52 @@ type Deps struct {
 	Webhooks      domain.WebhookRepository
 }
 
+// maxBodySize limits request bodies to 1MB to prevent OOM attacks.
+func maxBodySize(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB
+		next.ServeHTTP(w, r)
+	})
+}
+
+// tenantRateLimiter returns a per-tenant rate limiter.
+// Falls back to IP if no tenant is in context (should not happen in auth groups).
+func tenantRateLimiter(limit int) func(http.Handler) http.Handler {
+	return httprate.Limit(
+		limit,
+		60,
+		httprate.WithKeyFuncs(func(r *http.Request) (string, error) {
+			tenant := middleware.GetTenant(r.Context())
+			if tenant == nil {
+				return r.RemoteAddr, nil
+			}
+			return "tenant:" + tenant.ID.String(), nil
+		}),
+	)
+}
+
 func NewRouter(deps Deps) http.Handler {
 	r := chi.NewRouter()
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 
+	// Global middleware
 	r.Use(chimiddleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(corsMiddleware)
-	r.Use(httprate.LimitByIP(100, 60))
+	r.Use(maxBodySize)
+	r.Use(httprate.LimitByIP(100, 60)) // global IP-based limit
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 	r.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
+	// Handlers
 	authH := handlers.NewAuthHandler(deps.Tenants)
 	planH := handlers.NewPlanHandler(deps.Plans)
 	customerH := handlers.NewCustomerHandler(deps.Customers)
@@ -55,27 +82,28 @@ func NewRouter(deps Deps) http.Handler {
 	finopsSvc := finops.NewService(deps.Ledger, deps.Subscriptions)
 	finopsH := handlers.NewFinOpsHandler(finopsSvc)
 	webhookH := handlers.NewWebhookHandler(deps.Webhooks)
+	healthH := handlers.NewHealthHandler(deps.Subscriptions, deps.Plans)
+	checkoutH := handlers.NewCheckoutHandler(deps.Customers, deps.Plans, deps.Subscriptions, deps.Jobs)
+	apiKeyH := handlers.NewAPIKeyHandler(deps.Tenants)
 
-	// Public
+	// Public routes — no auth
 	r.Post("/v1/auth/register", authH.Register)
 	r.Post("/v1/auth/login", authH.Login)
 	r.Post("/v1/auth/refresh", authH.Refresh)
 
-	// Dashboard API — JWT auth
+	// Dashboard API — JWT auth + per-tenant rate limiting
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.JWTAuth(jwtSecret, deps.Tenants))
+		r.Use(tenantRateLimiter(300)) // 300 req/min per tenant
 
 		r.Get("/v1/me", authH.Me)
 		r.Patch("/v1/me", authH.UpdateMe)
 
-		checkoutH := handlers.NewCheckoutHandler(deps.Customers, deps.Plans, deps.Subscriptions, deps.Jobs)
 		r.Post("/v1/checkout", checkoutH.CreateCheckout)
 
-		healthH := handlers.NewHealthHandler(deps.Subscriptions, deps.Plans)
 		r.Get("/v1/health", healthH.GetPortfolioHealth)
 		r.Get("/v1/health/forecast", healthH.GetRevenueForecast)
 
-		apiKeyH := handlers.NewAPIKeyHandler(deps.Tenants)
 		r.Post("/v1/api-keys", apiKeyH.CreateAPIKey)
 		r.Post("/v1/api-keys/rotate", apiKeyH.RotateAPIKey)
 
@@ -117,24 +145,26 @@ func NewRouter(deps Deps) http.Handler {
 		r.Post("/v1/webhooks/logs/{id}/retry", webhookH.RetryDelivery)
 	})
 
-	// Platform API — API key auth (server-to-server)
-r.Group(func(r chi.Router) {
-    r.Use(middleware.APIKeyAuth(deps.Tenants))
+	// Platform API — API key auth + per-tenant rate limiting
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.APIKeyAuth(deps.Tenants))
+		r.Use(tenantRateLimiter(600)) // 600 req/min per tenant for server-to-server
 
-    r.Post("/v1/platform/customers", customerH.Create)
-    r.Get("/v1/platform/customers/{id}", customerH.Get)
-    r.Get("/v1/platform/customers/{id}/portal-token", customerH.GeneratePortalToken)
-    r.Post("/v1/platform/plans", planH.Create)
-    r.Get("/v1/platform/plans/{id}", planH.Get)
-    r.Post("/v1/platform/subscriptions", subH.Create)
-    r.Get("/v1/platform/subscriptions/{id}", subH.Get)
-    r.Post("/v1/platform/subscriptions/{id}/cancel", subH.Cancel)
-    r.Post("/v1/platform/subscriptions/{id}/pause", subH.Pause)
-    r.Post("/v1/platform/subscriptions/{id}/resume", subH.Resume)
+		r.Post("/v1/platform/checkout", checkoutH.CreateCheckout)
 
-    checkoutH := handlers.NewCheckoutHandler(deps.Customers, deps.Plans, deps.Subscriptions, deps.Jobs)
-    r.Post("/v1/platform/checkout", checkoutH.CreateCheckout)
-})
+		r.Post("/v1/platform/customers", customerH.Create)
+		r.Get("/v1/platform/customers/{id}", customerH.Get)
+		r.Get("/v1/platform/customers/{id}/portal-token", customerH.GeneratePortalToken)
+
+		r.Post("/v1/platform/plans", planH.Create)
+		r.Get("/v1/platform/plans/{id}", planH.Get)
+
+		r.Post("/v1/platform/subscriptions", subH.Create)
+		r.Get("/v1/platform/subscriptions/{id}", subH.Get)
+		r.Post("/v1/platform/subscriptions/{id}/cancel", subH.Cancel)
+		r.Post("/v1/platform/subscriptions/{id}/pause", subH.Pause)
+		r.Post("/v1/platform/subscriptions/{id}/resume", subH.Resume)
+	})
 
 	return r
 }
