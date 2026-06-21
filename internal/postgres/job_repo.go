@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"time"
+	"encoding/json"
 
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/db/generated"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
@@ -112,4 +113,9 @@ func jobFromRow(row db.ScheduledJob) *domain.ScheduledJob {
 		LastError:   fromPgText(row.LastError),
 		CreatedAt:   row.CreatedAt,
 	}
+}
+
+func (r *JobRepo) CancelPendingJobsForSubscription(ctx context.Context, subscriptionID string) error {
+	payload := json.RawMessage(`"` + subscriptionID + `"`)
+	return r.q.CancelPendingJobsForSubscription(ctx, payload)
 }
