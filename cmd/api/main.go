@@ -29,6 +29,11 @@ func main() {
 
 	log.Info().Msg("database connection established")
 
+jwtSecret := os.Getenv("JWT_SECRET")
+if len(jwtSecret) < 32 {
+    log.Fatal().Msg("JWT_SECRET must be set and at least 32 characters — refusing to start")
+}
+
 	deps := api.Deps{
 		Tenants:       postgres.NewTenantRepo(pool),
 		Customers:     postgres.NewCustomerRepo(pool),
