@@ -65,6 +65,10 @@ func NewRouter(deps Deps) http.Handler {
 
 		r.Get("/v1/me", authH.Me)
 
+		apiKeyH := handlers.NewAPIKeyHandler(deps.Tenants)
+		r.Post("/v1/api-keys", apiKeyH.CreateAPIKey)
+		r.Post("/v1/api-keys/rotate", apiKeyH.RotateAPIKey)
+
 		r.Post("/v1/plans", planH.Create)
 		r.Get("/v1/plans", planH.List)
 		r.Get("/v1/plans/{id}", planH.Get)
