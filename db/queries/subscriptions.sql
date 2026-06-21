@@ -104,3 +104,12 @@ SELECT * FROM subscriptions
 WHERE status IN ('PAST_DUE', 'DUNNING') AND next_retry_at <= $1
 ORDER BY next_retry_at ASC
 LIMIT $2;
+
+-- name: UpdateSubscriptionStatusOptimistic :one
+UPDATE subscriptions
+SET status = $3
+WHERE id = $1
+  AND tenant_id = $2
+  AND updated_at = $4
+  AND status != 'CANCELLED'
+RETURNING *;
