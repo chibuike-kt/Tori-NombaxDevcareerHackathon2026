@@ -53,3 +53,9 @@ LIMIT $1 OFFSET $2;
 UPDATE scheduled_jobs
 SET status = 'pending', attempts = 0, last_error = NULL, scheduled_at = NOW()
 WHERE id = $1;
+
+-- name: CancelPendingJobsForSubscription :exec
+UPDATE scheduled_jobs
+SET status = 'cancelled'
+WHERE status = 'pending'
+  AND payload->>'subscription_id' = $1;

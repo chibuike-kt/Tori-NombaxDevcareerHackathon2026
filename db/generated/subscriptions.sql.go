@@ -764,3 +764,50 @@ func (q *Queries) UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscr
 	)
 	return i, err
 }
+
+const updateSubscriptionStatusOptimistic = `-- name: UpdateSubscriptionStatusOptimistic :one
+UPDATE subscriptions
+SET status = $3
+WHERE id = $1
+  AND tenant_id = $2
+  AND updated_at = $4
+  AND status != 'CANCELLED'
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at
+`
+
+type UpdateSubscriptionStatusOptimisticParams struct {
+	ID        uuid.UUID `json:"id"`
+	TenantID  uuid.UUID `json:"tenant_id"`
+	Status    string    `json:"status"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (q *Queries) UpdateSubscriptionStatusOptimistic(ctx context.Context, arg UpdateSubscriptionStatusOptimisticParams) (Subscription, error) {
+	row := q.db.QueryRow(ctx, updateSubscriptionStatusOptimistic,
+		arg.ID,
+		arg.TenantID,
+		arg.Status,
+		arg.UpdatedAt,
+	)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.CustomerID,
+		&i.PlanID,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.TrialEnd,
+		&i.PausedAt,
+		&i.CancelledAt,
+		&i.CancelAtPeriodEnd,
+		&i.DunningAttempt,
+		&i.NextRetryAt,
+		&i.IdempotencyKey,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

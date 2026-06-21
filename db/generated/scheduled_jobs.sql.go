@@ -14,6 +14,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const cancelPendingJobsForSubscription = `-- name: CancelPendingJobsForSubscription :exec
+UPDATE scheduled_jobs
+SET status = 'cancelled'
+WHERE status = 'pending'
+  AND payload->>'subscription_id' = $1
+`
+
+func (q *Queries) CancelPendingJobsForSubscription(ctx context.Context, payload json.RawMessage) error {
+	_, err := q.db.Exec(ctx, cancelPendingJobsForSubscription, payload)
+	return err
+}
+
 const claimNextJob = `-- name: ClaimNextJob :one
 UPDATE scheduled_jobs
 SET
