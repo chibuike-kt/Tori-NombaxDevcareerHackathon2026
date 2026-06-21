@@ -61,6 +61,18 @@ export const logout = () => {
   localStorage.removeItem("refresh_token");
 };
 
+export const createAPIKey = (name: string) =>
+  api.post<{ data: { key: string; name: string; hint: string } }>(
+    "/v1/api-keys",
+    { name },
+  );
+
+export const rotateAPIKey = () =>
+  api.post<{ data: { key: string; name: string; hint: string } }>(
+    "/v1/api-keys/rotate",
+    {},
+  );
+
 export const getMe = () => api.get<{ data: Tenant }>("/v1/me");
 
 export interface Tenant {
