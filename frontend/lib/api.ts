@@ -51,10 +51,25 @@ export const pauseSubscription = (id: string) => api.post(`/v1/subscriptions/${i
 export const resumeSubscription = (id: string) => api.post(`/v1/subscriptions/${id}/resume`, {});
 
 // Finance
-export const getMRR = () => api.get<{ data: MRRResult }>("/v1/finance/mrr");
-export const getChurn = () => api.get<{ data: ChurnResult }>("/v1/finance/churn");
-export const getDunningRecovery = () => api.get<{ data: DunningRecoveryResult }>("/v1/finance/dunning-recovery");
-export const getLedgerSummary = () => api.get<{ data: LedgerSummary }>("/v1/ledger/summary");
+export const getMRR = (period?: string) =>
+  api.get<{ data: MRRResult }>(
+    `/v1/finance/mrr${period ? `?period=${period}` : ""}`,
+  );
+
+export const getChurn = (from?: string, to?: string) =>
+  api.get<{ data: ChurnResult }>(
+    `/v1/finance/churn${from ? `?from=${from}&to=${to}` : ""}`,
+  );
+
+export const getDunningRecovery = (from?: string, to?: string) =>
+  api.get<{ data: DunningRecoveryResult }>(
+    `/v1/finance/dunning-recovery${from ? `?from=${from}&to=${to}` : ""}`,
+  );
+
+export const getLedgerSummary = (from?: string, to?: string) =>
+  api.get<{ data: LedgerSummary }>(
+    `/v1/ledger/summary${from ? `?from=${from}&to=${to}` : ""}`,
+  );
 
 export const logout = () => {
   localStorage.removeItem("access_token");
