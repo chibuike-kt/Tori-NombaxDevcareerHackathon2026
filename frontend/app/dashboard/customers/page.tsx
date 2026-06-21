@@ -1,13 +1,14 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { getCustomers, createCustomer } from "@/lib/api";
 import { formatDate, avatarFor } from "@/lib/utils";
 
 export default function CustomersPage() {
   const qc = useQueryClient();
+  const router = useRouter();
   const { data, isLoading } = useQuery({
     queryKey: ["customers"],
     queryFn: getCustomers,
@@ -17,16 +18,18 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [externalId, setExternalId] = useState("");
   const [error, setError] = useState("");
-  const router = useRouter();
 
   const create = useMutation({
-    mutationFn: () => createCustomer({ email, name }),
+    mutationFn: () =>
+      createCustomer({ email, name, external_id: externalId || undefined }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["customers"] });
       setShowForm(false);
       setEmail("");
       setName("");
+      setExternalId("");
       setError("");
     },
     onError: (e: unknown) =>
@@ -71,10 +74,15 @@ export default function CustomersPage() {
           className="bg-white border rounded-xl p-5 mb-4"
           style={{ borderColor: "#EAECEF" }}
         >
-          <h2 className="text-sm font-bold mb-4" style={{ color: "#0F1728" }}>
+          <h2 className="text-sm font-bold mb-1" style={{ color: "#0F1728" }}>
             New customer
           </h2>
-          <div className="grid grid-cols-2 gap-3 mb-3">
+          <p className="text-xs font-medium mb-4" style={{ color: "#8A94A6" }}>
+            Adding a customer here does not start a subscription. Go to
+            Subscriptions and click &quot;New subscription&quot; to subscribe them to a
+            plan.
+          </p>
+          <div className="grid grid-cols-3 gap-3 mb-3">
             <div>
               <label
                 className="text-xs font-semibold block mb-1.5"
@@ -86,8 +94,8 @@ export default function CustomersPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="customer@business.ng"
-                className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium"
-                style={{ background: "#F8F9FA", color: "#0F1728" }}
+                className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium border"
+                style={{ borderColor: "#E5E7EB", color: "#0F1728" }}
               />
             </div>
             <div>
@@ -101,8 +109,29 @@ export default function CustomersPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Amaka Obi"
-                className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium"
-                style={{ background: "#F8F9FA", color: "#0F1728" }}
+                className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium border"
+                style={{ borderColor: "#E5E7EB", color: "#0F1728" }}
+              />
+            </div>
+            <div>
+              <label
+                className="text-xs font-semibold block mb-1.5"
+                style={{ color: "#4B5563" }}
+              >
+                External ID (optional)
+                <span
+                  className="ml-1.5 font-normal"
+                  style={{ color: "#9CA3AF" }}
+                >
+                  your own user ID
+                </span>
+              </label>
+              <input
+                value={externalId}
+                onChange={(e) => setExternalId(e.target.value)}
+                placeholder="user_12345"
+                className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium border"
+                style={{ borderColor: "#E5E7EB", color: "#0F1728" }}
               />
             </div>
           </div>
@@ -199,7 +228,7 @@ export default function CustomersPage() {
                   borderBottom: "0.5px solid #EAECEF",
                 }}
               >
-                {["Customer", "Name", "External ID", "Created"].map((h) => (
+                {["Customer", "Name", "External ID", "Created", ""].map((h) => (
                   <th
                     key={h}
                     className="text-left px-4 py-3 text-[11px] font-semibold"
@@ -243,19 +272,27 @@ export default function CustomersPage() {
                       className="px-4 py-3 text-xs font-medium"
                       style={{ color: "#4B5563" }}
                     >
-                      {c.name ?? "—"}
+                      {c.name ?? "Not set"}
                     </td>
                     <td
                       className="px-4 py-3 text-xs font-mono"
                       style={{ color: "#98A2B3" }}
                     >
-                      {c.external_id ?? "—"}
+                      {c.external_id ?? "Not set"}
                     </td>
                     <td
                       className="px-4 py-3 text-xs font-medium"
                       style={{ color: "#98A2B3" }}
                     >
                       {formatDate(c.created_at)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className="text-xs font-semibold"
+                        style={{ color: "#00B37E" }}
+                      >
+                        View
+                      </span>
                     </td>
                   </tr>
                 );
