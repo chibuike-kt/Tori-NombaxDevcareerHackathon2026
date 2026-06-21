@@ -58,6 +58,7 @@ type SubscriptionRepository interface {
 	ListActiveDue(ctx context.Context, asOf time.Time, limit int) ([]*Subscription, error)
 	ListTrialingDue(ctx context.Context, asOf time.Time, limit int) ([]*Subscription, error)
 	ListDueForRetry(ctx context.Context, asOf time.Time, limit int) ([]*Subscription, error)
+	UpdateStatusOptimistic(ctx context.Context, id, tenantID uuid.UUID, status SubscriptionStatus, lastUpdatedAt time.Time) (*Subscription, error)
 }
 
 type InvoiceRepository interface {
@@ -98,6 +99,7 @@ type JobRepository interface {
 	GetQueueDepth(ctx context.Context) (int64, error)
 	ListFailed(ctx context.Context, limit, offset int) ([]*ScheduledJob, error)
 	Retry(ctx context.Context, id uuid.UUID) error
+	CancelPendingJobsForSubscription(ctx context.Context, subscriptionID string) error
 }
 
 type WebhookRepository interface {
