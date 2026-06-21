@@ -97,6 +97,9 @@ export const rotateAPIKey = () =>
     {},
   );
 
+export const getAPIKeyHint = () =>
+  api.get<{ data: { hint: string; note?: string } }>("/v1/api-keys");
+
   export const updateMe = (name: string, email: string) =>
     api.patch<{ data: Tenant }>("/v1/me", { name, email });
 
