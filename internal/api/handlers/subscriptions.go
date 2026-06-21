@@ -127,8 +127,24 @@ func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 		limit = 20
 	}
 
-	status := r.URL.Query().Get("status")
-	if status != "" {
+	// Filter by customer_id if provided
+	if customerIDStr := r.URL.Query().Get("customer_id"); customerIDStr != "" {
+		customerID, err := uuid.Parse(customerIDStr)
+		if err != nil {
+			respond.BadRequest(w, r, "invalid_customer_id", "customer_id is not a valid UUID")
+			return
+		}
+		subs, err := h.subs.ListByCustomer(r.Context(), tenantID, customerID)
+		if err != nil {
+			respond.InternalError(w, r, err)
+			return
+		}
+		respond.List(w, r, http.StatusOK, subs, &respond.Pagination{Total: int64(len(subs))})
+		return
+	}
+
+	// Filter by status if provided
+	if status := r.URL.Query().Get("status"); status != "" {
 		subs, err := h.subs.ListByStatus(r.Context(), tenantID, domain.SubscriptionStatus(status), limit, offset)
 		if err != nil {
 			respond.InternalError(w, r, err)
