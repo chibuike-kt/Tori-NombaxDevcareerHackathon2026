@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	apicontext "github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/context"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/billing"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
@@ -22,21 +22,21 @@ func NewHealthHandler(subs domain.SubscriptionRepository, plans domain.PlanRepos
 
 type subscriptionWithHealth struct {
 	*domain.Subscription
-	Health billing.HealthScore      `json:"health"`
-	Churn  billing.ChurnPrediction  `json:"churn"`
+	Health billing.HealthScore     `json:"health"`
+	Churn  billing.ChurnPrediction `json:"churn"`
 }
 
 type portfolioHealth struct {
-	AverageScore        int                      `json:"average_score"`
-	HealthyCount        int                      `json:"healthy_count"`
-	AtRiskCount         int                      `json:"at_risk_count"`
-	CriticalCount       int                      `json:"critical_count"`
-	ChurnRiskCount      int                      `json:"churn_risk_count"`
-	Subscriptions       []subscriptionWithHealth `json:"subscriptions"`
+	AverageScore   int                      `json:"average_score"`
+	HealthyCount   int                      `json:"healthy_count"`
+	AtRiskCount    int                      `json:"at_risk_count"`
+	CriticalCount  int                      `json:"critical_count"`
+	ChurnRiskCount int                      `json:"churn_risk_count"`
+	Subscriptions  []subscriptionWithHealth `json:"subscriptions"`
 }
 
 func (h *HealthHandler) GetPortfolioHealth(w http.ResponseWriter, r *http.Request) {
-	tenantID := apicontext.GetTenantID(r.Context())
+	tenantID := middleware.GetTenantID(r.Context())
 	if tenantID == uuid.Nil {
 		respond.Unauthorised(w, r, "missing tenant")
 		return
@@ -104,9 +104,8 @@ func (h *HealthHandler) GetPortfolioHealth(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// GetRevenueForecast projects next month's expected revenue.
 func (h *HealthHandler) GetRevenueForecast(w http.ResponseWriter, r *http.Request) {
-	tenantID := apicontext.GetTenantID(r.Context())
+	tenantID := middleware.GetTenantID(r.Context())
 	if tenantID == uuid.Nil {
 		respond.Unauthorised(w, r, "missing tenant")
 		return
@@ -129,10 +128,7 @@ func (h *HealthHandler) GetRevenueForecast(w http.ResponseWriter, r *http.Reques
 		planMap[p.ID.String()] = p
 	}
 
-	// Use a default recovery rate for now.
-	// When real charge history exists, compute from ledger.
 	recoveryRate := 0.65
-
 	forecast := billing.ForecastRevenue(subs, planMap, recoveryRate)
 	respond.JSON(w, r, http.StatusOK, forecast)
 }
