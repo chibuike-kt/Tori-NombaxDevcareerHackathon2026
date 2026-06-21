@@ -15,16 +15,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap"
           rel="stylesheet"
+          href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700,800&display=swap"
         />
         <link
           rel="stylesheet"
@@ -33,7 +26,7 @@ export default function RootLayout({
       </head>
       <body
         style={{
-          fontFamily: "'Montserrat', sans-serif",
+          fontFamily: "'Satoshi', sans-serif",
           WebkitFontSmoothing: "antialiased",
         }}
       >
