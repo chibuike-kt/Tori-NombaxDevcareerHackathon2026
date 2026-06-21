@@ -99,6 +99,20 @@ export const getCustomer = (id: string) =>
 export const getCustomerSubscriptions = (id: string) =>
   api.get<{ data: Subscription[] }>(`/v1/subscriptions?customer_id=${id}`);
 
+export const createCheckout = (
+  email: string,
+  planId: string,
+  name?: string,
+  externalId?: string,
+) =>
+  api.post<{
+    data: {
+      customer: Customer;
+      subscription: Subscription;
+      customer_created: boolean;
+    };
+  }>("/v1/checkout", { email, plan_id: planId, name, external_id: externalId });
+
 export interface Tenant {
   id: string;
   name: string;
