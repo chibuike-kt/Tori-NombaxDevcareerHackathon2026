@@ -279,3 +279,11 @@ func (r *SubscriptionRepo) UpdateStatusOptimistic(ctx context.Context, id, tenan
 	}
 	return subFromRow(row), nil
 }
+
+func (r *SubscriptionRepo) ListByCustomerNoTenant(ctx context.Context, customerID uuid.UUID) ([]*domain.Subscription, error) {
+	rows, err := r.q.ListSubscriptionsByCustomerNoTenant(ctx, customerID)
+	if err != nil {
+		return nil, err
+	}
+	return subsFromRows(rows), nil
+}
