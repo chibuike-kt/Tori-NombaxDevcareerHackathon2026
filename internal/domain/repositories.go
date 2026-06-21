@@ -115,4 +115,6 @@ type WebhookRepository interface {
 	MarkDeliveryFailed(ctx context.Context, id uuid.UUID, responseStatus int, responseBody string, nextRetryAt time.Time) error
 	ListFailedDeliveriesDue(ctx context.Context, limit int) ([]*WebhookDelivery, error)
 	ListDeliveriesByEventTypeAndDateRange(ctx context.Context, tenantID uuid.UUID, eventTypes []string, from, to time.Time) ([]*WebhookDelivery, error)
+	DisableWebhookEndpoint(ctx context.Context, id uuid.UUID) error
+CountRecentFailedDeliveries(ctx context.Context, endpointID uuid.UUID) (int64, error)
 }
