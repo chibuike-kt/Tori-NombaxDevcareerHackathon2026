@@ -83,7 +83,7 @@ func ForecastRevenue(
 
 	confidence := confidenceLevel(activeCount, historicalRecoveryRate)
 
-	note := buildForecastNote(activeCount, atRiskRevenue, recoveredRevenue, rate)
+note := buildForecastNote(activeCount, atRiskRevenue)
 
 	return RevenueForecast{
 		PeriodLabel:         label,
@@ -109,7 +109,7 @@ func confidenceLevel(activeCount int, recoveryRate float64) string {
 	}
 }
 
-func buildForecastNote(activeCount int, atRisk, recovered int64, rate float64) string {
+func buildForecastNote(activeCount int, atRisk int64) string {
 	if activeCount == 0 {
 		return "No active subscriptions to forecast from."
 	}
