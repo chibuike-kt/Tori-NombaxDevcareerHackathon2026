@@ -69,3 +69,11 @@ func (m *mockWebhookRepo) ListFailedDeliveriesDue(_ context.Context, _ int) ([]*
 func (m *mockWebhookRepo) ListDeliveriesByEventTypeAndDateRange(_ context.Context, _ uuid.UUID, _ []string, _, _ time.Time) ([]*domain.WebhookDelivery, error) {
 	return nil, nil
 }
+
+func (m *mockWebhookRepo) DisableWebhookEndpoint(_ context.Context, _ uuid.UUID) error {
+	return nil
+}
+
+func (m *mockWebhookRepo) CountRecentFailedDeliveries(_ context.Context, _ uuid.UUID) (int64, error) {
+	return 0, nil
+}
