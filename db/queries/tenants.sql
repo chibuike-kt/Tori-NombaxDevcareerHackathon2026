@@ -34,3 +34,12 @@ UPDATE tenants SET password_hash = $2 WHERE id = $1;
 UPDATE tenants
 SET api_key_hash = @api_key_hash
 WHERE id = @id;
+
+-- name: UpdateTenantAPIKeyHintAndHash :one
+UPDATE tenants
+SET api_key_hash = $2, api_key_hint = $3
+WHERE id = $1
+RETURNING *;
+
+-- name: GetTenantAPIKeyHint :one
+SELECT api_key_hint FROM tenants WHERE id = $1;

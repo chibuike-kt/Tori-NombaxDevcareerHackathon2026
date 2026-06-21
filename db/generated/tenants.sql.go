@@ -15,7 +15,7 @@ import (
 const createTenant = `-- name: CreateTenant :one
 INSERT INTO tenants (name, email, api_key_hash, webhook_secret, dunning_config)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash
+RETURNING id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash, api_key_hint
 `
 
 type CreateTenantParams struct {
@@ -45,6 +45,7 @@ func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Ten
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.PasswordHash,
+		&i.ApiKeyHint,
 	)
 	return i, err
 }
@@ -58,8 +59,19 @@ func (q *Queries) DeactivateTenant(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const getTenantAPIKeyHint = `-- name: GetTenantAPIKeyHint :one
+SELECT api_key_hint FROM tenants WHERE id = $1
+`
+
+func (q *Queries) GetTenantAPIKeyHint(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getTenantAPIKeyHint, id)
+	var api_key_hint string
+	err := row.Scan(&api_key_hint)
+	return api_key_hint, err
+}
+
 const getTenantByAPIKeyHash = `-- name: GetTenantByAPIKeyHash :one
-SELECT id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash FROM tenants WHERE api_key_hash = $1 AND is_active = TRUE
+SELECT id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash, api_key_hint FROM tenants WHERE api_key_hash = $1 AND is_active = TRUE
 `
 
 func (q *Queries) GetTenantByAPIKeyHash(ctx context.Context, apiKeyHash string) (Tenant, error) {
@@ -75,12 +87,13 @@ func (q *Queries) GetTenantByAPIKeyHash(ctx context.Context, apiKeyHash string) 
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.PasswordHash,
+		&i.ApiKeyHint,
 	)
 	return i, err
 }
 
 const getTenantByEmail = `-- name: GetTenantByEmail :one
-SELECT id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash FROM tenants WHERE email = $1
+SELECT id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash, api_key_hint FROM tenants WHERE email = $1
 `
 
 func (q *Queries) GetTenantByEmail(ctx context.Context, email string) (Tenant, error) {
@@ -96,12 +109,13 @@ func (q *Queries) GetTenantByEmail(ctx context.Context, email string) (Tenant, e
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.PasswordHash,
+		&i.ApiKeyHint,
 	)
 	return i, err
 }
 
 const getTenantByID = `-- name: GetTenantByID :one
-SELECT id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash FROM tenants WHERE id = $1
+SELECT id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash, api_key_hint FROM tenants WHERE id = $1
 `
 
 func (q *Queries) GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error) {
@@ -117,12 +131,13 @@ func (q *Queries) GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, erro
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.PasswordHash,
+		&i.ApiKeyHint,
 	)
 	return i, err
 }
 
 const listTenants = `-- name: ListTenants :many
-SELECT id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash FROM tenants ORDER BY created_at DESC
+SELECT id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash, api_key_hint FROM tenants ORDER BY created_at DESC
 `
 
 func (q *Queries) ListTenants(ctx context.Context) ([]Tenant, error) {
@@ -144,6 +159,7 @@ func (q *Queries) ListTenants(ctx context.Context) ([]Tenant, error) {
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.PasswordHash,
+			&i.ApiKeyHint,
 		); err != nil {
 			return nil, err
 		}
@@ -170,7 +186,7 @@ func (q *Queries) SetTenantPassword(ctx context.Context, arg SetTenantPasswordPa
 }
 
 const updateTenant = `-- name: UpdateTenant :one
-UPDATE tenants SET name = $2, email = $3 WHERE id = $1 RETURNING id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash
+UPDATE tenants SET name = $2, email = $3 WHERE id = $1 RETURNING id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash, api_key_hint
 `
 
 type UpdateTenantParams struct {
@@ -192,6 +208,7 @@ func (q *Queries) UpdateTenant(ctx context.Context, arg UpdateTenantParams) (Ten
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.PasswordHash,
+		&i.ApiKeyHint,
 	)
 	return i, err
 }
@@ -212,8 +229,39 @@ func (q *Queries) UpdateTenantAPIKeyHash(ctx context.Context, arg UpdateTenantAP
 	return err
 }
 
+const updateTenantAPIKeyHintAndHash = `-- name: UpdateTenantAPIKeyHintAndHash :one
+UPDATE tenants
+SET api_key_hash = $2, api_key_hint = $3
+WHERE id = $1
+RETURNING id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash, api_key_hint
+`
+
+type UpdateTenantAPIKeyHintAndHashParams struct {
+	ID         uuid.UUID `json:"id"`
+	ApiKeyHash string    `json:"api_key_hash"`
+	ApiKeyHint string    `json:"api_key_hint"`
+}
+
+func (q *Queries) UpdateTenantAPIKeyHintAndHash(ctx context.Context, arg UpdateTenantAPIKeyHintAndHashParams) (Tenant, error) {
+	row := q.db.QueryRow(ctx, updateTenantAPIKeyHintAndHash, arg.ID, arg.ApiKeyHash, arg.ApiKeyHint)
+	var i Tenant
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.ApiKeyHash,
+		&i.WebhookSecret,
+		&i.DunningConfig,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.PasswordHash,
+		&i.ApiKeyHint,
+	)
+	return i, err
+}
+
 const updateTenantDunningConfig = `-- name: UpdateTenantDunningConfig :one
-UPDATE tenants SET dunning_config = $2 WHERE id = $1 RETURNING id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash
+UPDATE tenants SET dunning_config = $2 WHERE id = $1 RETURNING id, name, email, api_key_hash, webhook_secret, dunning_config, is_active, created_at, password_hash, api_key_hint
 `
 
 type UpdateTenantDunningConfigParams struct {
@@ -234,6 +282,7 @@ func (q *Queries) UpdateTenantDunningConfig(ctx context.Context, arg UpdateTenan
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.PasswordHash,
+		&i.ApiKeyHint,
 	)
 	return i, err
 }

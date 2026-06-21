@@ -118,6 +118,7 @@ type Tenant struct {
 	IsActive      bool            `json:"is_active"`
 	CreatedAt     time.Time       `json:"created_at"`
 	PasswordHash  string          `json:"password_hash"`
+	ApiKeyHint    string          `json:"api_key_hint"`
 }
 
 type WebhookDelivery struct {
