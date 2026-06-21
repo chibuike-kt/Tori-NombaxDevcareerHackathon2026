@@ -22,6 +22,8 @@ type AuthHandler struct {
 	tokens  domain.TokenRevoker
 }
 
+const maxLoginAttempts = 5
+
 func NewAuthHandler(tenants domain.TenantRepository, tokens domain.TokenRevoker) *AuthHandler {
 	return &AuthHandler{tenants: tenants, tokens: tokens}
 }
@@ -143,8 +145,17 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if account is locked due to too many failed attempts
+	if h.tokens.IsLoginLocked(r.Context(), body.Email) {
+		respond.Error(w, r, http.StatusTooManyRequests, "account_locked",
+			"too many failed login attempts — account locked for 15 minutes")
+		return
+	}
+
 	tenant, err := h.tenants.GetByEmail(r.Context(), body.Email)
 	if err != nil {
+		// Still record failure even if account does not exist — prevents enumeration
+		h.tokens.RecordLoginFailure(r.Context(), body.Email)
 		respond.Unauthorised(w, r, "invalid credentials")
 		return
 	}
@@ -155,9 +166,19 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !verifyPassword(body.Password, tenant.PasswordHash) {
+		count, _ := h.tokens.RecordLoginFailure(r.Context(), body.Email)
+		remaining := maxLoginAttempts - count
+		if remaining <= 0 {
+			respond.Error(w, r, http.StatusTooManyRequests, "account_locked",
+				"too many failed login attempts — account locked for 15 minutes")
+			return
+		}
 		respond.Unauthorised(w, r, "invalid credentials")
 		return
 	}
+
+	// Successful login — clear failure counter
+	h.tokens.ClearLoginFailures(r.Context(), body.Email)
 
 	accessToken, err := middleware.GenerateJWT(tenant.ID)
 	if err != nil {
