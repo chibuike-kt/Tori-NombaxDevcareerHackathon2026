@@ -1,0 +1,75 @@
+failure_codes:
+  # Retriable — temporary issues, worth retrying
+  - code: insufficient_funds
+    category: RETRIABLE
+    description: Customer does not have enough funds. May clear after payday.
+
+  - code: transaction_limit_exceeded
+    category: RETRIABLE
+    description: Transaction exceeds daily or monthly limit. May clear next day.
+
+  - code: temporary_bank_decline
+    category: RETRIABLE
+    description: Bank declined temporarily. Retry after short window.
+
+  - code: network_timeout
+    category: RETRIABLE
+    description: Request timed out. Network or processor issue.
+
+  - code: issuer_unavailable
+    category: RETRIABLE
+    description: Card issuer system is down. Retry when issuer recovers.
+
+  - code: transaction_timeout
+    category: RETRIABLE
+    description: Transaction processing timed out.
+
+  - code: do_not_honour_temporary
+    category: RETRIABLE
+    description: Soft decline. Bank may approve on retry.
+
+  - code: system_error
+    category: RETRIABLE
+    description: Processor system error. Retry after delay.
+
+  # Non-retriable — permanent failures, stop immediately
+  - code: card_expired
+    category: NON_RETRIABLE
+    description: Card has passed its expiry date. Customer must update card.
+
+  - code: card_stolen_or_lost
+    category: NON_RETRIABLE
+    description: Card reported stolen or lost. Do not retry.
+
+  - code: do_not_honour_permanent
+    category: NON_RETRIABLE
+    description: Hard decline. Bank will not approve this card.
+
+  - code: invalid_card_number
+    category: NON_RETRIABLE
+    description: Card number is invalid or does not exist.
+
+  - code: card_blocked
+    category: NON_RETRIABLE
+    description: Card is blocked, commonly for online transactions in Nigeria.
+
+  - code: card_blocked_international
+    category: NON_RETRIABLE
+    description: Card is not enabled for the transaction type. Very common in Nigeria.
+
+  - code: fraud_suspected
+    category: NON_RETRIABLE
+    description: Issuer flagged transaction as fraudulent. Do not retry.
+
+  - code: restricted_card
+    category: NON_RETRIABLE
+    description: Card has restrictions that prevent this transaction.
+
+  - code: invalid_transaction
+    category: NON_RETRIABLE
+    description: Transaction type not permitted for this card.
+
+default:
+  category: RETRIABLE
+  log_level: warn
+  message: Unknown failure code. Defaulting to retriable.
