@@ -13,6 +13,7 @@ var (
 	ErrCustomerArchived    = errors.New("customer is archived")
 	ErrTenantInactive      = errors.New("tenant is inactive")
 	ErrUnauthorised        = errors.New("unauthorised")
+	ErrConflict = errors.New("concurrent update conflict — please retry")
 )
 
 // TransitionError carries context about why a state transition was rejected.
