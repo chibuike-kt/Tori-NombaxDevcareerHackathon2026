@@ -7,6 +7,11 @@ import (
 	"github.com/google/uuid"
 )
 
+type TokenRevoker interface {
+	Revoke(ctx context.Context, token string, expiresAt time.Time) error
+	IsRevoked(ctx context.Context, token string) bool
+}
+
 type TenantRepository interface {
 	Create(ctx context.Context, name, email, apiKeyHash, webhookSecret string, config DunningConfig) (*Tenant, error)
 	SetPassword(ctx context.Context, id uuid.UUID, passwordHash string) error
