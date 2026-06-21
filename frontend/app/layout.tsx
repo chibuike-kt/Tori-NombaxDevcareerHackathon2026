@@ -3,7 +3,7 @@ import { Providers } from "@/lib/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Tori — Recurring billing for Nigerian businesses",
+  title: "Tori | Recurring billing infrastructure for Nigerian businesses",
   description: "The subscription infrastructure layer missing from Nomba",
 };
 
