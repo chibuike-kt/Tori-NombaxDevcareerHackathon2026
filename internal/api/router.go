@@ -68,6 +68,9 @@ func NewRouter(deps Deps) http.Handler {
 		r.Get("/v1/me", authH.Me)
 		r.Patch("/v1/me", authH.UpdateMe)
 
+		checkoutH := handlers.NewCheckoutHandler(deps.Customers, deps.Plans, deps.Subscriptions, deps.Jobs)
+		r.Post("/v1/checkout", checkoutH.CreateCheckout)
+
 		apiKeyH := handlers.NewAPIKeyHandler(deps.Tenants)
 		r.Post("/v1/api-keys", apiKeyH.CreateAPIKey)
 		r.Post("/v1/api-keys/rotate", apiKeyH.RotateAPIKey)
