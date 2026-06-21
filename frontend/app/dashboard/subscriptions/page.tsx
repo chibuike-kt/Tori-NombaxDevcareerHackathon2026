@@ -10,6 +10,7 @@ import {
   cancelSubscription,
   pauseSubscription,
   resumeSubscription,
+  createCheckout,
   type Customer,
   type Plan,
 } from "@/lib/api";
@@ -20,6 +21,18 @@ export default function SubscriptionsPage() {
   const qc = useQueryClient();
   const [filter, setFilter] = useState("ALL");
   const [search, setSearch] = useState("");
+  const [showForm, setShowForm] = useState(false);
+
+  // New subscription form state
+  const [checkoutEmail, setCheckoutEmail] = useState("");
+  const [checkoutName, setCheckoutName] = useState("");
+  const [checkoutPlanId, setCheckoutPlanId] = useState("");
+  const [checkoutExternalId, setCheckoutExternalId] = useState("");
+  const [checkoutError, setCheckoutError] = useState("");
+  const [checkoutSuccess, setCheckoutSuccess] = useState<{
+    customerCreated: boolean;
+    email: string;
+  } | null>(null);
 
   const { data: subsData, isLoading } = useQuery({
     queryKey: ["subscriptions"],
@@ -54,6 +67,33 @@ export default function SubscriptionsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["subscriptions"] }),
   });
 
+  const checkout = useMutation({
+    mutationFn: () =>
+      createCheckout(
+        checkoutEmail,
+        checkoutPlanId,
+        checkoutName || undefined,
+        checkoutExternalId || undefined,
+      ),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["subscriptions"] });
+      qc.invalidateQueries({ queryKey: ["customers"] });
+      setCheckoutSuccess({
+        customerCreated: res.data.customer_created,
+        email: res.data.customer.email,
+      });
+      setCheckoutEmail("");
+      setCheckoutName("");
+      setCheckoutPlanId("");
+      setCheckoutExternalId("");
+      setCheckoutError("");
+    },
+    onError: (e: unknown) =>
+      setCheckoutError(
+        e instanceof Error ? e.message : "Failed to create subscription",
+      ),
+  });
+
   const states = [
     "ALL",
     "ACTIVE",
@@ -85,6 +125,8 @@ export default function SubscriptionsPage() {
     return true;
   });
 
+  const activePlans = plans.filter((p) => p.is_active);
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -102,14 +144,228 @@ export default function SubscriptionsPage() {
             {subs.length} total billing relationships
           </p>
         </div>
-        <Link
-          href="/dashboard/customers"
+        <button
+          onClick={() => {
+            setShowForm(true);
+            setCheckoutSuccess(null);
+          }}
           className="flex items-center gap-1.5 text-sm px-4 py-2.5 rounded-lg font-bold text-white"
           style={{ background: "#00B37E" }}
         >
           <i className="ti ti-plus" /> New subscription
-        </Link>
+        </button>
       </div>
+
+      {showForm && (
+        <div
+          className="bg-white border rounded-xl p-5 mb-4"
+          style={{ borderColor: "#EAECEF" }}
+        >
+          {checkoutSuccess ? (
+            <div className="text-center py-4">
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
+                style={{ background: "#E6F8F2", color: "#00B37E" }}
+              >
+                <i className="ti ti-check" style={{ fontSize: 22 }} />
+              </div>
+              <p
+                className="text-sm font-extrabold mb-1"
+                style={{ color: "#0F1728" }}
+              >
+                Subscription started
+              </p>
+              <p
+                className="text-xs font-medium mb-4"
+                style={{ color: "#6B7280" }}
+              >
+                {checkoutSuccess.customerCreated
+                  ? `${checkoutSuccess.email} was created as a new customer and subscribed.`
+                  : `${checkoutSuccess.email} was found and subscribed to the plan.`}
+              </p>
+              <div className="flex gap-2 justify-center">
+                <button
+                  onClick={() => {
+                    setCheckoutSuccess(null);
+                  }}
+                  className="text-sm px-4 py-2 rounded-lg font-bold text-white"
+                  style={{ background: "#0F1728" }}
+                >
+                  Add another
+                </button>
+                <button
+                  onClick={() => {
+                    setShowForm(false);
+                    setCheckoutSuccess(null);
+                  }}
+                  className="text-sm px-4 py-2 rounded-lg font-bold border"
+                  style={{ borderColor: "#E5E7EB", color: "#6B7280" }}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <h2
+                className="text-sm font-bold mb-1"
+                style={{ color: "#0F1728" }}
+              >
+                New subscription
+              </h2>
+              <p
+                className="text-xs font-medium mb-4"
+                style={{ color: "#8A94A6" }}
+              >
+                Enter a customer email and select a plan. If the customer does
+                not exist yet, Tori creates them automatically.
+              </p>
+              {activePlans.length === 0 ? (
+                <div
+                  className="rounded-lg p-4 mb-4"
+                  style={{ background: "#FFF8E1", border: "1px solid #FDE68A" }}
+                >
+                  <p
+                    className="text-xs font-semibold"
+                    style={{ color: "#0F1728" }}
+                  >
+                    No active plans
+                  </p>
+                  <p
+                    className="text-xs font-medium mt-0.5"
+                    style={{ color: "#6B7280" }}
+                  >
+                    You need at least one active plan before creating a
+                    subscription.{" "}
+                    <Link
+                      href="/dashboard/plans"
+                      style={{ color: "#00B37E", fontWeight: 600 }}
+                    >
+                      Create a plan
+                    </Link>
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <label
+                        className="text-xs font-semibold block mb-1.5"
+                        style={{ color: "#4B5563" }}
+                      >
+                        Customer email
+                      </label>
+                      <input
+                        value={checkoutEmail}
+                        onChange={(e) => setCheckoutEmail(e.target.value)}
+                        placeholder="customer@business.ng"
+                        className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium border"
+                        style={{ borderColor: "#E5E7EB", color: "#0F1728" }}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        className="text-xs font-semibold block mb-1.5"
+                        style={{ color: "#4B5563" }}
+                      >
+                        Customer name{" "}
+                        <span style={{ color: "#9CA3AF", fontWeight: 400 }}>
+                          optional
+                        </span>
+                      </label>
+                      <input
+                        value={checkoutName}
+                        onChange={(e) => setCheckoutName(e.target.value)}
+                        placeholder="Amaka Obi"
+                        className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium border"
+                        style={{ borderColor: "#E5E7EB", color: "#0F1728" }}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        className="text-xs font-semibold block mb-1.5"
+                        style={{ color: "#4B5563" }}
+                      >
+                        Plan
+                      </label>
+                      <select
+                        value={checkoutPlanId}
+                        onChange={(e) => setCheckoutPlanId(e.target.value)}
+                        className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium border"
+                        style={{ borderColor: "#E5E7EB", color: "#0F1728" }}
+                      >
+                        <option value="">Select a plan</option>
+                        {activePlans.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} — {formatKobo(p.amount)}/{p.interval}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label
+                        className="text-xs font-semibold block mb-1.5"
+                        style={{ color: "#4B5563" }}
+                      >
+                        External ID{" "}
+                        <span style={{ color: "#9CA3AF", fontWeight: 400 }}>
+                          optional, your own user ID
+                        </span>
+                      </label>
+                      <input
+                        value={checkoutExternalId}
+                        onChange={(e) => setCheckoutExternalId(e.target.value)}
+                        placeholder="user_12345"
+                        className="w-full rounded-lg px-3.5 py-2.5 text-sm outline-none font-medium border"
+                        style={{ borderColor: "#E5E7EB", color: "#0F1728" }}
+                      />
+                    </div>
+                  </div>
+                  {checkoutError && (
+                    <p
+                      className="text-xs font-medium mb-3"
+                      style={{ color: "#DC2626" }}
+                    >
+                      {checkoutError}
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => checkout.mutate()}
+                      disabled={
+                        checkout.isPending || !checkoutEmail || !checkoutPlanId
+                      }
+                      className="text-sm px-4 py-2 rounded-lg font-bold text-white"
+                      style={{
+                        background:
+                          checkout.isPending ||
+                          !checkoutEmail ||
+                          !checkoutPlanId
+                            ? "#9CA3AF"
+                            : "#0F1728",
+                      }}
+                    >
+                      {checkout.isPending
+                        ? "Starting..."
+                        : "Start subscription"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowForm(false);
+                        setCheckoutError("");
+                      }}
+                      className="text-sm px-4 py-2 rounded-lg font-bold border"
+                      style={{ borderColor: "#E5E7EB", color: "#6B7280" }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       <div className="flex gap-2 mb-4 flex-wrap">
         {states.map((s) => (
@@ -246,13 +502,13 @@ export default function SubscriptionsPage() {
                       className="px-4 py-3 text-xs font-semibold"
                       style={{ color: "#4B5563" }}
                     >
-                      {plan?.name ?? "—"}
+                      {plan?.name ?? "Unknown"}
                     </td>
                     <td
                       className="px-4 py-3 text-xs font-bold"
                       style={{ color: "#0F1728" }}
                     >
-                      {plan ? formatKobo(plan.amount) : "—"}
+                      {plan ? formatKobo(plan.amount) : "..."}
                     </td>
                     <td className="px-4 py-3">
                       <StatusPill status={sub.status} />
@@ -276,7 +532,7 @@ export default function SubscriptionsPage() {
                           className="text-xs font-medium"
                           style={{ color: "#C4CACD" }}
                         >
-                          —
+                          None
                         </span>
                       )}
                     </td>
