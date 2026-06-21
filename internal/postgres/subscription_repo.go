@@ -263,3 +263,19 @@ func fromPgTimestamptz(t pgtype.Timestamptz) *time.Time {
 	}
 	return &t.Time
 }
+
+func (r *SubscriptionRepo) UpdateStatusOptimistic(ctx context.Context, id, tenantID uuid.UUID, status domain.SubscriptionStatus, lastUpdatedAt time.Time) (*domain.Subscription, error) {
+	row, err := r.q.UpdateSubscriptionStatusOptimistic(ctx, db.UpdateSubscriptionStatusOptimisticParams{
+		ID:        id,
+		TenantID:  tenantID,
+		Status:    string(status),
+		UpdatedAt: lastUpdatedAt,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrConflict
+		}
+		return nil, err
+	}
+	return subFromRow(row), nil
+}
