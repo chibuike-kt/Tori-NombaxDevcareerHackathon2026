@@ -89,11 +89,21 @@ func (w *Worker) processNext(ctx context.Context) {
 
 	logger.Info().Msg("processing job")
 
-	if err := handler(ctx, job.Payload); err != nil {
-		logger.Error().Err(err).Msg("job failed")
-		_ = w.jobs.MarkFailed(ctx, job.ID, err.Error())
-		return
-	}
+if err := handler(ctx, job.Payload); err != nil {
+    logger.Error().Err(err).Msg("job failed")
+    _ = w.jobs.MarkFailed(ctx, job.ID, err.Error())
+
+    // Alert if this job has exhausted all attempts
+    if job.Attempts+1 >= job.MaxAttempts {
+        logger.Error().
+            Str("job_id", job.ID.String()).
+            Str("job_type", string(job.JobType)).
+            Int("attempts", job.Attempts+1).
+            RawJSON("payload", job.Payload).
+            Msg("DEAD LETTER: job exhausted all retry attempts and will not be retried — manual intervention required")
+    }
+    return
+}
 
 	_ = w.jobs.MarkDone(ctx, job.ID)
 	logger.Info().Msg("job done")
