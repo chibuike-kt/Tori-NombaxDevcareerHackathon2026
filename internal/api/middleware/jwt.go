@@ -70,3 +70,8 @@ func GeneratePortalToken(customerID uuid.UUID) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(secret))
 }
+
+func ValidateRefreshToken(tokenStr string) (uuid.UUID, error) {
+	secret := os.Getenv("JWT_SECRET")
+	return validateJWT(tokenStr, secret)
+}
