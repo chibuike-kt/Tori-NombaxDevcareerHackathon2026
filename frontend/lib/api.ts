@@ -180,3 +180,25 @@ export interface LedgerSummary {
   entry_count: number;
   currency: string;
 }
+
+export interface HealthScore {
+  score: number;
+  label: string;
+  color: string;
+  reason: string;
+}
+
+export interface SubscriptionWithHealth extends Subscription {
+  health: HealthScore;
+}
+
+export interface PortfolioHealth {
+  average_score: number;
+  healthy_count: number;
+  at_risk_count: number;
+  critical_count: number;
+  subscriptions: SubscriptionWithHealth[];
+}
+
+export const getPortfolioHealth = () =>
+  api.get<{ data: PortfolioHealth }>("/v1/health");
