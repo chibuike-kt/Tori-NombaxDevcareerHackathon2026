@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	apicontext "github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/context"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/billing"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
@@ -53,7 +53,7 @@ type checkoutResponse struct {
 // Pass an email and plan_id. Tori finds or creates the customer automatically.
 // No separate customer creation call needed from the integrator.
 func (h *CheckoutHandler) CreateCheckout(w http.ResponseWriter, r *http.Request) {
-	tenantID := apicontext.GetTenantID(r.Context())
+	tenantID := middleware.GetTenantID(r.Context())
 	if tenantID == uuid.Nil {
 		respond.Unauthorised(w, r, "missing tenant")
 		return
