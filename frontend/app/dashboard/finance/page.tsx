@@ -7,6 +7,7 @@ import {
   getChurn,
   getDunningRecovery,
   getLedgerSummary,
+  getRevenueForecast,
 } from "@/lib/api";
 import { formatKobo, formatKoboShort } from "@/lib/utils";
 import {
@@ -34,7 +35,6 @@ function rangeParams(range: Range): {
   else if (range === "30D") from.setDate(to.getDate() - 30);
   else if (range === "90D") from.setDate(to.getDate() - 90);
   else from.setFullYear(to.getFullYear() - 1);
-
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
   const period = `${to.getFullYear()}-${String(to.getMonth() + 1).padStart(2, "0")}`;
   return { from: fmt(from), to: fmt(to), period };
@@ -113,11 +113,16 @@ export default function FinancePage() {
     queryKey: ["ledger-summary", from, to],
     queryFn: () => getLedgerSummary(from, to),
   });
+  const { data: forecastData } = useQuery({
+    queryKey: ["forecast"],
+    queryFn: getRevenueForecast,
+  });
 
   const mrr = mrrData?.data;
   const churn = churnData?.data;
   const recovery = recoveryData?.data;
   const summary = summaryData?.data;
+  const forecast = forecastData?.data;
 
   const ranges: Range[] = ["7D", "30D", "90D", "1Y"];
 
@@ -183,6 +188,155 @@ export default function FinancePage() {
           accent
         />
       </div>
+
+      {/* Revenue forecast */}
+      {forecast && (
+        <div
+          className="bg-white border rounded-xl p-5 mb-4"
+          style={{ borderColor: "#EAECEF" }}
+        >
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <i
+                  className="ti ti-chart-arrows-vertical"
+                  style={{ fontSize: 16, color: "#00B37E" }}
+                />
+                <p className="text-sm font-bold" style={{ color: "#0F1728" }}>
+                  Revenue forecast for {forecast.period_label}
+                </p>
+                <span
+                  className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                  style={{
+                    background:
+                      forecast.confidence === "high"
+                        ? "#E3F7EF"
+                        : forecast.confidence === "medium"
+                          ? "#FEF3C7"
+                          : "#F1F3F5",
+                    color:
+                      forecast.confidence === "high"
+                        ? "#0A7A56"
+                        : forecast.confidence === "medium"
+                          ? "#92400E"
+                          : "#6B7280",
+                  }}
+                >
+                  {forecast.confidence.toUpperCase()} CONFIDENCE
+                </span>
+              </div>
+              <p
+                className="text-xs font-medium mb-4"
+                style={{ color: "#8A94A6" }}
+              >
+                {forecast.note}
+              </p>
+              <div className="flex items-end gap-3">
+                <div>
+                  <p
+                    className="text-xs font-semibold mb-0.5"
+                    style={{ color: "#8A94A6" }}
+                  >
+                    Low estimate
+                  </p>
+                  <p
+                    className="text-xl font-extrabold"
+                    style={{ color: "#6B7280", letterSpacing: "-0.02em" }}
+                  >
+                    {formatKoboShort(forecast.expected_low)}
+                  </p>
+                </div>
+                <div className="pb-1 px-2" style={{ color: "#D1D5DB" }}>
+                  <i
+                    className="ti ti-arrows-horizontal"
+                    style={{ fontSize: 16 }}
+                  />
+                </div>
+                <div>
+                  <p
+                    className="text-xs font-semibold mb-0.5"
+                    style={{ color: "#8A94A6" }}
+                  >
+                    Mid estimate
+                  </p>
+                  <p
+                    className="text-3xl font-extrabold"
+                    style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
+                  >
+                    {formatKoboShort(forecast.expected_mid)}
+                  </p>
+                </div>
+                <div className="pb-1 px-2" style={{ color: "#D1D5DB" }}>
+                  <i
+                    className="ti ti-arrows-horizontal"
+                    style={{ fontSize: 16 }}
+                  />
+                </div>
+                <div>
+                  <p
+                    className="text-xs font-semibold mb-0.5"
+                    style={{ color: "#8A94A6" }}
+                  >
+                    High estimate
+                  </p>
+                  <p
+                    className="text-xl font-extrabold"
+                    style={{ color: "#00B37E", letterSpacing: "-0.02em" }}
+                  >
+                    {formatKoboShort(forecast.expected_high)}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex-shrink-0 ml-8">
+              <div className="grid grid-cols-3 gap-4 text-right">
+                <div>
+                  <p
+                    className="text-xs font-semibold mb-0.5"
+                    style={{ color: "#8A94A6" }}
+                  >
+                    Active subs
+                  </p>
+                  <p
+                    className="text-2xl font-extrabold"
+                    style={{ color: "#0F1728" }}
+                  >
+                    {forecast.active_subscriptions}
+                  </p>
+                </div>
+                <div>
+                  <p
+                    className="text-xs font-semibold mb-0.5"
+                    style={{ color: "#8A94A6" }}
+                  >
+                    At risk
+                  </p>
+                  <p
+                    className="text-2xl font-extrabold"
+                    style={{ color: "#EA580C" }}
+                  >
+                    {formatKoboShort(forecast.at_risk_revenue)}
+                  </p>
+                </div>
+                <div>
+                  <p
+                    className="text-xs font-semibold mb-0.5"
+                    style={{ color: "#8A94A6" }}
+                  >
+                    Recovery rate
+                  </p>
+                  <p
+                    className="text-2xl font-extrabold"
+                    style={{ color: "#0F1728" }}
+                  >
+                    {forecast.recovery_rate_pct}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-4 mb-4">
         <div
