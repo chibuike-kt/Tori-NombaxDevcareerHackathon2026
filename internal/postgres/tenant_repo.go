@@ -123,15 +123,12 @@ func tenantFromRow(row db.Tenant) *domain.Tenant {
 		Email:         row.Email,
 		APIKeyHash:    row.ApiKeyHash,
 		APIKeyHint:    row.ApiKeyHint,
+		PasswordHash:  row.PasswordHash,
 		WebhookSecret: row.WebhookSecret,
 		DunningConfig: config,
 		IsActive:      row.IsActive,
 		CreatedAt:     row.CreatedAt,
 	}
-}
-
-func (r *TenantRepo) SetPassword(ctx context.Context, id uuid.UUID, passwordHash string) error {
-	return r.q.SetTenantPassword(ctx, db.SetTenantPasswordParams{ID: id, PasswordHash: passwordHash})
 }
 
 func (r *TenantRepo) UpdateAPIKeyHash(ctx context.Context, id uuid.UUID, hash string) error {
@@ -151,4 +148,11 @@ func (r *TenantRepo) UpdateAPIKeyHashAndHint(ctx context.Context, id uuid.UUID, 
 		return nil, err
 	}
 	return tenantFromRow(row), nil
+}
+
+func (r *TenantRepo) SetPassword(ctx context.Context, id uuid.UUID, passwordHash string) error {
+	return r.q.SetTenantPassword(ctx, db.SetTenantPasswordParams{
+		ID:           id,
+		PasswordHash: passwordHash,
+	})
 }
