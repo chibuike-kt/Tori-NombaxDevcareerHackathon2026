@@ -113,3 +113,9 @@ WHERE id = $1
   AND updated_at = $4
   AND status != 'CANCELLED'
 RETURNING *;
+
+-- name: ListSubscriptionsByCustomerNoTenant :many
+SELECT * FROM subscriptions
+WHERE customer_id = $1
+  AND status != 'CANCELLED'
+ORDER BY created_at DESC;

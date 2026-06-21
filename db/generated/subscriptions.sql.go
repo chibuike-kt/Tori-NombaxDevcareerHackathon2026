@@ -355,6 +355,51 @@ func (q *Queries) ListSubscriptionsByCustomer(ctx context.Context, arg ListSubsc
 	return items, nil
 }
 
+const listSubscriptionsByCustomerNoTenant = `-- name: ListSubscriptionsByCustomerNoTenant :many
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at FROM subscriptions
+WHERE customer_id = $1
+  AND status != 'CANCELLED'
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListSubscriptionsByCustomerNoTenant(ctx context.Context, customerID uuid.UUID) ([]Subscription, error) {
+	rows, err := q.db.Query(ctx, listSubscriptionsByCustomerNoTenant, customerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Subscription{}
+	for rows.Next() {
+		var i Subscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.CustomerID,
+			&i.PlanID,
+			&i.Status,
+			&i.CurrentPeriodStart,
+			&i.CurrentPeriodEnd,
+			&i.TrialEnd,
+			&i.PausedAt,
+			&i.CancelledAt,
+			&i.CancelAtPeriodEnd,
+			&i.DunningAttempt,
+			&i.NextRetryAt,
+			&i.IdempotencyKey,
+			&i.Metadata,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSubscriptionsByStatus = `-- name: ListSubscriptionsByStatus :many
 SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at FROM subscriptions
 WHERE tenant_id = $1 AND status = $2
