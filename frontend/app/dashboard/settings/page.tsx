@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { getMe, updateMe, logout, type Tenant } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { getMe, updateMe, type Tenant } from "@/lib/api";
 
 export default function SettingsPage() {
   const router = useRouter();
