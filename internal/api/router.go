@@ -70,6 +70,9 @@ func NewRouter(deps Deps) http.Handler {
 
 		checkoutH := handlers.NewCheckoutHandler(deps.Customers, deps.Plans, deps.Subscriptions, deps.Jobs)
 		r.Post("/v1/checkout", checkoutH.CreateCheckout)
+		
+		healthH := handlers.NewHealthHandler(deps.Subscriptions)
+		r.Get("/v1/health", healthH.GetPortfolioHealth)
 
 		apiKeyH := handlers.NewAPIKeyHandler(deps.Tenants)
 		r.Post("/v1/api-keys", apiKeyH.CreateAPIKey)
