@@ -21,19 +21,19 @@ func NewHealthHandler(subs domain.SubscriptionRepository) *HealthHandler {
 
 type subscriptionWithHealth struct {
 	*domain.Subscription
-	Health billing.HealthScore `json:"health"`
+	Health billing.HealthScore      `json:"health"`
+	Churn  billing.ChurnPrediction  `json:"churn"`
 }
 
 type portfolioHealth struct {
-	AverageScore    int                      `json:"average_score"`
-	HealthyCount    int                      `json:"healthy_count"`
-	AtRiskCount     int                      `json:"at_risk_count"`
-	CriticalCount   int                      `json:"critical_count"`
-	Subscriptions   []subscriptionWithHealth `json:"subscriptions"`
+	AverageScore        int                      `json:"average_score"`
+	HealthyCount        int                      `json:"healthy_count"`
+	AtRiskCount         int                      `json:"at_risk_count"`
+	CriticalCount       int                      `json:"critical_count"`
+	ChurnRiskCount      int                      `json:"churn_risk_count"`
+	Subscriptions       []subscriptionWithHealth `json:"subscriptions"`
 }
 
-// GetPortfolioHealth returns health scores for all subscriptions
-// plus a portfolio-level summary.
 func (h *HealthHandler) GetPortfolioHealth(w http.ResponseWriter, r *http.Request) {
 	tenantID := apicontext.GetTenantID(r.Context())
 	if tenantID == uuid.Nil {
@@ -57,17 +57,23 @@ func (h *HealthHandler) GetPortfolioHealth(w http.ResponseWriter, r *http.Reques
 	healthyCount := 0
 	atRiskCount := 0
 	criticalCount := 0
+	churnRiskCount := 0
 
 	for _, sub := range subs {
 		if sub.Status == domain.StatusCancelled {
 			continue
 		}
 		hs := billing.ComputeHealth(sub)
+		cp := billing.PredictChurn(sub)
+
 		result = append(result, subscriptionWithHealth{
 			Subscription: sub,
 			Health:       hs,
+			Churn:        cp,
 		})
+
 		totalScore += hs.Score
+
 		switch {
 		case hs.Score >= 70:
 			healthyCount++
@@ -75,6 +81,10 @@ func (h *HealthHandler) GetPortfolioHealth(w http.ResponseWriter, r *http.Reques
 			atRiskCount++
 		default:
 			criticalCount++
+		}
+
+		if cp.Signal == billing.SignalHigh || cp.Signal == billing.SignalCritical {
+			churnRiskCount++
 		}
 	}
 
@@ -84,10 +94,11 @@ func (h *HealthHandler) GetPortfolioHealth(w http.ResponseWriter, r *http.Reques
 	}
 
 	respond.JSON(w, r, http.StatusOK, portfolioHealth{
-		AverageScore:  avgScore,
-		HealthyCount:  healthyCount,
-		AtRiskCount:   atRiskCount,
-		CriticalCount: criticalCount,
-		Subscriptions: result,
+		AverageScore:   avgScore,
+		HealthyCount:   healthyCount,
+		AtRiskCount:    atRiskCount,
+		CriticalCount:  criticalCount,
+		ChurnRiskCount: churnRiskCount,
+		Subscriptions:  result,
 	})
 }
