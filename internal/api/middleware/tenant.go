@@ -17,9 +17,13 @@ type tenantContextKey string
 const tenantKey tenantContextKey = "tenant"
 
 // HashAPIKey produces the SHA-256 hex digest of a plaintext API key.
-// This is stored in the DB and used for lookup — fast and deterministic.
 func HashAPIKey(key string) string {
 	h := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(h[:])
+}
+
+func sha256Hex(s string) string {
+	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])
 }
 
@@ -45,7 +49,7 @@ func APIKeyAuth(tenants domain.TenantRepository) func(http.Handler) http.Handler
 	}
 }
 
-func JWTAuth(secret string, tenants domain.TenantRepository) func(http.Handler) http.Handler {
+func JWTAuth(secret string, tenants domain.TenantRepository, tokens domain.TokenRevoker) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			header := r.Header.Get("Authorization")
@@ -54,6 +58,13 @@ func JWTAuth(secret string, tenants domain.TenantRepository) func(http.Handler) 
 				return
 			}
 			token := strings.TrimPrefix(header, "Bearer ")
+
+			// Check Redis denylist before validating JWT
+			if tokens.IsRevoked(r.Context(), token) {
+				respond.Unauthorised(w, r, "token has been revoked")
+				return
+			}
+
 			tenantID, err := validateJWT(token, secret)
 			if err != nil {
 				respond.Unauthorised(w, r, "invalid token")
