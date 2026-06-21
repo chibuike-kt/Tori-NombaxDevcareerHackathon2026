@@ -130,12 +130,10 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	accessToken, _ := middleware.GenerateJWT(tenant.ID)
 	refreshToken, _ := middleware.GenerateRefreshToken(tenant.ID)
 
-	respond.JSON(w, r, http.StatusCreated, map[string]interface{}{
+respond.JSON(w, r, http.StatusCreated, map[string]interface{}{
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
 		"token_type":    "Bearer",
-		"api_key":       apiKey,
-		"tenant":        tenant,
 	})
 }
 
