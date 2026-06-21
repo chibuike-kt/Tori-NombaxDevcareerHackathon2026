@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
@@ -18,10 +19,11 @@ import (
 
 type AuthHandler struct {
 	tenants domain.TenantRepository
+	tokens  domain.TokenRevoker
 }
 
-func NewAuthHandler(tenants domain.TenantRepository) *AuthHandler {
-	return &AuthHandler{tenants: tenants}
+func NewAuthHandler(tenants domain.TenantRepository, tokens domain.TokenRevoker) *AuthHandler {
+	return &AuthHandler{tenants: tenants, tokens: tokens}
 }
 
 // HashPassword produces an argon2id hash with a unique random salt.
@@ -87,7 +89,6 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate a placeholder API key hash — real key created explicitly from dashboard
 	placeholderHash := middleware.HashAPIKey("tori_live_" + uuid.New().String())
 	webhookSecret := "whsec_" + uuid.New().String()
 	passwordHash := HashPassword(body.Password)
@@ -210,6 +211,26 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		"access_token":  accessToken,
 		"refresh_token": newRefresh,
 		"token_type":    "Bearer",
+	})
+}
+
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	header := r.Header.Get("Authorization")
+	token := strings.TrimPrefix(header, "Bearer ")
+	if token == "" {
+		respond.BadRequest(w, r, "missing_token", "no token to revoke")
+		return
+	}
+
+	// Revoke for 7 days to cover the refresh token lifetime
+	expiresAt := time.Now().Add(7 * 24 * time.Hour)
+	if err := h.tokens.Revoke(r.Context(), token, expiresAt); err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, map[string]string{
+		"message": "logged out successfully",
 	})
 }
 
