@@ -57,3 +57,14 @@ WHERE tenant_id = $1
   AND created_at >= $3
   AND created_at <= $4
 ORDER BY created_at ASC;
+
+-- name: DisableWebhookEndpoint :exec
+UPDATE webhook_endpoints
+SET is_active = false
+WHERE id = $1;
+
+-- name: CountRecentFailedDeliveries :one
+SELECT COUNT(*) FROM webhook_deliveries
+WHERE endpoint_id = $1
+  AND status = 'failed'
+  AND created_at > NOW() - INTERVAL '24 hours';

@@ -14,6 +14,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countRecentFailedDeliveries = `-- name: CountRecentFailedDeliveries :one
+SELECT COUNT(*) FROM webhook_deliveries
+WHERE endpoint_id = $1
+  AND status = 'failed'
+  AND created_at > NOW() - INTERVAL '24 hours'
+`
+
+func (q *Queries) CountRecentFailedDeliveries(ctx context.Context, endpointID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countRecentFailedDeliveries, endpointID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createWebhookDelivery = `-- name: CreateWebhookDelivery :one
 INSERT INTO webhook_deliveries (endpoint_id, tenant_id, event_type, api_version, payload, status)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -103,6 +117,17 @@ type DeleteWebhookEndpointParams struct {
 
 func (q *Queries) DeleteWebhookEndpoint(ctx context.Context, arg DeleteWebhookEndpointParams) error {
 	_, err := q.db.Exec(ctx, deleteWebhookEndpoint, arg.ID, arg.TenantID)
+	return err
+}
+
+const disableWebhookEndpoint = `-- name: DisableWebhookEndpoint :exec
+UPDATE webhook_endpoints
+SET is_active = false
+WHERE id = $1
+`
+
+func (q *Queries) DisableWebhookEndpoint(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, disableWebhookEndpoint, id)
 	return err
 }
 
