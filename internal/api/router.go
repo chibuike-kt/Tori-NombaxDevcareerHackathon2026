@@ -136,6 +136,12 @@ r.Group(func(r chi.Router) {
 		r.Post("/v1/subscriptions/{id}/cancel", subH.Cancel)
 		r.Post("/v1/subscriptions/{id}/pause", subH.Pause)
 		r.Post("/v1/subscriptions/{id}/resume", subH.Resume)
+		ledgerSvcForPlanChange := ledger.NewService(deps.Ledger)
+		planChangeH := handlers.NewPlanChangeHandler(deps.Subscriptions, deps.Plans, ledgerSvcForPlanChange)
+		r.Patch("/v1/subscriptions/{id}/plan", planChangeH.ChangePlan)
+
+		// In Platform API group — add after platform subscription routes
+		r.Patch("/v1/platform/subscriptions/{id}/plan", planChangeH.ChangePlan)
 
 		r.Get("/v1/ledger", ledgerH.List)
 		r.Get("/v1/ledger/summary", ledgerH.Summary)
