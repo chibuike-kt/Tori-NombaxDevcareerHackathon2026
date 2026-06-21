@@ -198,3 +198,15 @@ func deliveryFromRow(row db.WebhookDelivery) *domain.WebhookDelivery {
 		CreatedAt:      row.CreatedAt,
 	}
 }
+
+func (r *WebhookRepo) DisableWebhookEndpoint(ctx context.Context, id uuid.UUID) error {
+	return r.q.DisableWebhookEndpoint(ctx, id)
+}
+
+func (r *WebhookRepo) CountRecentFailedDeliveries(ctx context.Context, endpointID uuid.UUID) (int64, error) {
+	count, err := r.q.CountRecentFailedDeliveries(ctx, endpointID)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
