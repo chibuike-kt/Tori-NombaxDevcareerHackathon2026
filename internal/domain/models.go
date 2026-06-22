@@ -10,13 +10,14 @@ import (
 type SubscriptionStatus string
 
 const (
-	StatusTrialing  SubscriptionStatus = "TRIALING"
-	StatusActive    SubscriptionStatus = "ACTIVE"
-	StatusPastDue   SubscriptionStatus = "PAST_DUE"
-	StatusDunning   SubscriptionStatus = "DUNNING"
-	StatusPaused    SubscriptionStatus = "PAUSED"
-	StatusSuspended SubscriptionStatus = "SUSPENDED"
-	StatusCancelled SubscriptionStatus = "CANCELLED"
+	StatusTrialing    SubscriptionStatus = "TRIALING"
+	StatusActive      SubscriptionStatus = "ACTIVE"
+	StatusGracePeriod SubscriptionStatus = "GRACE_PERIOD"
+	StatusPastDue     SubscriptionStatus = "PAST_DUE"
+	StatusDunning     SubscriptionStatus = "DUNNING"
+	StatusPaused      SubscriptionStatus = "PAUSED"
+	StatusSuspended   SubscriptionStatus = "SUSPENDED"
+	StatusCancelled   SubscriptionStatus = "CANCELLED"
 )
 
 type PlanInterval string
@@ -67,6 +68,7 @@ const (
 	JobSendDunningNotification  JobType = "send_dunning_notification"
 	JobSuspendSubscription      JobType = "suspend_subscription"
 	JobReactivateSubscription   JobType = "reactivate_subscription"
+	JobTypeGraceRetry JobType = "grace_retry"
 )
 
 type FailureCategory string
