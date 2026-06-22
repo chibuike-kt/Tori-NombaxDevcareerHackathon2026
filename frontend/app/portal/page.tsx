@@ -70,12 +70,17 @@ useEffect(() => {
     setLoading(false);
     return;
   }
+  console.log("Portal token:", token.slice(0, 30));
   portalFetch("/v1/portal", token)
     .then((res) => {
-      if (!res.data) throw new Error("Invalid response");
+      console.log("Portal response:", res);
+      if (!res.data) throw new Error("Invalid response structure");
       setData(res.data);
     })
-    .catch((e) => setError(e.message))
+    .catch((e) => {
+      console.error("Portal error:", e);
+      setError(e.message);
+    })
     .finally(() => setLoading(false));
 }, [token]);
 
@@ -108,36 +113,41 @@ useEffect(() => {
     );
   }
 
-  if (error || !data) {
-    return (
+if (error || !data) {
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center"
+      style={{ background: "#FAFAF8" }}
+    >
       <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: "#FAFAF8" }}
+        className="bg-white border rounded-xl p-8 max-w-md w-full text-center"
+        style={{ borderColor: "#EAECEF" }}
       >
         <div
-          className="bg-white border rounded-xl p-8 max-w-md w-full text-center"
-          style={{ borderColor: "#EAECEF" }}
+          className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
+          style={{ background: "#FDECEC", color: "#DC2626" }}
         >
-          <div
-            className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
-            style={{ background: "#FDECEC", color: "#DC2626" }}
-          >
-            <i className="ti ti-lock" style={{ fontSize: 22 }} />
-          </div>
-          <h1
-            className="text-lg font-extrabold mb-2"
-            style={{ color: "#0F1728" }}
-          >
-            Portal link invalid
-          </h1>
-          <p className="text-sm font-medium" style={{ color: "#6B7280" }}>
-            {error ||
-              "This portal link has expired or is invalid. Contact support to get a new link."}
-          </p>
+          <i className="ti ti-lock" style={{ fontSize: 22 }} />
         </div>
+        <h1
+          className="text-lg font-extrabold mb-2"
+          style={{ color: "#0F1728" }}
+        >
+          Portal link invalid
+        </h1>
+        <p className="text-sm font-medium mb-3" style={{ color: "#6B7280" }}>
+          {error || "This portal link has expired or is invalid."}
+        </p>
+        <p
+          className="text-xs font-mono p-2 rounded"
+          style={{ background: "#F1F3F5", color: "#6B7280" }}
+        >
+          Token: {token ? token.slice(0, 20) + "..." : "none"}
+        </p>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
  const av = avatarFor(data.customer.email ?? data.customer.id);
 
