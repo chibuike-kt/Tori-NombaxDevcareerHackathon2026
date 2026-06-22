@@ -66,7 +66,6 @@ export default function PlansPage() {
         amount: Math.round(parseFloat(form.amount) * 100),
         interval: form.interval,
         trial_period_days: parseInt(form.trial_period_days),
-        currency: "NGN",
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["plans"] });
