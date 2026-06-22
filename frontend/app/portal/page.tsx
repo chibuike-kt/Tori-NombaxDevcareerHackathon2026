@@ -56,7 +56,7 @@ export default function PortalPage() {
   const token = params.get("token") ?? "";
 
   const [data, setData] = useState<PortalData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [acting, setActing] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<{
@@ -65,22 +65,16 @@ export default function PortalPage() {
   } | null>(null);
 
 useEffect(() => {
-  if (!token) {
-    setError("Invalid or missing portal token.");
-    setLoading(false);
-    return;
-  }
-  console.log("Portal token:", token.slice(0, 30));
+  if (!token) return;
   portalFetch("/v1/portal", token)
     .then((res) => {
-      console.log("Portal response:", res);
-      if (!res.data) throw new Error("Invalid response structure");
+      if (!res.data) throw new Error("Invalid response");
       setData(res.data);
+      setError("");
     })
-    .catch((e) => {
-      console.error("Portal error:", e);
-      setError(e.message);
-    })
+    .catch((e) =>
+      setError(e instanceof Error ? e.message : "Failed to load portal"),
+    )
     .finally(() => setLoading(false));
 }, [token]);
 
