@@ -1557,6 +1557,719 @@ router.post('/tori', express.raw({ type: 'application/json' }), async (req, res)
         ],
       },
       {
+        group: "Dashboard Guide",
+        items: [
+          {
+            id: "dashboard-overview",
+            label: "Overview page",
+            icon: "ti-layout-dashboard",
+            blocks: [
+              {
+                type: "p",
+                text: "The Overview page is the first thing you see after logging in. It gives you the full picture of your billing operation in one screen.",
+              },
+              {
+                type: "h2",
+                text: "Getting started checklist",
+                id: "checklist",
+              },
+              {
+                type: "p",
+                text: "If you are new to Tori, the overview shows a four-step checklist: create a plan, subscribe a customer, add a webhook endpoint, and create an API key. Each step links directly to the relevant page. The checklist disappears once all four steps are complete.",
+              },
+              { type: "h2", text: "Metrics row", id: "metrics" },
+              {
+                type: "p",
+                text: "The top row shows four live metrics: MRR (monthly recurring revenue from real ledger data), active subscription count, churn rate, and total revenue recovered by the dunning engine. These update in real time from your actual data.",
+              },
+              { type: "h2", text: "Revenue summary", id: "revenue-summary" },
+              {
+                type: "p",
+                text: "Shows gross revenue, refunds, and net revenue for all time, computed directly from the immutable ledger. The entry count shows how many individual financial records exist in the system.",
+              },
+              { type: "h2", text: "Subscription states", id: "sub-states" },
+              {
+                type: "p",
+                text: "A breakdown of all subscriptions by state: ACTIVE, TRIALING, DUNNING, PAUSED, CANCELLED. The bar chart shows the proportion visually. If you see a large DUNNING bar, check the Billing Health page immediately.",
+              },
+              {
+                type: "h2",
+                text: "Billing health widget",
+                id: "health-widget",
+              },
+              {
+                type: "p",
+                text: "A score ring showing your portfolio health (0-100) alongside healthy, at-risk, and critical counts. Click View all to go to the full Billing Health page with per-subscription scores and churn predictions.",
+              },
+              { type: "h2", text: "Attention banner", id: "attention" },
+              {
+                type: "p",
+                text: "If any subscriptions are in DUNNING, PAST_DUE, or showing high churn signals, a yellow banner appears at the top of the page. It tells you how many need attention and links directly to the Billing Health page.",
+              },
+              { type: "h2", text: "Recent subscriptions", id: "recent-subs" },
+              {
+                type: "p",
+                text: "The last 8 subscriptions created, with customer email, plan, amount, status, and next billing date. If a subscription is in dunning, it shows the retry attempt number instead of the billing date.",
+              },
+            ],
+          },
+          {
+            id: "dashboard-subscriptions",
+            label: "Subscriptions page",
+            icon: "ti-refresh",
+            blocks: [
+              {
+                type: "p",
+                text: "The Subscriptions page is where you manage all billing relationships. Every subscription that exists in Tori appears here.",
+              },
+              { type: "h2", text: "Filters", id: "sub-filters" },
+              {
+                type: "p",
+                text: "Filter by state using the tab buttons at the top: ALL, ACTIVE, TRIALING, DUNNING, PAUSED, SUSPENDED, CANCELLED. Each tab shows the count. The search box filters by customer email or plan name.",
+              },
+              { type: "h2", text: "Creating a subscription", id: "sub-create" },
+              {
+                type: "p",
+                text: "Click New subscription. Enter a customer email and select a plan. If the customer does not exist yet, Tori creates them automatically using the checkout endpoint. The External ID field is optional but useful if you want to link the Tori customer to your own database record.",
+              },
+              {
+                type: "p",
+                text: "After creation, a success banner confirms whether the customer was newly created or an existing customer was matched by email.",
+              },
+              { type: "h2", text: "Subscription actions", id: "sub-actions" },
+              {
+                type: "p",
+                text: "Each row has action buttons based on the current state. ACTIVE subscriptions can be paused or cancelled. PAUSED subscriptions can be resumed. DUNNING subscriptions can be cancelled. All actions are validated against the state machine before executing.",
+              },
+              {
+                type: "h2",
+                text: "Dunning indicator",
+                id: "dunning-indicator",
+              },
+              {
+                type: "p",
+                text: "The Dunning column shows the current retry attempt number for subscriptions in DUNNING state. Attempt 1 means one payment failure. Attempt 4 means the subscription is about to be suspended. Subscriptions with no payment issues show None.",
+              },
+            ],
+          },
+          {
+            id: "dashboard-health",
+            label: "Billing health page",
+            icon: "ti-heartbeat",
+            blocks: [
+              {
+                type: "p",
+                text: "The Billing Health page gives you intelligence that no standard billing tool provides: a real-time health score for every active subscription, plus churn prediction signals before customers actually cancel.",
+              },
+              { type: "h2", text: "Portfolio score", id: "portfolio-score" },
+              {
+                type: "p",
+                text: "The large score ring shows the average health score across all active subscriptions (0-100). Below 70 means your portfolio needs attention. Below 50 is a serious signal.",
+              },
+              {
+                type: "h2",
+                text: "How the score is computed",
+                id: "score-calc",
+              },
+              {
+                type: "list",
+                items: [
+                  "Starts at 100 for every subscription",
+                  "DUNNING state: -40",
+                  "SUSPENDED state: -60",
+                  "PAST_DUE state: -20",
+                  "PAUSED state: -10",
+                  "Each dunning attempt adds additional deductions (-10, -20, -30, -40)",
+                  "Subscription under 30 days old: -5 (unproven payment relationship)",
+                  "Recovered from dunning but now active: -10 (history of failure)",
+                  "Floor is 0, ceiling is 100",
+                ],
+              },
+              { type: "h2", text: "Churn prediction", id: "churn-pred" },
+              {
+                type: "p",
+                text: "The churn prediction panel shows subscriptions with HIGH or CRITICAL churn signals. For each at-risk subscription, Tori shows the specific reasons driving the signal and a recommended action.",
+              },
+              {
+                type: "table",
+                headers: ["Signal", "Meaning", "Recommended action"],
+                rows: [
+                  ["None", "No risk indicators detected", "No action needed"],
+                  [
+                    "Low",
+                    "Minor signal, low probability of churn",
+                    "Monitor next billing cycle",
+                  ],
+                  [
+                    "Medium",
+                    "Payment issues or history of failures",
+                    "Send payment reminder",
+                  ],
+                  [
+                    "High",
+                    "Multiple risk factors active",
+                    "Proactive outreach with payment help",
+                  ],
+                  [
+                    "Critical",
+                    "Subscription likely to churn",
+                    "Contact customer immediately",
+                  ],
+                ],
+              },
+              { type: "h2", text: "Attention banner", id: "health-attention" },
+              {
+                type: "p",
+                text: "The yellow banner at the top lists every subscription needing attention with customer chips showing email and churn signal. If more than 5 need attention, the banner shows the first 5 and a count of the rest.",
+              },
+              { type: "h2", text: "Full table", id: "health-table" },
+              {
+                type: "p",
+                text: "The table shows all active subscriptions sorted by health score, lowest first. Columns: health score ring, customer email, plan name, state badge, churn risk badge, reason text, and period end date.",
+              },
+            ],
+          },
+          {
+            id: "dashboard-customers",
+            label: "Customers page",
+            icon: "ti-users",
+            blocks: [
+              {
+                type: "p",
+                text: "The Customers page lists every customer in your Tori account. Customers are created automatically when you use the checkout endpoint, or manually from this page.",
+              },
+              {
+                type: "h2",
+                text: "Adding a customer manually",
+                id: "add-customer",
+              },
+              {
+                type: "p",
+                text: "Click Add customer. Enter an email (required), name (optional), and External ID (optional). The External ID is your own database user ID. Store it so you can look up the Tori customer from your own system using GET /v1/platform/customers?external_id=your-id.",
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Adding a customer here does not start a subscription. Go to Subscriptions and click New subscription to subscribe them to a plan, or use the checkout endpoint from your backend.",
+              },
+              {
+                type: "h2",
+                text: "Customer detail page",
+                id: "customer-detail",
+              },
+              {
+                type: "p",
+                text: "Click any customer row to see their full detail page. Shows their subscriptions, plan values, active MRR, and dunning state. The Copy portal link button at the top right generates a 1-hour portal token and copies the full URL to your clipboard.",
+              },
+              { type: "h2", text: "Portal link", id: "portal-link" },
+              {
+                type: "p",
+                text: "The portal link is a URL you send to your customer. When they open it, they see their subscription details and can pause, resume, or cancel without contacting you. In production, your backend generates this link automatically and either redirects the customer or emails it to them.",
+              },
+            ],
+          },
+          {
+            id: "dashboard-plans",
+            label: "Plans page",
+            icon: "ti-file-text",
+            blocks: [
+              {
+                type: "p",
+                text: "Plans are pricing templates. You create a plan once and any number of customers can subscribe to it.",
+              },
+              { type: "h2", text: "Creating a plan", id: "create-plan" },
+              {
+                type: "p",
+                text: "Click Create plan. Set the name, amount in naira (Tori converts to kobo automatically), billing interval, and trial period in days. Set trial days to 0 for no trial.",
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Amounts are entered in naira on the dashboard but stored in kobo. ₦15,000 entered on the form is stored as 1500000 kobo. The API always works in kobo.",
+              },
+              { type: "h2", text: "Plan ID", id: "plan-id" },
+              {
+                type: "p",
+                text: "Each plan card shows the plan ID with a Copy button. This is the ID you put in your server's environment config as TORI_PLAN_PRO or similar. You reference this ID in every checkout call.",
+              },
+              { type: "h2", text: "Billing intervals", id: "plan-intervals" },
+              {
+                type: "list",
+                items: [
+                  "Monthly: charge every calendar month with correct month-end handling (Jan 31 + 1 month = Feb 28, always)",
+                  "Annual: charge every 12 months",
+                  "Custom: charge every N days — for school fees, quarterly retainers, bimonthly memberships",
+                ],
+              },
+              {
+                type: "h2",
+                text: "Deactivating a plan",
+                id: "deactivate-plan",
+              },
+              {
+                type: "p",
+                text: "Deactivating a plan prevents new subscriptions from using it. Existing subscribers on that plan keep billing normally. Use this when retiring an old pricing tier.",
+              },
+            ],
+          },
+          {
+            id: "dashboard-finance",
+            label: "Finance page",
+            icon: "ti-chart-bar",
+            blocks: [
+              {
+                type: "p",
+                text: "The Finance page shows your revenue, churn, and dunning recovery metrics across a selected time range. All numbers come from the immutable ledger.",
+              },
+              { type: "h2", text: "Date range selector", id: "date-range" },
+              {
+                type: "p",
+                text: "The 7D / 30D / 90D / 1Y buttons at the top right control the time window for all metrics. MRR uses the current period. Churn, dunning recovery, and the ledger summary use the selected from/to range.",
+              },
+              { type: "h2", text: "Revenue forecast", id: "forecast" },
+              {
+                type: "p",
+                text: "The forecast card projects next month's expected revenue in three estimates: low, mid, and high. The mid estimate is based on current active subscriptions plus expected dunning recovery. The confidence level (HIGH, MEDIUM, LOW) reflects how much historical data is available.",
+              },
+              {
+                type: "table",
+                headers: ["Estimate", "How computed"],
+                rows: [
+                  [
+                    "Low",
+                    "Base revenue minus expected losses from unresolved dunning",
+                  ],
+                  [
+                    "Mid",
+                    "Base revenue plus expected dunning recovery at historical rate",
+                  ],
+                  ["High", "Mid estimate plus 5% variance band"],
+                ],
+              },
+              { type: "h2", text: "Ledger breakdown", id: "ledger-breakdown" },
+              {
+                type: "p",
+                text: "Shows total charges, refunds, credits applied, and net revenue for the selected period. Every number traces back to individual immutable ledger entries.",
+              },
+            ],
+          },
+          {
+            id: "dashboard-webhooks",
+            label: "Webhooks page",
+            icon: "ti-webhook",
+            blocks: [
+              {
+                type: "p",
+                text: "Webhooks are how Tori tells your product what happened. Register an endpoint URL and Tori sends a signed POST request for every billing event.",
+              },
+              { type: "h2", text: "Adding an endpoint", id: "add-endpoint" },
+              {
+                type: "p",
+                text: "Click Add endpoint. Enter your server URL and give it a name. Tori returns a webhook secret — save it immediately, it is shown once. Use it to verify every delivery with HMAC-SHA256.",
+              },
+              { type: "h2", text: "Delivery logs", id: "delivery-logs" },
+              {
+                type: "p",
+                text: "Every delivery attempt is logged with the event type, payload, response status, and timestamp. If a delivery fails, Tori retries on a schedule: 5 minutes, 30 minutes, 2 hours, 6 hours.",
+              },
+              { type: "h2", text: "Circuit breaker", id: "circuit-breaker" },
+              {
+                type: "p",
+                text: "If an endpoint fails 10 or more times in 24 hours, Tori disables it automatically to prevent continued failed deliveries. The endpoint shows a DISABLED badge. Fix the issue on your server and re-enable from the dashboard.",
+              },
+              { type: "h2", text: "Replaying a delivery", id: "replay" },
+              {
+                type: "p",
+                text: "Click Retry on any failed delivery to immediately re-attempt it. Useful when your server was temporarily down and you need to reprocess missed events.",
+              },
+            ],
+          },
+          {
+            id: "dashboard-apikeys",
+            label: "API Keys page",
+            icon: "ti-key",
+            blocks: [
+              {
+                type: "p",
+                text: "API keys authenticate your server-to-server calls to the Platform API. Keep your key on your server. Never put it in browser code or mobile apps.",
+              },
+              { type: "h2", text: "Creating a key", id: "create-key" },
+              {
+                type: "p",
+                text: "Click Create key. Give it a name so you know what it is for (Production server, Staging, etc). The full key is shown exactly once. Copy it into your secret manager immediately. Tori stores only a hash and cannot show it again.",
+              },
+              { type: "h2", text: "The hint", id: "key-hint" },
+              {
+                type: "p",
+                text: "After creation, the page shows a hint in the format tori_live_xxxx...yyyy. This lets you identify which key is active without revealing the full key. The hint persists across page refreshes.",
+              },
+              { type: "h2", text: "Rotating a key", id: "rotate-key" },
+              {
+                type: "p",
+                text: "Click Rotate key to generate a new key. The old key stops working immediately. Deploy the new key to your server before rotating. After rotation, the new key is shown once.",
+              },
+              {
+                type: "callout",
+                variant: "warn",
+                text: "Rotating a key will break any server that is still using the old key. Make sure you update all your environments before or immediately after rotating.",
+              },
+            ],
+          },
+          {
+            id: "dashboard-settings",
+            label: "Settings page",
+            icon: "ti-settings",
+            blocks: [
+              {
+                type: "p",
+                text: "The Settings page manages your account details, dunning configuration, and Nomba integration status.",
+              },
+              { type: "h2", text: "Account details", id: "account-details" },
+              {
+                type: "p",
+                text: "Update your business name and email. Changes take effect immediately.",
+              },
+              {
+                type: "h2",
+                text: "Dunning configuration",
+                id: "dunning-config",
+              },
+              {
+                type: "p",
+                text: "Shows your current retry schedule and maximum attempts. The default configuration (4 attempts on Day 3, 7, 14, 21) is tuned for Nigerian payday cycles and is the recommended setting for most businesses.",
+              },
+              {
+                type: "h2",
+                text: "Nomba integration",
+                id: "nomba-integration",
+              },
+              {
+                type: "p",
+                text: "Shows the current status of your Nomba payment integration. When Nomba API credentials are connected, this section will allow you to configure your Nomba account ID and verify the connection.",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        group: "Security & Infrastructure",
+        items: [
+          {
+            id: "security-model",
+            label: "Security model",
+            icon: "ti-shield-lock",
+            blocks: [
+              {
+                type: "p",
+                text: "Tori is built for fintech. Every layer of the system is designed with the assumption that it handles real money and real customer data.",
+              },
+              { type: "h2", text: "Password security", id: "passwords" },
+              {
+                type: "p",
+                text: "Passwords are hashed with argon2id using a unique random 16-byte salt per password. The salt is stored alongside the hash in the format argon2id$salt_hex$hash_hex. Two users with the same password produce different hashes. Rainbow table attacks are computationally infeasible.",
+              },
+              { type: "h2", text: "API key security", id: "api-key-security" },
+              {
+                type: "p",
+                text: "API keys are never stored. When you create a key, Tori computes SHA-256(key) and stores only the hash. When you make an API call, Tori hashes the key from the header and compares it to the stored hash. The raw key exists only in your possession.",
+              },
+              { type: "h2", text: "JWT security", id: "jwt-security" },
+              {
+                type: "p",
+                text: "Dashboard sessions use HS256 JWTs with 15-minute access tokens and 7-day refresh tokens. The JWT secret must be at least 32 characters — Tori refuses to start if it is shorter. On logout, the access token is added to a Redis denylist and rejected on all future requests until it would have naturally expired.",
+              },
+              { type: "h2", text: "Brute force protection", id: "brute-force" },
+              {
+                type: "p",
+                text: "After 5 failed login attempts for any email address, that account is locked for 15 minutes. The counter is stored in Redis and resets on successful login. Failed attempts are recorded even for non-existent accounts to prevent email enumeration.",
+              },
+              {
+                type: "h2",
+                text: "Webhook verification",
+                id: "webhook-verify",
+              },
+              {
+                type: "p",
+                text: "Every webhook delivery is signed with HMAC-SHA256 using your endpoint secret. The signature is in the X-Tori-Signature header as sha256=hex_digest. Your server must verify this before processing any event. Timing-safe comparison is required — use hmac.Equal in Go, crypto.timingSafeEqual in Node.js, hash_equals in PHP.",
+              },
+              { type: "h2", text: "Rate limiting", id: "rate-limits" },
+              {
+                type: "p",
+                text: "Three layers of rate limiting: 100 requests per minute per IP globally, 300 requests per minute per tenant on the Dashboard API, 600 requests per minute per tenant on the Platform API. Authenticated tenants cannot starve each other even if they share an IP.",
+              },
+              { type: "h2", text: "Request size limits", id: "request-size" },
+              {
+                type: "p",
+                text: "All request bodies are limited to 1MB. Requests larger than 1MB are rejected with 413 before any processing occurs.",
+              },
+            ],
+          },
+          {
+            id: "infrastructure",
+            label: "Infrastructure",
+            icon: "ti-server",
+            blocks: [
+              {
+                type: "p",
+                text: "Tori runs as five Docker services. Each has a specific role and can be scaled independently.",
+              },
+              { type: "h2", text: "Service architecture", id: "services" },
+              {
+                type: "table",
+                headers: ["Service", "Role", "Port"],
+                rows: [
+                  [
+                    "api",
+                    "HTTP API server — handles all incoming requests",
+                    "8080",
+                  ],
+                  [
+                    "worker",
+                    "Job queue worker — processes scheduled billing jobs",
+                    "internal",
+                  ],
+                  [
+                    "postgres",
+                    "Primary database — all persistent state",
+                    "5432",
+                  ],
+                  ["redis", "Token denylist and login rate limiting", "6379"],
+                  ["frontend", "Next.js dashboard", "3000"],
+                ],
+              },
+              { type: "h2", text: "The job queue", id: "job-queue" },
+              {
+                type: "p",
+                text: "Tori uses a PostgreSQL-backed job queue with SELECT FOR UPDATE SKIP LOCKED for concurrent worker safety. When a billing cycle ends, the scheduler enqueues jobs for trial expiry, payment retry, and subscription suspension. The worker polls every 10 seconds, claims one job at a time, and processes it.",
+              },
+              {
+                type: "p",
+                text: "If a job fails, it is retried according to its max_attempts. If all attempts are exhausted, the job is marked failed and a DEAD LETTER log entry is written at ERROR level with the full payload for manual inspection.",
+              },
+              { type: "h2", text: "Stale lock recovery", id: "stale-locks" },
+              {
+                type: "p",
+                text: "If the worker crashes mid-job, the job remains claimed but unfinished. Every 5 minutes, the worker runs a stale lock recovery that finds jobs claimed more than 10 minutes ago and requeues them. This ensures no billing job is permanently lost due to a worker crash.",
+              },
+              { type: "h2", text: "Webhook dispatcher", id: "dispatcher" },
+              {
+                type: "p",
+                text: "The webhook dispatcher is called asynchronously after every subscription state change. It fetches all active endpoints for the tenant, creates a delivery record, signs the payload, and sends the HTTP request. Failures are retried on a schedule. After 10 failures in 24 hours, the endpoint is disabled automatically.",
+              },
+              { type: "h2", text: "Connection pool", id: "pool" },
+              {
+                type: "p",
+                text: "The PostgreSQL connection pool is configured with a maximum of 20 connections, a 5-second connect timeout, and a 30-minute connection lifetime. Under load, new requests fail fast rather than blocking indefinitely when the pool is exhausted.",
+              },
+              { type: "h2", text: "Scaling path", id: "scaling" },
+              {
+                type: "table",
+                headers: ["Scale", "What changes"],
+                rows: [
+                  ["1K subscribers", "Current architecture, no changes needed"],
+                  [
+                    "10K subscribers",
+                    "Add PostgreSQL read replica, cache plans and customers in Redis",
+                  ],
+                  [
+                    "100K subscribers",
+                    "Partition ledger table by month, run multiple worker instances",
+                  ],
+                  [
+                    "1M subscribers",
+                    "Migrate job queue to dedicated broker, add tenant-level database sharding",
+                  ],
+                ],
+              },
+            ],
+          },
+          {
+            id: "multi-tenancy",
+            label: "Multi-tenancy",
+            icon: "ti-building",
+            blocks: [
+              {
+                type: "p",
+                text: "Every resource in Tori belongs to exactly one tenant. Cross-tenant data access is impossible by design.",
+              },
+              { type: "h2", text: "How isolation works", id: "isolation" },
+              {
+                type: "p",
+                text: "Every database query that reads or writes tenant data includes a WHERE tenant_id = $1 clause. The tenant ID comes from the authenticated request context — either from the JWT (dashboard) or from the API key lookup (platform). It is never taken from the request body.",
+              },
+              {
+                type: "callout",
+                variant: "warn",
+                text: "Never pass tenant_id in a request body to the Platform API. Tori ignores it. The tenant is always resolved from the authenticated API key. If you pass a wrong tenant_id in the body, Tori uses the correct one from the key.",
+              },
+              { type: "h2", text: "What is isolated", id: "what-isolated" },
+              {
+                type: "list",
+                items: [
+                  "Plans: only visible to the tenant that created them",
+                  "Customers: scoped to tenant, cannot be looked up across tenants",
+                  "Subscriptions: scoped to tenant at creation and on every read",
+                  "Ledger entries: tenant-scoped, no cross-tenant aggregation",
+                  "Webhooks: endpoints and deliveries are tenant-scoped",
+                  "API keys: each key belongs to exactly one tenant",
+                  "Dunning jobs: jobs carry tenant context in their payload",
+                ],
+              },
+              {
+                type: "h2",
+                text: "Portal token exception",
+                id: "portal-exception",
+              },
+              {
+                type: "p",
+                text: "Portal tokens are scoped to a customer ID, not a tenant ID. This is by design — the customer does not know or care which tenant they belong to. The portal handler looks up the customer without a tenant ID, then uses the tenant ID from the customer record to scope all subsequent operations.",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        group: "Nigerian Context",
+        items: [
+          {
+            id: "nigerian-cards",
+            label: "Nigerian card behaviour",
+            icon: "ti-credit-card",
+            blocks: [
+              {
+                type: "p",
+                text: "Nigerian card failures are different from card failures in Europe or the US. Most billing tools treat all failures the same. Tori does not.",
+              },
+              {
+                type: "h2",
+                text: "Why Nigerian cards fail differently",
+                id: "why-different",
+              },
+              {
+                type: "list",
+                items: [
+                  "Many Nigerian cards are issued with online transactions blocked by default. The bank returns a decline code that looks temporary but will never succeed.",
+                  "Insufficient funds is the most common retriable failure. Nigerian salaries often arrive on specific dates, making payday-aligned retries effective.",
+                  "Bank system outages are more frequent than in other markets. A failed transaction during an outage should be retried, not treated as a card problem.",
+                  "International transaction limits are common. Cards with online transactions enabled may still have limits that prevent certain charges.",
+                ],
+              },
+              {
+                type: "h2",
+                text: "How Tori classifies failures",
+                id: "classification-detail",
+              },
+              {
+                type: "p",
+                text: "When a charge fails, Tori reads the failure code from Nomba and looks it up in config/failure_codes.yaml. Each code is classified as RETRIABLE or NON_RETRIABLE.",
+              },
+              {
+                type: "table",
+                headers: ["Failure type", "Classification", "Reason"],
+                rows: [
+                  [
+                    "card_blocked_international",
+                    "NON_RETRIABLE",
+                    "Card will never succeed for online transactions",
+                  ],
+                  [
+                    "card_blocked",
+                    "NON_RETRIABLE",
+                    "Card is blocked, retry is pointless",
+                  ],
+                  [
+                    "card_expired",
+                    "NON_RETRIABLE",
+                    "Card is past its expiry date",
+                  ],
+                  [
+                    "fraud_suspected",
+                    "NON_RETRIABLE",
+                    "Issuer flagged the transaction",
+                  ],
+                  ["insufficient_funds", "RETRIABLE", "May clear after payday"],
+                  [
+                    "issuer_unavailable",
+                    "RETRIABLE",
+                    "Bank outage, retry when available",
+                  ],
+                  [
+                    "transaction_timeout",
+                    "RETRIABLE",
+                    "Network issue, retry after delay",
+                  ],
+                  [
+                    "do_not_honour_temporary",
+                    "RETRIABLE",
+                    "Soft decline, may approve on retry",
+                  ],
+                ],
+              },
+              {
+                type: "h2",
+                text: "The payday retry schedule",
+                id: "payday-schedule",
+              },
+              {
+                type: "p",
+                text: "For retriable failures, Tori schedules retries on Day 3, Day 7, Day 14, and Day 21 after the first failure. This spacing covers multiple payday windows for customers paid weekly, biweekly, or at month-end.",
+              },
+              {
+                type: "p",
+                text: "The result: a card with insufficient funds on the 5th of the month gets retried on the 8th (before typical mid-month salaries), the 12th, the 19th, and the 26th (after typical month-end salaries). This maximises recovery without annoying the customer with daily attempts.",
+              },
+              {
+                type: "h2",
+                text: "What this means for revenue",
+                id: "revenue-impact",
+              },
+              {
+                type: "p",
+                text: "If you have 500 active subscribers at ₦10,000/month and 8% of charges fail each month, that is ₦400,000 at risk per cycle. Without intelligent dunning, most of it is lost. With Tori's Nigerian-tuned classification and retry schedule, a substantial portion recovers automatically.",
+              },
+            ],
+          },
+          {
+            id: "nigerian-use-cases",
+            label: "Nigerian use cases",
+            icon: "ti-building-store",
+            blocks: [
+              {
+                type: "p",
+                text: "Tori is built specifically for Nigerian recurring revenue businesses. Here are three concrete use cases.",
+              },
+              {
+                type: "h2",
+                text: "SaaS: school management platform",
+                id: "saas-use-case",
+              },
+              {
+                type: "p",
+                text: "A school management SaaS charges ₦25,000/month per school. They have 200 schools on the platform. Every month, roughly 16 schools fail their charge. Without Tori, each failure requires manual follow-up. With Tori, failures are classified immediately, retriable ones are retried on payday windows, and the platform receives a webhook for each outcome. The team does not touch billing.",
+              },
+              {
+                type: "h2",
+                text: "Creator: membership platform",
+                id: "creator-use-case",
+              },
+              {
+                type: "p",
+                text: "A Nigerian creator sells ₦2,500/month memberships to 2,000 subscribers. At 8% failure rate, 160 charges fail every month. At ₦2,500 each, that is ₦400,000 at risk. Tori's dunning engine recovers a significant share automatically. The creator also uses the portal token feature to give each subscriber a self-service link for pausing or cancelling, eliminating support tickets.",
+              },
+              {
+                type: "h2",
+                text: "Edtech: termly billing",
+                id: "edtech-use-case",
+              },
+              {
+                type: "p",
+                text: "An edtech platform charges school fees every 120 days. Monthly billing does not fit. Annual billing requires ₦150,000 upfront. Tori's custom interval handles exactly this: set interval to custom and interval_days to 120. Every 120 days, Tori charges automatically. Failures around school resumption are retried across payday windows for the next few weeks.",
+              },
+            ],
+          },
+        ],
+      },
+      {
         group: "Nigerian Use Cases",
         items: [
           {
