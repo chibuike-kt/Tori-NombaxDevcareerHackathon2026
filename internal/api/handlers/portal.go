@@ -72,31 +72,20 @@ func (h *PortalHandler) GetPortalData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// We need to find the customer without knowing the tenant.
-	// Portal tokens are scoped to a customer ID — find all their subscriptions.
 	subs, err := h.subs.ListByCustomerNoTenant(r.Context(), customerID)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}
 
-	if len(subs) == 0 {
-		respond.JSON(w, r, http.StatusOK, map[string]interface{}{
-			"customer_id":   customerID,
-			"subscriptions": []interface{}{},
-		})
-		return
+	// We need a tenantID to fetch the customer.
+	// If no subscriptions, try to find the customer across tenants via a different lookup.
+	// For now use the first subscription's tenant, or return minimal data if none.
+	var tenantID uuid.UUID
+	if len(subs) > 0 {
+		tenantID = subs[0].TenantID
 	}
 
-	// Use the first subscription's tenant to get customer details
-	tenantID := subs[0].TenantID
-	customer, err := h.customers.GetByID(r.Context(), customerID, tenantID)
-	if err != nil {
-		respond.InternalError(w, r, err)
-		return
-	}
-
-	// Enrich subscriptions with plan details
 	type subWithPlan struct {
 		*domain.Subscription
 		Plan *domain.Plan `json:"plan"`
@@ -107,17 +96,31 @@ func (h *PortalHandler) GetPortalData(w http.ResponseWriter, r *http.Request) {
 		if sub.Status == domain.StatusCancelled {
 			continue
 		}
-		plan, _ := h.plans.GetByID(r.Context(), sub.PlanID, tenantID)
+		plan, _ := h.plans.GetByID(r.Context(), sub.PlanID, sub.TenantID)
 		enriched = append(enriched, subWithPlan{
 			Subscription: sub,
 			Plan:         plan,
 		})
 	}
 
-	respond.JSON(w, r, http.StatusOK, map[string]interface{}{
-		"customer":      customer,
+	// Build response
+	response := map[string]interface{}{
 		"subscriptions": enriched,
-	})
+	}
+
+	if tenantID != uuid.Nil {
+		customer, err := h.customers.GetByID(r.Context(), customerID, tenantID)
+		if err == nil {
+			response["customer"] = customer
+		}
+	} else {
+		// No subscriptions — return minimal customer info from the token
+		response["customer"] = map[string]interface{}{
+			"id": customerID.String(),
+		}
+	}
+
+	respond.JSON(w, r, http.StatusOK, response)
 }
 
 // PortalCancel cancels a subscription via portal token.
