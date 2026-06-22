@@ -167,6 +167,7 @@ r.Group(func(r chi.Router) {
 		r.Use(tenantRateLimiter(600)) // 600 req/min per tenant for server-to-server
 
 		r.Post("/v1/platform/checkout", checkoutH.CreateCheckout)
+		r.Get("/v1/platform/customers", customerH.List)
 
 		r.Post("/v1/platform/customers", customerH.Create)
 		r.Get("/v1/platform/customers/{id}", customerH.Get)
