@@ -33,7 +33,6 @@ func main() {
 
 	log.Info().Msg("database connection established")
 
-	// Repos
 	subsRepo := postgres.NewSubscriptionRepo(pool)
 	tenantRepo := postgres.NewTenantRepo(pool)
 	customerRepo := postgres.NewCustomerRepo(pool)
@@ -42,30 +41,25 @@ func main() {
 	jobRepo := postgres.NewJobRepo(pool)
 	webhookRepo := postgres.NewWebhookRepo(pool)
 
-	// Services
 	ledgerSvc := ledger.NewService(ledgerRepo)
-
-	// Payment client — mock until Nomba API access
 	paymentClient := payment.NewMockNombaClient()
 
-	// Dunning engine with Nigerian failure classifier
 	classifier, err := payment.LoadClassifier("config/failure_codes.yaml")
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to load failure codes")
 	}
 	dunningEngine := dunning.NewEngine(classifier)
 
-	// Job handlers
 	handlers := billing.NewHandlers(
 		subsRepo, tenantRepo, customerRepo, planRepo,
 		ledgerSvc, dunningEngine, paymentClient, webhookRepo,
 	)
 
-	// Worker
 	worker := scheduler.NewWorker(jobRepo, 10*time.Second)
 	worker.Register(domain.JobExpireTrial, handlers.ExpireTrial)
 	worker.Register(domain.JobRetryFailedPayment, handlers.RetryFailedPayment)
 	worker.Register(domain.JobSuspendSubscription, handlers.SuspendSubscription)
+	worker.Register(domain.JobTypeGraceRetry, handlers.GraceRetry)
 
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
