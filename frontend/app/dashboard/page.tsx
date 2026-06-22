@@ -10,6 +10,8 @@ import {
   getSubscriptions,
   getCustomers,
   getPlans,
+  getPortfolioHealth,
+  api,
   type Customer,
   type Plan,
 } from "@/lib/api";
@@ -24,19 +26,19 @@ import {
 function MetricCard({
   label,
   value,
-  delta,
-  deltaUp,
+  sub,
   icon,
   iconBg,
   iconColor,
+  accent,
 }: {
   label: string;
   value: string;
-  delta?: string;
-  deltaUp?: boolean;
+  sub?: string;
   icon: string;
   iconBg: string;
   iconColor: string;
+  accent?: boolean;
 }) {
   return (
     <div
@@ -56,42 +58,163 @@ function MetricCard({
       </div>
       <div
         className="text-[23px] font-bold"
-        style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
+        style={{
+          color: accent ? "#00B37E" : "#0F1728",
+          letterSpacing: "-0.02em",
+        }}
       >
         {value}
       </div>
-      {delta && (
+      {sub && (
         <div
-          className="text-[11px] mt-1 flex items-center gap-1 font-semibold"
-          style={{ color: deltaUp ? "#00A36C" : "#E24B4A" }}
+          className="text-[11px] mt-1 font-semibold"
+          style={{ color: "#98A2B3" }}
         >
-          <i
-            className={`ti ${deltaUp ? "ti-arrow-up-right" : "ti-arrow-down-right"}`}
-          />
-          {delta}
+          {sub}
         </div>
       )}
     </div>
   );
 }
 
+function OnboardingChecklist({
+  plans,
+  subs,
+  hasWebhook,
+  hasAPIKey,
+}: {
+  plans: Plan[];
+  subs: unknown[];
+  hasWebhook: boolean;
+  hasAPIKey: boolean;
+}) {
+  const steps = [
+    {
+      label: "Create your first plan",
+      done: plans.length > 0,
+      href: "/dashboard/plans",
+      desc: "Define what you charge and how often",
+    },
+    {
+      label: "Subscribe your first customer",
+      done: subs.length > 0,
+      href: "/dashboard/subscriptions",
+      desc: "Use the checkout form or the Platform API",
+    },
+    {
+      label: "Add a webhook endpoint",
+      done: hasWebhook,
+      href: "/dashboard/webhooks",
+      desc: "Get notified when billing events happen",
+    },
+    {
+      label: "Create an API key",
+      done: hasAPIKey,
+      href: "/dashboard/api-keys",
+      desc: "Authenticate your server-to-server calls",
+    },
+  ];
+
+  const completed = steps.filter((s) => s.done).length;
+  if (completed === steps.length) return null;
+
+  return (
+    <div
+      className="bg-white border rounded-xl mb-5"
+      style={{ borderColor: "#EAECEF" }}
+    >
+      <div
+        className="px-5 py-4 border-b flex items-center justify-between"
+        style={{ borderColor: "#F0F2F4" }}
+      >
+        <div>
+          <h2 className="text-sm font-bold" style={{ color: "#0F1728" }}>
+            Getting started
+          </h2>
+          <p
+            className="text-xs font-medium mt-0.5"
+            style={{ color: "#8A94A6" }}
+          >
+            {completed} of {steps.length} complete
+          </p>
+        </div>
+        <div className="flex gap-1">
+          {steps.map((s, i) => (
+            <div
+              key={i}
+              className="w-8 h-1.5 rounded-full"
+              style={{ background: s.done ? "#00B37E" : "#F1F3F5" }}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="p-3 grid grid-cols-2 gap-2">
+        {steps.map((step, i) => (
+          <Link
+            key={i}
+            href={step.href}
+            className="flex items-start gap-3 p-3 rounded-lg border"
+            style={{
+              borderColor: step.done ? "#D1FAE5" : "#EAECEF",
+              background: step.done ? "#F0FDF4" : "#FAFAFA",
+            }}
+          >
+            <div
+              className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+              style={{ background: step.done ? "#00B37E" : "#E5E7EB" }}
+            >
+              {step.done ? (
+                <i
+                  className="ti ti-check text-white"
+                  style={{ fontSize: 11 }}
+                />
+              ) : (
+                <span
+                  className="text-[10px] font-bold"
+                  style={{ color: "#9CA3AF" }}
+                >
+                  {i + 1}
+                </span>
+              )}
+            </div>
+            <div>
+              <p
+                className="text-xs font-bold"
+                style={{ color: step.done ? "#166534" : "#0F1728" }}
+              >
+                {step.label}
+              </p>
+              <p
+                className="text-[11px] font-medium mt-0.5"
+                style={{ color: "#8A94A6" }}
+              >
+                {step.desc}
+              </p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
-const { data: mrrData } = useQuery({
-  queryKey: ["mrr"],
-  queryFn: () => getMRR(),
-});
-const { data: churnData } = useQuery({
-  queryKey: ["churn"],
-  queryFn: () => getChurn(),
-});
-const { data: recoveryData } = useQuery({
-  queryKey: ["recovery"],
-  queryFn: () => getDunningRecovery(),
-});
-const { data: summaryData } = useQuery({
-  queryKey: ["ledger-summary"],
-  queryFn: () => getLedgerSummary(),
-});
+  const { data: mrrData } = useQuery({
+    queryKey: ["mrr"],
+    queryFn: () => getMRR(),
+  });
+  const { data: churnData } = useQuery({
+    queryKey: ["churn"],
+    queryFn: () => getChurn(),
+  });
+  const { data: recoveryData } = useQuery({
+    queryKey: ["recovery"],
+    queryFn: () => getDunningRecovery(),
+  });
+  const { data: summaryData } = useQuery({
+    queryKey: ["ledger-summary"],
+    queryFn: () => getLedgerSummary(),
+  });
   const { data: subsData } = useQuery({
     queryKey: ["subscriptions"],
     queryFn: getSubscriptions,
@@ -104,6 +227,18 @@ const { data: summaryData } = useQuery({
     queryKey: ["plans"],
     queryFn: getPlans,
   });
+  const { data: healthData } = useQuery({
+    queryKey: ["portfolio-health"],
+    queryFn: getPortfolioHealth,
+  });
+  const { data: webhooksData } = useQuery({
+    queryKey: ["webhook-endpoints"],
+    queryFn: () => api.get<{ data: unknown[] }>("/v1/webhooks/endpoints"),
+  });
+  const { data: apiKeyData } = useQuery({
+    queryKey: ["api-key-hint"],
+    queryFn: () => api.get<{ data: { hint: string } }>("/v1/api-keys"),
+  });
 
   const mrr = mrrData?.data;
   const churn = churnData?.data;
@@ -112,6 +247,9 @@ const { data: summaryData } = useQuery({
   const subs = subsData?.data ?? [];
   const customers = customersData?.data ?? [];
   const plans = plansData?.data ?? [];
+  const health = healthData?.data;
+  const hasWebhook = (webhooksData?.data?.length ?? 0) > 0;
+  const hasAPIKey = !!apiKeyData?.data?.hint;
 
   const custById = new Map<string, Customer>(customers.map((c) => [c.id, c]));
   const planById = new Map<string, Plan>(plans.map((p) => [p.id, p]));
@@ -120,28 +258,43 @@ const { data: summaryData } = useQuery({
   const dunningSubs = subs.filter(
     (s) => s.status === "DUNNING" || s.status === "PAST_DUE",
   );
+  const criticalSubs =
+    health?.subscriptions.filter((s) => s.health.score < 30) ?? [];
+  const atRiskSubs =
+    health?.subscriptions.filter(
+      (s) => s.churn.signal === "high" || s.churn.signal === "critical",
+    ) ?? [];
+  const needsAttention = [
+    ...new Map(
+      [
+        ...criticalSubs,
+        ...atRiskSubs,
+        ...dunningSubs.map((s) => ({ ...s, id: s.id })),
+      ].map((s) => [s.id, s]),
+    ).values(),
+  ];
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      {dunningSubs.length > 0 && (
+      {needsAttention.length > 0 && (
         <div
-          className="rounded-lg px-4 py-3 mb-5 flex items-center gap-2.5"
-          style={{ background: "#FDF0D5" }}
+          className="rounded-xl border px-4 py-3 mb-5 flex items-center gap-2.5"
+          style={{ background: "#FDF0D5", borderColor: "#FDE68A" }}
         >
           <i
-            className="ti ti-alert-circle"
+            className="ti ti-alert-triangle"
             style={{ fontSize: 16, color: "#8A5A00" }}
           />
           <span className="text-sm font-semibold" style={{ color: "#8A5A00" }}>
-            {dunningSubs.length} subscription{dunningSubs.length > 1 ? "s" : ""}{" "}
-            need attention.
+            {needsAttention.length} subscription
+            {needsAttention.length > 1 ? "s" : ""} need your attention
           </span>
           <Link
-            href="/dashboard/subscriptions"
+            href="/dashboard/health"
             className="text-sm font-bold ml-auto"
             style={{ color: "#00B37E" }}
           >
-            Review →
+            View billing health →
           </Link>
         </div>
       )}
@@ -170,39 +323,43 @@ const { data: summaryData } = useQuery({
         </Link>
       </div>
 
+      <OnboardingChecklist
+        plans={plans}
+        subs={subs}
+        hasWebhook={hasWebhook}
+        hasAPIKey={hasAPIKey}
+      />
+
       <div className="grid grid-cols-4 gap-3 mb-4">
         <MetricCard
           label="MRR"
-          value={mrr ? formatKoboShort(mrr.mrr_kobo) : "—"}
-          delta="18.2% vs last month"
-          deltaUp
+          value={mrr ? formatKoboShort(mrr.mrr_kobo) : "..."}
+          sub="monthly recurring revenue"
           icon="ti-trending-up"
           iconBg="#E3F7EF"
           iconColor="#00A36C"
+          accent
         />
         <MetricCard
           label="Active subscriptions"
           value={String(activeCount)}
-          delta={`${subs.length} total`}
-          deltaUp
+          sub={`${customers.length} total customers`}
           icon="ti-refresh"
           iconBg="#E8EFF9"
           iconColor="#2563A8"
         />
         <MetricCard
           label="Churn rate"
-          value={churn ? `${churn.churn_rate_pct.toFixed(1)}%` : "—"}
-          delta={`${churn?.cancelled_count ?? 0} cancelled`}
-          deltaUp
+          value={churn ? `${churn.churn_rate_pct.toFixed(1)}%` : "..."}
+          sub={`${churn?.cancelled_count ?? 0} cancelled`}
           icon="ti-user-minus"
           iconBg="#FDECEC"
           iconColor="#E24B4A"
         />
         <MetricCard
           label="Dunning recovered"
-          value={recovery ? formatKoboShort(recovery.recovered_kobo) : "—"}
-          delta="68% recovery rate"
-          deltaUp
+          value={recovery ? formatKoboShort(recovery.recovered_kobo) : "..."}
+          sub="auto-recovered revenue"
           icon="ti-rotate-clockwise"
           iconBg="#FDF0D5"
           iconColor="#B8860B"
@@ -210,81 +367,64 @@ const { data: summaryData } = useQuery({
       </div>
 
       <div
-        className="grid gap-3 mb-3"
-        style={{ gridTemplateColumns: "1.6fr 1fr" }}
+        className="grid gap-3 mb-4"
+        style={{ gridTemplateColumns: "1fr 1fr 1fr" }}
       >
         <div
           className="bg-white border rounded-xl"
           style={{ borderColor: "#EAECEF" }}
         >
           <div
-            className="flex items-center justify-between px-4 py-3 border-b"
+            className="px-4 py-3 border-b"
             style={{ borderColor: "#F0F2F4" }}
           >
             <span className="text-sm font-bold" style={{ color: "#0F1728" }}>
               Revenue summary
             </span>
-            <span
-              className="text-xs font-semibold"
-              style={{ color: "#00B37E" }}
-            >
-              All time
-            </span>
           </div>
-          <div className="grid grid-cols-3 gap-4 p-5">
-            <div>
+          <div className="p-4 space-y-3">
+            {[
+              ["Gross revenue", summary?.total_charged, "#0F1728"],
+              ["Refunds", summary?.total_refunded, "#E24B4A"],
+              ["Net revenue", summary?.net_revenue, "#00B37E"],
+            ].map(([label, val, color]) => (
+              <div
+                key={label as string}
+                className="flex justify-between items-center py-2 border-b"
+                style={{ borderColor: "#F4F6F8" }}
+              >
+                <span
+                  className="text-xs font-semibold"
+                  style={{ color: "#6B7280" }}
+                >
+                  {label}
+                </span>
+                <span
+                  className="text-sm font-extrabold"
+                  style={{ color: color as string }}
+                >
+                  {val !== undefined ? formatKobo(val as number) : "..."}
+                </span>
+              </div>
+            ))}
+            <div className="pt-1">
               <p
-                className="text-xs font-semibold mb-1"
+                className="text-xs font-semibold mb-0.5"
                 style={{ color: "#8A94A6" }}
               >
-                Gross revenue
-              </p>
-              <p className="text-xl font-bold" style={{ color: "#0F1728" }}>
-                {summary ? formatKobo(summary.total_charged) : "—"}
-              </p>
-            </div>
-            <div>
-              <p
-                className="text-xs font-semibold mb-1"
-                style={{ color: "#8A94A6" }}
-              >
-                Refunds
-              </p>
-              <p className="text-xl font-bold" style={{ color: "#E24B4A" }}>
-                {summary ? formatKobo(summary.total_refunded) : "—"}
-              </p>
-            </div>
-            <div>
-              <p
-                className="text-xs font-semibold mb-1"
-                style={{ color: "#8A94A6" }}
-              >
-                Net revenue
-              </p>
-              <p className="text-xl font-bold" style={{ color: "#00B37E" }}>
-                {summary ? formatKobo(summary.net_revenue) : "—"}
-              </p>
-            </div>
-          </div>
-          <div className="px-5 pb-5">
-            <div className="rounded-lg p-4" style={{ background: "#F7F8FA" }}>
-              <p
-                className="text-xs font-semibold mb-3"
-                style={{ color: "#8A94A6" }}
-              >
-                Entries recorded
+                Ledger entries
               </p>
               <p
-                className="text-3xl font-extrabold"
+                className="text-2xl font-extrabold"
                 style={{ color: "#0F1728" }}
               >
                 {summary?.entry_count ?? 0}
               </p>
               <p
-                className="text-xs font-medium mt-1"
+                className="text-[11px] font-medium"
                 style={{ color: "#98A2B3" }}
               >
-                immutable ledger entries
+                immutable records
               </p>
             </div>
           </div>
@@ -295,37 +435,37 @@ const { data: summaryData } = useQuery({
           style={{ borderColor: "#EAECEF" }}
         >
           <div
-            className="flex items-center justify-between px-4 py-3 border-b"
+            className="px-4 py-3 border-b"
             style={{ borderColor: "#F0F2F4" }}
           >
             <span className="text-sm font-bold" style={{ color: "#0F1728" }}>
-              Subscription health
+              Subscription states
             </span>
           </div>
           <div className="p-4 space-y-3">
             {[
               [
-                "Active",
+                "ACTIVE",
                 subs.filter((s) => s.status === "ACTIVE").length,
                 "#00A36C",
               ],
               [
-                "Trialing",
+                "TRIALING",
                 subs.filter((s) => s.status === "TRIALING").length,
                 "#4F46B5",
               ],
               [
-                "Dunning",
+                "DUNNING",
                 subs.filter((s) => s.status === "DUNNING").length,
                 "#B8860B",
               ],
               [
-                "Paused",
+                "PAUSED",
                 subs.filter((s) => s.status === "PAUSED").length,
                 "#2563A8",
               ],
               [
-                "Cancelled",
+                "CANCELLED",
                 subs.filter((s) => s.status === "CANCELLED").length,
                 "#98A2B3",
               ],
@@ -349,6 +489,130 @@ const { data: summaryData } = useQuery({
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        <div
+          className="bg-white border rounded-xl"
+          style={{ borderColor: "#EAECEF" }}
+        >
+          <div
+            className="px-4 py-3 border-b flex items-center justify-between"
+            style={{ borderColor: "#F0F2F4" }}
+          >
+            <span className="text-sm font-bold" style={{ color: "#0F1728" }}>
+              Billing health
+            </span>
+            <Link
+              href="/dashboard/health"
+              className="text-xs font-semibold"
+              style={{ color: "#00B37E" }}
+            >
+              View all →
+            </Link>
+          </div>
+          <div className="p-4">
+            {health ? (
+              <>
+                <div className="flex items-center gap-3 mb-4">
+                  <svg viewBox="0 0 72 72" className="w-16 h-16 flex-shrink-0">
+                    <circle
+                      cx="36"
+                      cy="36"
+                      r="28"
+                      fill="none"
+                      stroke="#F1F3F5"
+                      strokeWidth="6"
+                    />
+                    <circle
+                      cx="36"
+                      cy="36"
+                      r="28"
+                      fill="none"
+                      stroke={
+                        health.average_score >= 70
+                          ? "#00B37E"
+                          : health.average_score >= 50
+                            ? "#D97706"
+                            : "#DC2626"
+                      }
+                      strokeWidth="6"
+                      strokeDasharray={`${(health.average_score / 100) * 2 * Math.PI * 28} ${2 * Math.PI * 28}`}
+                      strokeLinecap="round"
+                      transform="rotate(-90 36 36)"
+                    />
+                    <text
+                      x="36"
+                      y="36"
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fontSize="14"
+                      fontWeight="800"
+                      fill={
+                        health.average_score >= 70
+                          ? "#00B37E"
+                          : health.average_score >= 50
+                            ? "#D97706"
+                            : "#DC2626"
+                      }
+                    >
+                      {health.average_score}
+                    </text>
+                  </svg>
+                  <div>
+                    <p
+                      className="text-base font-extrabold"
+                      style={{ color: "#0F1728" }}
+                    >
+                      {health.average_score >= 70
+                        ? "Healthy"
+                        : health.average_score >= 50
+                          ? "Fair"
+                          : "Needs attention"}
+                    </p>
+                    <p
+                      className="text-xs font-medium"
+                      style={{ color: "#8A94A6" }}
+                    >
+                      portfolio score
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    ["Healthy", health.healthy_count, "#00B37E"],
+                    ["At risk", health.at_risk_count, "#EA580C"],
+                    ["Critical", health.critical_count, "#DC2626"],
+                  ].map(([label, count, color]) => (
+                    <div
+                      key={label as string}
+                      className="rounded-lg p-2 text-center"
+                      style={{ background: "#F8F9FA" }}
+                    >
+                      <p
+                        className="text-lg font-extrabold"
+                        style={{ color: color as string }}
+                      >
+                        {count as number}
+                      </p>
+                      <p
+                        className="text-[10px] font-semibold"
+                        style={{ color: "#6B7280" }}
+                      >
+                        {label}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div
+                className="text-sm font-medium text-center py-6"
+                style={{ color: "#8A94A6" }}
+              >
+                Loading...
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -441,13 +705,13 @@ const { data: summaryData } = useQuery({
                       className="px-4 py-3 text-xs font-medium"
                       style={{ color: "#4B5563" }}
                     >
-                      {plan?.name ?? "—"}
+                      {plan?.name ?? "..."}
                     </td>
                     <td
                       className="px-4 py-3 text-xs font-bold"
                       style={{ color: "#0F1728" }}
                     >
-                      {plan ? formatKobo(plan.amount) : "—"}
+                      {plan ? formatKobo(plan.amount) : "..."}
                     </td>
                     <td className="px-4 py-3">
                       <StatusPill status={sub.status} />
