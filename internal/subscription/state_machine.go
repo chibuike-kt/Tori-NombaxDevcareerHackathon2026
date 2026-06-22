@@ -2,7 +2,6 @@ package subscription
 
 import "github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
 
-// Event represents something that happened which may cause a state change.
 type Event string
 
 const (
@@ -10,6 +9,8 @@ const (
 	EventTrialPaymentFailed      Event = "trial_payment_failed"
 	EventTrialCancelled          Event = "trial_cancelled"
 	EventRenewalFailed           Event = "renewal_failed"
+	EventGraceRetrySucceeded     Event = "grace_retry_succeeded"
+	EventGraceRetryFailed        Event = "grace_retry_failed"
 	EventCustomerPaused          Event = "customer_paused"
 	EventCustomerCancelled       Event = "customer_cancelled"
 	EventTenantCancelled         Event = "tenant_cancelled"
@@ -19,9 +20,9 @@ const (
 	EventRetriesExhausted        Event = "retries_exhausted"
 	EventCustomerResumed         Event = "customer_resumed"
 	EventManualRecovery          Event = "manual_recovery"
+	EventGraceExpired            Event = "grace_expired"
 )
 
-// transitions maps every valid (currentState, event) pair to a new state.
 var transitions = map[domain.SubscriptionStatus]map[Event]domain.SubscriptionStatus{
 	domain.StatusTrialing: {
 		EventTrialPaymentSucceeded: domain.StatusActive,
@@ -29,10 +30,17 @@ var transitions = map[domain.SubscriptionStatus]map[Event]domain.SubscriptionSta
 		EventTrialCancelled:        domain.StatusCancelled,
 	},
 	domain.StatusActive: {
-		EventRenewalFailed:    domain.StatusPastDue,
-		EventCustomerPaused:   domain.StatusPaused,
+		EventRenewalFailed:     domain.StatusGracePeriod, // now goes to grace first
+		EventCustomerPaused:    domain.StatusPaused,
 		EventCustomerCancelled: domain.StatusCancelled,
-		EventTenantCancelled:  domain.StatusCancelled,
+		EventTenantCancelled:   domain.StatusCancelled,
+	},
+	domain.StatusGracePeriod: {
+		EventGraceRetrySucceeded: domain.StatusActive,
+		EventGraceRetryFailed:    domain.StatusPastDue,
+		EventGraceExpired:        domain.StatusPastDue,
+		EventCustomerCancelled:   domain.StatusCancelled,
+		EventTenantCancelled:     domain.StatusCancelled,
 	},
 	domain.StatusPastDue: {
 		EventRetrySucceeded:          domain.StatusActive,
@@ -49,16 +57,13 @@ var transitions = map[domain.SubscriptionStatus]map[Event]domain.SubscriptionSta
 		EventCustomerCancelled: domain.StatusCancelled,
 	},
 	domain.StatusSuspended: {
-		EventManualRecovery:   domain.StatusActive,
+		EventManualRecovery:    domain.StatusActive,
 		EventCustomerCancelled: domain.StatusCancelled,
-		EventTenantCancelled:  domain.StatusCancelled,
+		EventTenantCancelled:   domain.StatusCancelled,
 	},
-	// CANCELLED is terminal — no outbound transitions.
 	domain.StatusCancelled: {},
 }
 
-// validEventsFrom returns a list of valid event names from a given state.
-// Used to populate TransitionError for API consumers.
 func validEventsFrom(state domain.SubscriptionStatus) []string {
 	events, ok := transitions[state]
 	if !ok {
@@ -71,9 +76,6 @@ func validEventsFrom(state domain.SubscriptionStatus) []string {
 	return result
 }
 
-// Transition is a pure function. It takes the current state and an event,
-// and returns the next state or an error. No database calls. No side effects.
-// The caller is responsible for persisting the new state and firing side effects.
 func Transition(current domain.SubscriptionStatus, event Event) (domain.SubscriptionStatus, error) {
 	stateMap, ok := transitions[current]
 	if !ok {
