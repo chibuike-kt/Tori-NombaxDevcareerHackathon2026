@@ -38,6 +38,7 @@ type CustomerRepository interface {
 	Update(ctx context.Context, id, tenantID uuid.UUID, name *string, email string, metadata []byte) (*Customer, error)
 	UpdateTokenisedCard(ctx context.Context, id, tenantID uuid.UUID, card []byte, nombaCustomerID *string) (*Customer, error)
 	Archive(ctx context.Context, id, tenantID uuid.UUID) error
+	GetByIDNoTenant(ctx context.Context, id uuid.UUID) (*Customer, error)
 }
 
 type PlanRepository interface {
