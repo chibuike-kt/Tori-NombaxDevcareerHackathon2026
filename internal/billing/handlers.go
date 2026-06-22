@@ -3,6 +3,7 @@ package billing
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -36,14 +37,14 @@ func NewHandlers(
 	webhooks domain.WebhookRepository,
 ) *Handlers {
 	return &Handlers{
-		subs:     subs,
-		tenants:  tenants,
+		subs:      subs,
+		tenants:   tenants,
 		customers: customers,
-		plans:    plans,
-		ledger:   ledgerSvc,
-		dunning:  dunningEngine,
-		payment:  paymentClient,
-		webhooks: webhooks,
+		plans:     plans,
+		ledger:    ledgerSvc,
+		dunning:   dunningEngine,
+		payment:   paymentClient,
+		webhooks:  webhooks,
 	}
 }
 
@@ -74,17 +75,16 @@ func (h *Handlers) ExpireTrial(ctx context.Context, payload json.RawMessage) err
 	}
 
 	if sub.Status != domain.StatusTrialing {
-		log.Info().Str("sub_id", subID.String()).Str("status", string(sub.Status)).Msg("trial already expired or not trialing — skip")
+		log.Info().Str("sub_id", subID.String()).Str("status", string(sub.Status)).
+			Msg("trial already expired or not trialing — skip")
 		return nil
 	}
 
-	// With Nomba blocked — just activate. Real impl would charge first.
 	_, err = h.subs.UpdateStatus(ctx, subID, tenantID, domain.StatusActive)
 	if err != nil {
 		return fmt.Errorf("activate subscription: %w", err)
 	}
 
-	// Record trial end in ledger
 	_, _ = h.ledger.RecordTrialEnd(ctx, tenantID, subID, sub.CustomerID, "NGN",
 		fmt.Sprintf("trial-end-%s", subID))
 
@@ -92,7 +92,7 @@ func (h *Handlers) ExpireTrial(ctx context.Context, payload json.RawMessage) err
 	return nil
 }
 
-// RetryFailedPayment attempts to charge a DUNNING subscription.
+// RetryFailedPayment attempts to charge a DUNNING or PAST_DUE subscription.
 func (h *Handlers) RetryFailedPayment(ctx context.Context, payload json.RawMessage) error {
 	var p subscriptionPayload
 	if err := json.Unmarshal(payload, &p); err != nil {
@@ -128,33 +128,31 @@ func (h *Handlers) RetryFailedPayment(ctx context.Context, payload json.RawMessa
 		return fmt.Errorf("get plan: %w", err)
 	}
 
-// Attempt charge via payment client (mock for now)
-result, err := h.payment.ChargeToken(ctx, payment.ChargeTokenRequest{
-    CustomerID:     sub.CustomerID.String(),
-    TokenisedCard:  "",
-    Amount:         plan.Amount,
-    Currency:       plan.Currency,
-    IdempotencyKey: fmt.Sprintf("retry-%s-%d", subID, sub.DunningAttempt+1),
-    Reference:      fmt.Sprintf("retry-%s-%d", subID, sub.DunningAttempt+1),
-})
+	result, err := h.payment.ChargeToken(ctx, payment.ChargeTokenRequest{
+		CustomerID:     sub.CustomerID.String(),
+		TokenisedCard:  "",
+		Amount:         plan.Amount,
+		Currency:       plan.Currency,
+		IdempotencyKey: fmt.Sprintf("retry-%s-%d", subID, sub.DunningAttempt+1),
+		Reference:      fmt.Sprintf("retry-%s-%d", subID, sub.DunningAttempt+1),
+	})
 
-if result.Success {
-    ik := fmt.Sprintf("recovery-%s-%d", subID, sub.DunningAttempt)
-    _, _ = h.ledger.RecordCharge(ctx, tenantID, subID, subID, sub.CustomerID,
-        plan.Amount, plan.Currency, ik)
+	if err == nil && result.Success {
+		ik := fmt.Sprintf("recovery-%s-%d", subID, sub.DunningAttempt)
+		_, _ = h.ledger.RecordCharge(ctx, tenantID, subID, subID, sub.CustomerID,
+			plan.Amount, plan.Currency, ik)
 
-    now := time.Now().UTC()
-    periodEnd := now.AddDate(0, 1, 0) // simple month advance; real impl uses NextPeriod
-    _, _ = h.subs.UpdateAfterRenewal(ctx, subID, tenantID, domain.StatusActive, now, periodEnd)
+		now := time.Now().UTC()
+		periodEnd := now.AddDate(0, 1, 0)
+		_, _ = h.subs.UpdateAfterRenewal(ctx, subID, tenantID, domain.StatusActive, now, periodEnd)
 
-    log.Info().Str("sub_id", subID.String()).Msg("dunning recovery successful")
-    return nil
-}
+		log.Info().Str("sub_id", subID.String()).Msg("dunning recovery successful")
+		return nil
+	}
 
-	// Still failing — decide next action
-	decision, err := h.dunning.Decide(ctx, sub, result.FailureCode, tenant.DunningConfig)
-	if err != nil {
-		return fmt.Errorf("dunning decision: %w", err)
+	decision, decErr := h.dunning.Decide(ctx, sub, result.FailureCode, tenant.DunningConfig)
+	if decErr != nil {
+		return fmt.Errorf("dunning decision: %w", decErr)
 	}
 
 	if !decision.ShouldRetry {
@@ -185,5 +183,78 @@ func (h *Handlers) SuspendSubscription(ctx context.Context, payload json.RawMess
 		return fmt.Errorf("suspend subscription: %w", err)
 	}
 	log.Info().Str("sub_id", subID.String()).Msg("subscription suspended")
+	return nil
+}
+
+// GraceRetry handles the 48-hour grace period retry.
+// If successful, activates the subscription.
+// If failed, moves to PAST_DUE to begin full dunning.
+func (h *Handlers) GraceRetry(ctx context.Context, payload json.RawMessage) error {
+	var p subscriptionPayload
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return fmt.Errorf("unmarshal grace retry payload: %w", err)
+	}
+
+	subID, err := uuid.Parse(p.SubscriptionID)
+	if err != nil {
+		return fmt.Errorf("parse subscription id: %w", err)
+	}
+	tenantID, err := uuid.Parse(p.TenantID)
+	if err != nil {
+		return fmt.Errorf("parse tenant id: %w", err)
+	}
+
+	sub, err := h.subs.GetByID(ctx, subID, tenantID)
+	if err != nil {
+		return fmt.Errorf("get subscription: %w", err)
+	}
+
+	if sub.Status != domain.StatusGracePeriod {
+		log.Info().
+			Str("sub_id", subID.String()).
+			Str("status", string(sub.Status)).
+			Msg("grace retry skipped — subscription no longer in grace period")
+		return nil
+	}
+
+	plan, err := h.plans.GetByID(ctx, sub.PlanID, tenantID)
+	if err != nil {
+		return fmt.Errorf("get plan: %w", err)
+	}
+
+	result, chargeErr := h.payment.ChargeToken(ctx, payment.ChargeTokenRequest{
+		CustomerID:     sub.CustomerID.String(),
+		TokenisedCard:  "",
+		Amount:         plan.Amount,
+		Currency:       plan.Currency,
+		IdempotencyKey: fmt.Sprintf("grace-%s-%d", subID, time.Now().Unix()),
+		Reference:      fmt.Sprintf("grace-%s", subID),
+	})
+
+	if chargeErr == nil && result.Success {
+		_, err = h.subs.UpdateStatusOptimistic(ctx, subID, tenantID, domain.StatusActive, sub.UpdatedAt)
+		if err != nil {
+			if errors.Is(err, domain.ErrConflict) {
+				return nil
+			}
+			return fmt.Errorf("activate after grace retry: %w", err)
+		}
+		ik := fmt.Sprintf("grace-recovery-%s", subID)
+		_, _ = h.ledger.RecordCharge(ctx, tenantID, subID, subID, sub.CustomerID,
+			plan.Amount, plan.Currency, ik)
+		log.Info().Str("sub_id", subID.String()).Msg("grace retry succeeded — subscription activated")
+		return nil
+	}
+
+	// Grace retry failed — move to PAST_DUE to begin full dunning schedule
+	_, err = h.subs.UpdateStatusOptimistic(ctx, subID, tenantID, domain.StatusPastDue, sub.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, domain.ErrConflict) {
+			return nil
+		}
+		return fmt.Errorf("move to past due after grace failure: %w", err)
+	}
+
+	log.Info().Str("sub_id", subID.String()).Msg("grace retry failed — subscription moved to PAST_DUE")
 	return nil
 }
