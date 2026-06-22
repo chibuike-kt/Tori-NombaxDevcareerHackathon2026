@@ -142,3 +142,14 @@ func fromPgText(t pgtype.Text) *string {
 	}
 	return &t.String
 }
+
+func (r *CustomerRepo) GetByIDNoTenant(ctx context.Context, id uuid.UUID) (*domain.Customer, error) {
+	row, err := r.q.GetCustomerByIDNoTenant(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return customerFromRow(row), nil
+}
