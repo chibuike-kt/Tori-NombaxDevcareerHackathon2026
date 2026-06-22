@@ -1,9 +1,9 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { getCustomer, getCustomerSubscriptions } from "@/lib/api";
+import { getCustomer, getCustomerSubscriptions, api } from "@/lib/api";
 import type { Plan } from "@/lib/api";
 import { StatusPill } from "@/components/status-pill";
 import { formatKobo, formatDate, avatarFor } from "@/lib/utils";
@@ -14,6 +14,8 @@ export default function CustomerDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const [portalCopied, setPortalCopied] = useState(false);
+  const [generatingPortal, setGeneratingPortal] = useState(false);
 
   const { data: customerData, isLoading } = useQuery({
     queryKey: ["customer", id],
@@ -25,15 +27,32 @@ export default function CustomerDetailPage({
     queryFn: () => getCustomerSubscriptions(id),
   });
 
-const { data: plansData } = useQuery({
-  queryKey: ["plans"],
-  queryFn: () => import("@/lib/api").then((m) => m.getPlans()),
-});
+  const { data: plansData } = useQuery({
+    queryKey: ["plans"],
+    queryFn: () => import("@/lib/api").then((m) => m.getPlans()),
+  });
 
   const customer = customerData?.data;
   const subs = subsData?.data ?? [];
   const plans = plansData?.data ?? [];
   const planById = new Map<string, Plan>(plans.map((p) => [p.id, p]));
+
+  const generatePortalLink = async () => {
+    setGeneratingPortal(true);
+    try {
+      const res = await api.get<{ data: { token: string } }>(
+        `/v1/customers/${id}/portal-token`,
+      );
+      const url = `${window.location.origin}/portal?token=${res.data.token}`;
+      await navigator.clipboard.writeText(url);
+      setPortalCopied(true);
+      setTimeout(() => setPortalCopied(false), 3000);
+    } catch {
+      // silent
+    } finally {
+      setGeneratingPortal(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -63,15 +82,14 @@ const { data: plansData } = useQuery({
   }
 
   const av = avatarFor(customer.email);
-
-const activeSubs = subs.filter(
-  (s) => s.status === "ACTIVE" || s.status === "TRIALING",
-).length;
-const cancelledSubs = subs.filter((s) => s.status === "CANCELLED").length;
-const activePlanValue = subs
-  .filter((s) => s.status === "ACTIVE")
-  .map((s) => planById.get(s.plan_id)?.amount ?? 0)
-  .reduce((a, b) => a + b, 0);
+  const activeSubs = subs.filter(
+    (s) => s.status === "ACTIVE" || s.status === "TRIALING",
+  ).length;
+  const cancelledSubs = subs.filter((s) => s.status === "CANCELLED").length;
+  const activePlanValue = subs
+    .filter((s) => s.status === "ACTIVE")
+    .map((s) => planById.get(s.plan_id)?.amount ?? 0)
+    .reduce((a, b) => a + b, 0);
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -97,12 +115,34 @@ const activePlanValue = subs
             {av.initials}
           </span>
           <div className="flex-1">
-            <h1
-              className="text-2xl font-extrabold mb-0.5"
-              style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
-            >
-              {customer.name ?? customer.email}
-            </h1>
+            <div className="flex items-start justify-between mb-0.5">
+              <h1
+                className="text-2xl font-extrabold"
+                style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
+              >
+                {customer.name ?? customer.email}
+              </h1>
+              <button
+                onClick={generatePortalLink}
+                disabled={generatingPortal}
+                className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg border flex-shrink-0"
+                style={{
+                  borderColor: portalCopied ? "#00B37E" : "#E5E7EB",
+                  color: portalCopied ? "#00B37E" : "#6B7280",
+                  background: portalCopied ? "#E6F8F2" : "white",
+                }}
+              >
+                <i
+                  className={`ti ${portalCopied ? "ti-check" : "ti-link"}`}
+                  style={{ fontSize: 13 }}
+                />
+                {generatingPortal
+                  ? "Generating..."
+                  : portalCopied
+                    ? "Portal link copied"
+                    : "Copy portal link"}
+              </button>
+            </div>
             <p
               className="text-sm font-medium mb-3"
               style={{ color: "#8A94A6" }}
@@ -150,7 +190,7 @@ const activePlanValue = subs
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-4 gap-3 mb-4">
         {[
           ["Total subscriptions", subs.length.toString(), "#0F1728"],
           ["Active", activeSubs.toString(), "#00B37E"],
