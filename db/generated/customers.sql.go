@@ -148,7 +148,7 @@ func (q *Queries) GetCustomerByID(ctx context.Context, arg GetCustomerByIDParams
 }
 
 const getCustomerByIDNoTenant = `-- name: GetCustomerByIDNoTenant :one
-SELECT id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at FROM customers WHERE id = $1 AND is_archived = FALSE
+SELECT id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at FROM customers WHERE id = $1 AND is_deleted = FALSE
 `
 
 func (q *Queries) GetCustomerByIDNoTenant(ctx context.Context, id uuid.UUID) (Customer, error) {

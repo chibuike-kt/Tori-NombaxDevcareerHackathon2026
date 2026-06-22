@@ -34,4 +34,4 @@ RETURNING *;
 UPDATE customers SET is_deleted = TRUE WHERE id = $1 AND tenant_id = $2;
 
 -- name: GetCustomerByIDNoTenant :one
-SELECT * FROM customers WHERE id = $1 AND is_archived = FALSE;
+SELECT * FROM customers WHERE id = $1 AND is_deleted = FALSE;
