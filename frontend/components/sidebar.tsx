@@ -10,7 +10,7 @@ const nav = [
     label: "Subscriptions",
     icon: "ti-refresh",
   },
-  { href: "/dashboard/health", icon: "ti-heartbeat", label: "Billing health" },
+  { href: "/dashboard/health", label: "Billing health", icon: "ti-heartbeat" },
   { href: "/dashboard/customers", label: "Customers", icon: "ti-users" },
   { href: "/dashboard/plans", label: "Plans", icon: "ti-file-text" },
   { href: "/dashboard/invoices", label: "Invoices", icon: "ti-receipt" },
@@ -24,34 +24,38 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
 
-const handleLogout = async () => {
-  try {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/v1/auth/logout`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem("access_token");
+      if (token) {
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/v1/auth/logout`,
+          { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+        );
+      }
+    } catch {
+      // proceed regardless
+    } finally {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      router.push("/login");
     }
-  } catch {
-    // proceed with local logout even if server call fails
-  } finally {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    router.push("/login");
-  }
-};
+  };
 
   return (
     <aside
-      className="w-60 min-h-screen border-r flex flex-col bg-white"
-      style={{ borderColor: "#F0F0F0" }}
+      className="w-60 flex flex-col bg-white border-r"
+      style={{
+        borderColor: "#F0F0F0",
+        position: "sticky",
+        top: 0,
+        height: "100vh",
+        overflowY: "auto",
+      }}
     >
+      {/* Logo */}
       <div
-        className="px-5 py-5 border-b flex items-center gap-2"
+        className="px-5 py-5 border-b flex items-center gap-2 flex-shrink-0"
         style={{ borderColor: "#F0F0F0" }}
       >
         <div
@@ -79,22 +83,23 @@ const handleLogout = async () => {
         </span>
       </div>
 
-      <nav className="flex-1 py-4 px-2">
+      {/* Nav */}
+      <nav className="flex-1 py-4 px-2 overflow-y-auto">
         {nav.map(({ href, label, icon }) => {
-          const active =
-            pathname === href ||
-            (href !== "/dashboard" && pathname.startsWith(href + "/"));
           const isExact = pathname === href;
-          const shouldHighlight = href === "/dashboard" ? isExact : active;
+          const isActive =
+            href === "/dashboard"
+              ? isExact
+              : pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
               key={href}
               href={href}
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm mb-0.5"
               style={{
-                color: shouldHighlight ? "#00B37E" : "#4B5563",
-                background: shouldHighlight ? "#E6F8F2" : "transparent",
-                fontWeight: shouldHighlight ? 700 : 500,
+                color: isActive ? "#00B37E" : "#4B5563",
+                background: isActive ? "#E6F8F2" : "transparent",
+                fontWeight: isActive ? 700 : 500,
               }}
             >
               <i className={`ti ${icon}`} style={{ fontSize: 18 }} />
@@ -102,9 +107,30 @@ const handleLogout = async () => {
             </Link>
           );
         })}
+
+        <div className="mt-3 pt-3 border-t" style={{ borderColor: "#F0F0F0" }}>
+          <Link
+            href="/docs"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm"
+            style={{
+              color: pathname.startsWith("/docs") ? "#00B37E" : "#4B5563",
+              background: pathname.startsWith("/docs")
+                ? "#E6F8F2"
+                : "transparent",
+              fontWeight: pathname.startsWith("/docs") ? 700 : 500,
+            }}
+          >
+            <i className="ti ti-book" style={{ fontSize: 18 }} />
+            Documentation
+          </Link>
+        </div>
       </nav>
 
-      <div className="px-2 py-3 border-t" style={{ borderColor: "#F0F0F0" }}>
+      {/* Logout */}
+      <div
+        className="px-2 py-3 border-t flex-shrink-0"
+        style={{ borderColor: "#F0F0F0" }}
+      >
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold w-full"
