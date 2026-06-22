@@ -147,6 +147,28 @@ func (q *Queries) GetCustomerByID(ctx context.Context, arg GetCustomerByIDParams
 	return i, err
 }
 
+const getCustomerByIDNoTenant = `-- name: GetCustomerByIDNoTenant :one
+SELECT id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at FROM customers WHERE id = $1 AND is_archived = FALSE
+`
+
+func (q *Queries) GetCustomerByIDNoTenant(ctx context.Context, id uuid.UUID) (Customer, error) {
+	row := q.db.QueryRow(ctx, getCustomerByIDNoTenant, id)
+	var i Customer
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.ExternalID,
+		&i.Email,
+		&i.Name,
+		&i.NombaCustomerID,
+		&i.TokenisedCard,
+		&i.Metadata,
+		&i.IsDeleted,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listCustomers = `-- name: ListCustomers :many
 SELECT id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at FROM customers
 WHERE tenant_id = $1 AND is_deleted = FALSE
