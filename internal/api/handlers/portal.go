@@ -72,18 +72,17 @@ func (h *PortalHandler) GetPortalData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subs, err := h.subs.ListByCustomerNoTenant(r.Context(), customerID)
+	// Always fetch customer directly — no tenant needed
+	customer, err := h.customers.GetByIDNoTenant(r.Context(), customerID)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}
 
-	// We need a tenantID to fetch the customer.
-	// If no subscriptions, try to find the customer across tenants via a different lookup.
-	// For now use the first subscription's tenant, or return minimal data if none.
-	var tenantID uuid.UUID
-	if len(subs) > 0 {
-		tenantID = subs[0].TenantID
+	subs, err := h.subs.ListByCustomerNoTenant(r.Context(), customerID)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
 	}
 
 	type subWithPlan struct {
@@ -103,26 +102,11 @@ func (h *PortalHandler) GetPortalData(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Build response
-	response := map[string]interface{}{
+	respond.JSON(w, r, http.StatusOK, map[string]interface{}{
+		"customer":      customer,
 		"subscriptions": enriched,
-	}
-
-	if tenantID != uuid.Nil {
-		customer, err := h.customers.GetByID(r.Context(), customerID, tenantID)
-		if err == nil {
-			response["customer"] = customer
-		}
-	} else {
-		// No subscriptions — return minimal customer info from the token
-		response["customer"] = map[string]interface{}{
-			"id": customerID.String(),
-		}
-	}
-
-	respond.JSON(w, r, http.StatusOK, response)
+	})
 }
-
 // PortalCancel cancels a subscription via portal token.
 func (h *PortalHandler) PortalCancel(w http.ResponseWriter, r *http.Request) {
 	customerID, err := extractPortalCustomerID(r)
