@@ -25,7 +25,7 @@ interface Subscription {
 
 interface Customer {
   id: string;
-  email: string;
+  email?: string;
   name?: string;
 }
 
@@ -64,17 +64,20 @@ export default function PortalPage() {
     action: "cancel" | "pause" | "resume";
   } | null>(null);
 
-  useEffect(() => {
-    if (!token) {
-      setError("Invalid or missing portal token.");
-      setLoading(false);
-      return;
-    }
-    portalFetch("/v1/portal", token)
-      .then((res) => setData(res.data))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [token]);
+useEffect(() => {
+  if (!token) {
+    setError("Invalid or missing portal token.");
+    setLoading(false);
+    return;
+  }
+  portalFetch("/v1/portal", token)
+    .then((res) => {
+      if (!res.data) throw new Error("Invalid response");
+      setData(res.data);
+    })
+    .catch((e) => setError(e.message))
+    .finally(() => setLoading(false));
+}, [token]);
 
   const act = async (subId: string, action: "cancel" | "pause" | "resume") => {
     setActing(subId + action);
@@ -136,7 +139,7 @@ export default function PortalPage() {
     );
   }
 
-  const av = avatarFor(data.customer.email);
+ const av = avatarFor(data.customer.email ?? data.customer.id);
 
   return (
     <div
