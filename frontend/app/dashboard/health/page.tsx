@@ -87,7 +87,6 @@ export default function HealthPage() {
     queryFn: getPortfolioHealth,
     refetchInterval: 30000,
   });
-
   const { data: plansData } = useQuery({
     queryKey: ["plans"],
     queryFn: getPlans,
@@ -116,15 +115,12 @@ export default function HealthPage() {
     portfolio?.subscriptions.filter(
       (s) => s.churn.signal === "high" || s.churn.signal === "critical",
     ) ?? [];
-
   const atRisk =
     portfolio?.subscriptions.filter(
       (s) => s.health.score < 70 && s.health.score >= 30,
     ) ?? [];
-
   const critical =
     portfolio?.subscriptions.filter((s) => s.health.score < 30) ?? [];
-
   const needsAttention = [
     ...new Map(
       [...critical, ...atRisk, ...churnRisk].map((s) => [s.id, s]),
@@ -132,10 +128,10 @@ export default function HealthPage() {
   ];
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
+    <div className="p-4 lg:p-6 max-w-7xl mx-auto">
+      <div className="mb-5">
         <h1
-          className="text-2xl font-extrabold"
+          className="text-xl lg:text-2xl font-extrabold"
           style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
         >
           Billing health
@@ -156,9 +152,9 @@ export default function HealthPage() {
       ) : !portfolio ? null : (
         <>
           {/* Portfolio summary */}
-          <div className="grid grid-cols-5 gap-4 mb-5">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
             <div
-              className="col-span-2 bg-white border rounded-xl p-5 flex items-center gap-4"
+              className="col-span-2 lg:col-span-2 bg-white border rounded-xl p-5 flex items-center gap-4"
               style={{ borderColor: "#EAECEF" }}
             >
               <ScoreRing score={portfolio.average_score} color={avgColor} />
@@ -209,7 +205,7 @@ export default function HealthPage() {
             ].map(([label, count, color, icon]) => (
               <div
                 key={label as string}
-                className="bg-white border rounded-xl p-5"
+                className="bg-white border rounded-xl p-4 lg:p-5"
                 style={{ borderColor: "#EAECEF" }}
               >
                 <div className="flex items-center gap-2 mb-2">
@@ -225,7 +221,7 @@ export default function HealthPage() {
                   </span>
                 </div>
                 <p
-                  className="text-3xl font-extrabold"
+                  className="text-2xl lg:text-3xl font-extrabold"
                   style={{ color: color as string, letterSpacing: "-0.02em" }}
                 >
                   {count as number}
@@ -248,17 +244,12 @@ export default function HealthPage() {
             >
               <div className="flex items-start gap-3">
                 <i
-                  className="ti ti-alert-triangle"
-                  style={{
-                    fontSize: 18,
-                    color: "#D97706",
-                    flexShrink: 0,
-                    marginTop: 1,
-                  }}
+                  className="ti ti-alert-triangle flex-shrink-0 mt-0.5"
+                  style={{ fontSize: 18, color: "#D97706" }}
                 />
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <p
-                    className="text-sm font-extrabold mb-1"
+                    className="text-sm font-extrabold mb-2"
                     style={{ color: "#0F1728" }}
                   >
                     {needsAttention.length} subscription
@@ -276,13 +267,13 @@ export default function HealthPage() {
                           style={{ borderColor: "#E5E7EB" }}
                         >
                           <span
-                            className="w-5 h-5 rounded-full inline-flex items-center justify-center text-[9px] font-bold"
+                            className="w-5 h-5 rounded-full inline-flex items-center justify-center text-[9px] font-bold flex-shrink-0"
                             style={{ background: av.bg, color: av.color }}
                           >
                             {av.initials}
                           </span>
                           <span
-                            className="text-xs font-semibold"
+                            className="text-xs font-semibold truncate max-w-[120px]"
                             style={{ color: "#0F1728" }}
                           >
                             {cust?.email ?? "Unknown"}
@@ -330,7 +321,7 @@ export default function HealthPage() {
                   const plan = planById.get(sub.plan_id);
                   const av = avatarFor(cust?.email ?? sub.customer_id);
                   return (
-                    <div key={sub.id} className="px-5 py-4">
+                    <div key={sub.id} className="px-4 lg:px-5 py-4">
                       <div className="flex items-start gap-3">
                         <span
                           className="w-8 h-8 rounded-full inline-flex items-center justify-center text-xs font-bold flex-shrink-0"
@@ -339,7 +330,7 @@ export default function HealthPage() {
                           {av.initials}
                         </span>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
                             <span
                               className="text-sm font-bold"
                               style={{ color: "#0F1728" }}
@@ -380,7 +371,7 @@ export default function HealthPage() {
                             {sub.churn.recommended_action}
                           </div>
                         </div>
-                        <div className="flex-shrink-0 text-right">
+                        <div className="flex-shrink-0 text-right ml-2">
                           <div
                             className="text-xs font-semibold mb-0.5"
                             style={{ color: "#8A94A6" }}
@@ -424,107 +415,112 @@ export default function HealthPage() {
                 Sorted by health score, lowest first
               </span>
             </div>
-            <table className="w-full">
-              <thead>
-                <tr
-                  style={{
-                    background: "#FAFBFC",
-                    borderBottom: "0.5px solid #EAECEF",
-                  }}
-                >
-                  {[
-                    "Score",
-                    "Customer",
-                    "Plan",
-                    "Status",
-                    "Churn risk",
-                    "Reason",
-                    "Period end",
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="text-left px-4 py-3 text-[11px] font-semibold"
-                      style={{ color: "#98A2B3" }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[...portfolio.subscriptions]
-                  .sort((a, b) => a.health.score - b.health.score)
-                  .map((sub) => {
-                    const cust = custById.get(sub.customer_id);
-                    const plan = planById.get(sub.plan_id);
-                    const av = avatarFor(cust?.email ?? sub.customer_id);
-                    return (
-                      <tr
-                        key={sub.id}
-                        style={{ borderTop: "0.5px solid #F2F4F6" }}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[700px]">
+                <thead>
+                  <tr
+                    style={{
+                      background: "#FAFBFC",
+                      borderBottom: "0.5px solid #EAECEF",
+                    }}
+                  >
+                    {[
+                      "Score",
+                      "Customer",
+                      "Plan",
+                      "Status",
+                      "Churn risk",
+                      "Reason",
+                      "Period end",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="text-left px-4 py-3 text-[11px] font-semibold"
+                        style={{ color: "#98A2B3" }}
                       >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <ScoreRing
-                              score={sub.health.score}
-                              color={sub.health.color}
-                            />
-                            <HealthBadge
-                              label={sub.health.label}
-                              color={sub.health.color}
-                            />
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[10px] font-bold flex-shrink-0"
-                              style={{ background: av.bg, color: av.color }}
-                            >
-                              {av.initials}
-                            </span>
-                            <span
-                              className="text-xs font-semibold"
-                              style={{ color: "#1F2733" }}
-                            >
-                              {cust?.email ?? "Unknown"}
-                            </span>
-                          </div>
-                        </td>
-                        <td
-                          className="px-4 py-3 text-xs font-semibold"
-                          style={{ color: "#4B5563" }}
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...portfolio.subscriptions]
+                    .sort((a, b) => a.health.score - b.health.score)
+                    .map((sub) => {
+                      const cust = custById.get(sub.customer_id);
+                      const plan = planById.get(sub.plan_id);
+                      const av = avatarFor(cust?.email ?? sub.customer_id);
+                      return (
+                        <tr
+                          key={sub.id}
+                          style={{ borderTop: "0.5px solid #F2F4F6" }}
                         >
-                          {plan?.name ?? "Unknown"}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                            style={{ background: "#F1F3F5", color: "#6B7280" }}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <ScoreRing
+                                score={sub.health.score}
+                                color={sub.health.color}
+                              />
+                              <HealthBadge
+                                label={sub.health.label}
+                                color={sub.health.color}
+                              />
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                                style={{ background: av.bg, color: av.color }}
+                              >
+                                {av.initials}
+                              </span>
+                              <span
+                                className="text-xs font-semibold truncate max-w-[120px]"
+                                style={{ color: "#1F2733" }}
+                              >
+                                {cust?.email ?? "Unknown"}
+                              </span>
+                            </div>
+                          </td>
+                          <td
+                            className="px-4 py-3 text-xs font-semibold"
+                            style={{ color: "#4B5563" }}
                           >
-                            {sub.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <ChurnBadge signal={sub.churn.signal} />
-                        </td>
-                        <td
-                          className="px-4 py-3 text-xs font-medium max-w-xs"
-                          style={{ color: "#6B7280" }}
-                        >
-                          {sub.health.reason}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-xs font-medium"
-                          style={{ color: "#98A2B3" }}
-                        >
-                          {formatDate(sub.current_period_end)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
+                            {plan?.name ?? "Unknown"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                              style={{
+                                background: "#F1F3F5",
+                                color: "#6B7280",
+                              }}
+                            >
+                              {sub.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <ChurnBadge signal={sub.churn.signal} />
+                          </td>
+                          <td
+                            className="px-4 py-3 text-xs font-medium max-w-[180px]"
+                            style={{ color: "#6B7280" }}
+                          >
+                            {sub.health.reason}
+                          </td>
+                          <td
+                            className="px-4 py-3 text-xs font-medium"
+                            style={{ color: "#98A2B3" }}
+                          >
+                            {formatDate(sub.current_period_end)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}
