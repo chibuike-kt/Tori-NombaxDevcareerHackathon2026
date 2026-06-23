@@ -85,3 +85,22 @@ func parseDateRange(r *http.Request) (time.Time, time.Time) {
 	}
 	return from, to
 }
+
+func (h *LedgerHandler) MonthlyRevenue(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	from, to := parseDateRange(r)
+	if from.IsZero() {
+		from = time.Now().UTC().AddDate(-1, 0, 0) // default: last 12 months
+	}
+	if to.IsZero() {
+		to = time.Now().UTC()
+	}
+
+	rows, err := h.svc.GetMonthlyRevenue(r.Context(), tenantID, from, to)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, rows)
+}
