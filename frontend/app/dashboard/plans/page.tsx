@@ -7,13 +7,11 @@ import { formatKobo, formatDate } from "@/lib/utils";
 
 function PlanIDRow({ id }: { id: string }) {
   const [copied, setCopied] = useState(false);
-
   const copy = () => {
     navigator.clipboard.writeText(id);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
   return (
     <div
       className="rounded-lg px-3 py-2 mb-3 flex items-center gap-2"
@@ -89,11 +87,11 @@ export default function PlansPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 lg:p-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between mb-5">
         <div>
           <h1
-            className="text-2xl font-extrabold"
+            className="text-xl lg:text-2xl font-extrabold"
             style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
           >
             Plans
@@ -107,10 +105,11 @@ export default function PlansPage() {
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 text-sm px-4 py-2.5 rounded-lg font-bold text-white"
+          className="flex items-center gap-1.5 text-sm px-3 lg:px-4 py-2.5 rounded-lg font-bold text-white"
           style={{ background: "#00B37E" }}
         >
-          <i className="ti ti-plus" /> Create plan
+          <i className="ti ti-plus" />{" "}
+          <span className="hidden sm:inline">Create plan</span>
         </button>
       </div>
 
@@ -122,7 +121,7 @@ export default function PlansPage() {
           <h2 className="text-sm font-bold mb-4" style={{ color: "#0F1728" }}>
             New plan
           </h2>
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
             <div>
               <label
                 className="text-xs font-semibold block mb-1.5"
@@ -262,7 +261,7 @@ export default function PlansPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {plans.map((plan) => (
             <div
               key={plan.id}
