@@ -351,6 +351,6 @@ export interface MonthlyRevenue {
 }
 
 export const getMonthlyRevenue = (from?: string, to?: string) =>
-  api.get<MonthlyRevenue[]>(
+  api.get<{ data: MonthlyRevenue[] }>(
     `/v1/ledger/monthly${from ? `?from=${from}&to=${to}` : ""}`,
   );
