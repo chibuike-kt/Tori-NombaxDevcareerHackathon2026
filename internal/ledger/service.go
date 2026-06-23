@@ -12,6 +12,30 @@ type Service struct {
 	repo domain.LedgerRepository
 }
 
+type MonthlyRevenue struct {
+	Month    string `json:"month"`
+	Charged  int64  `json:"charged_kobo"`
+	Refunded int64  `json:"refunded_kobo"`
+	Net      int64  `json:"net_kobo"`
+}
+
+func (s *Service) GetMonthlyRevenue(ctx context.Context, tenantID uuid.UUID, from, to time.Time) ([]MonthlyRevenue, error) {
+	rows, err := s.repo.GetMonthlyRevenue(ctx, tenantID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]MonthlyRevenue, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, MonthlyRevenue{
+			Month:    r.Month.Format("Jan 2006"),
+			Charged:  r.Charged,
+			Refunded: r.Refunded,
+			Net:      r.Charged - r.Refunded,
+		})
+	}
+	return result, nil
+}
+
 func NewService(repo domain.LedgerRepository) *Service {
 	return &Service{repo: repo}
 }
