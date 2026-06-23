@@ -2424,6 +2424,87 @@ router.post('/tori', express.raw({ type: 'application/json' }), async (req, res)
             ],
           },
           {
+            id: "ref-auth",
+            label: "Authentication",
+            icon: "ti-lock",
+            blocks: [
+              {
+                type: "p",
+                text: "Tori has two authentication systems. The Dashboard API uses short-lived JWT tokens. The Platform API uses a long-lived secret API key.",
+              },
+              { type: "h2", text: "Register", id: "register" },
+              {
+                type: "code",
+                lang: "bash",
+                code: `POST /v1/auth/register\n\n{\n  "name": "ClassPay",\n  "email": "ops@classpay.ng",\n  "password": "minimum8chars"\n}\n\n// Response\n{\n  "data": {\n    "access_token": "eyJ...",\n    "refresh_token": "eyJ...",\n    "token_type": "Bearer"\n  }\n}`,
+              },
+              { type: "h2", text: "Login", id: "login" },
+              {
+                type: "code",
+                lang: "bash",
+                code: `POST /v1/auth/login\n\n{\n  "email": "ops@classpay.ng",\n  "password": "yourpassword"\n}\n\n// Response\n{\n  "data": {\n    "access_token": "eyJ...",\n    "refresh_token": "eyJ...",\n    "token_type": "Bearer"\n  }\n}`,
+              },
+              { type: "h2", text: "Refresh", id: "refresh" },
+              {
+                type: "p",
+                text: "Access tokens expire after 15 minutes. Use the refresh token to get a new access token without re-entering credentials.",
+              },
+              {
+                type: "code",
+                lang: "bash",
+                code: `POST /v1/auth/refresh\n\n{\n  "refresh_token": "eyJ..."\n}\n\n// Response: new access_token and refresh_token`,
+              },
+              { type: "h2", text: "Logout", id: "logout" },
+              {
+                type: "p",
+                text: "Revokes the access token in Redis immediately. Any subsequent request using the revoked token returns 401.",
+              },
+              {
+                type: "code",
+                lang: "bash",
+                code: `POST /v1/auth/logout\nAuthorization: Bearer eyJ...\n\n// Response\n{ "data": { "message": "logged out successfully" } }`,
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "The Platform API uses X-API-Key header authentication, not JWT. Create an API key from the dashboard and pass it on every server-to-server request.",
+              },
+            ],
+          },
+          {
+            id: "ref-apikeys",
+            label: "API Keys",
+            icon: "ti-key",
+            blocks: [
+              {
+                type: "p",
+                text: "API keys authenticate server-to-server Platform API calls. Each tenant has one active key at a time. Keys are shown once at creation and stored only as a SHA-256 hash.",
+              },
+              { type: "h2", text: "Create a key", id: "create" },
+              {
+                type: "code",
+                lang: "bash",
+                code: `POST /v1/api-keys\nAuthorization: Bearer eyJ...\n\n{ "name": "Production server" }\n\n// Response — key shown ONCE\n{\n  "data": {\n    "key": "tori_live_a1b2c3...",\n    "name": "Production server",\n    "hint": "tori_live_a1b2...d3e4"\n  }\n}`,
+              },
+              { type: "h2", text: "Get active key hint", id: "hint" },
+              {
+                type: "code",
+                lang: "bash",
+                code: `GET /v1/api-keys\nAuthorization: Bearer eyJ...\n\n// Response\n{\n  "data": { "hint": "tori_live_a1b2...d3e4" }\n}`,
+              },
+              { type: "h2", text: "Rotate key", id: "rotate" },
+              {
+                type: "p",
+                text: "Generates a new key and immediately invalidates the current one. Deploy the new key before rotating.",
+              },
+              {
+                type: "code",
+                lang: "bash",
+                code: `POST /v1/api-keys/rotate\nAuthorization: Bearer eyJ...\n\n// Response — new key shown ONCE\n{\n  "data": {\n    "key": "tori_live_x9y8z7...",\n    "hint": "tori_live_x9y8...a1b2"\n  }\n}`,
+              },
+            ],
+          },
+          {
             id: "ref-plans",
             label: "Plans",
             icon: "ti-file-text",
@@ -2564,6 +2645,59 @@ router.post('/tori', express.raw({ type: 'application/json' }), async (req, res)
             ],
           },
           {
+            id: "ref-checkout",
+            label: "Checkout",
+            icon: "ti-shopping-cart",
+            blocks: [
+              {
+                type: "p",
+                text: "The checkout endpoint is the recommended way to start a subscription. It finds or creates the customer by email and starts the subscription in one call. No separate customer creation needed.",
+              },
+              { type: "h2", text: "Start a subscription", id: "start" },
+              {
+                type: "code",
+                lang: "bash",
+                code: `# Dashboard API\nPOST /v1/checkout\nAuthorization: Bearer eyJ...\n\n# Platform API (server-to-server)\nPOST /v1/platform/checkout\nX-API-Key: tori_live_...\n\n{\n  "email": "amaka@startup.ng",\n  "plan_id": "plan_...",\n  "name": "Amaka Obi",\n  "external_id": "your-user-123",\n  "idempotency_key": "signup_user_123"\n}\n\n// Response\n{\n  "data": {\n    "customer": {\n      "id": "cus_...",\n      "email": "amaka@startup.ng",\n      "name": "Amaka Obi"\n    },\n    "subscription": {\n      "id": "sub_...",\n      "status": "TRIALING",\n      "current_period_end": "2026-07-07T00:00:00Z"\n    },\n    "customer_created": true\n  }\n}`,
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "customer_created is true if Tori created a new customer, false if an existing customer was matched by email. Use this to decide whether to send a welcome email.",
+              },
+              {
+                type: "callout",
+                variant: "warn",
+                text: "Always pass an idempotency_key. If your server retries due to a network timeout, the same key returns the original subscription instead of creating a duplicate.",
+              },
+            ],
+          },
+          {
+            id: "ref-plan-change",
+            label: "Plan changes",
+            icon: "ti-arrows-exchange",
+            blocks: [
+              {
+                type: "p",
+                text: "Change a subscription's plan mid-cycle. Tori computes the exact proration, records it to the ledger, and updates the subscription in one atomic operation.",
+              },
+              { type: "h2", text: "Change plan", id: "change" },
+              {
+                type: "code",
+                lang: "bash",
+                code: `# Dashboard API\nPATCH /v1/subscriptions/{id}/plan\nAuthorization: Bearer eyJ...\n\n# Platform API\nPATCH /v1/platform/subscriptions/{id}/plan\nX-API-Key: tori_live_...\n\n{ "plan_id": "plan_new_..." }\n\n// Response\n{\n  "data": {\n    "subscription": { "id": "sub_...", "plan_id": "plan_new_...", "status": "ACTIVE" },\n    "proration": {\n      "credit_kobo": 750000,\n      "charge_kobo": 1125000,\n      "net_adjustment_kobo": 375000\n    },\n    "net_adjustment_kobo": 375000,\n    "description": "Upgraded plan — proration charge applied"\n  }\n}`,
+              },
+              {
+                type: "p",
+                text: "The proration is computed as: credit = (unused days / total days) x old plan amount. Charge = (remaining days / total days) x new plan amount. Net adjustment = charge minus credit. Both entries are written to the immutable ledger.",
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Plan changes are only allowed on ACTIVE subscriptions. Attempting to change a plan on a DUNNING, PAUSED, or SUSPENDED subscription returns 422 invalid_status.",
+              },
+            ],
+          },
+          {
             id: "ref-ledger",
             label: "Ledger",
             icon: "ti-book",
@@ -2643,6 +2777,48 @@ router.post('/tori', express.raw({ type: 'application/json' }), async (req, res)
             ],
           },
           {
+            id: "ref-health",
+            label: "Billing health",
+            icon: "ti-heartbeat",
+            blocks: [
+              {
+                type: "p",
+                text: "Real-time health scores and churn predictions across your subscriber base.",
+              },
+              { type: "h2", text: "Portfolio health", id: "portfolio" },
+              {
+                type: "code",
+                lang: "bash",
+                code: `GET /v1/health\nAuthorization: Bearer eyJ...\n\n// Response\n{\n  "data": {\n    "average_score": 74,\n    "healthy_count": 9,\n    "at_risk_count": 2,\n    "critical_count": 1,\n    "churn_risk_count": 2,\n    "subscriptions": [\n      {\n        "id": "sub_...",\n        "status": "DUNNING",\n        "health": {\n          "score": 28,\n          "label": "At risk",\n          "color": "#EA580C",\n          "reason": "Payment failing. Retries in progress."\n        },\n        "churn": {\n          "signal": "high",\n          "score": 65,\n          "reasons": ["Two failed payment attempts", "Billing period ends soon"],\n          "recommended_action": "Contact the customer immediately."\n        }\n      }\n    ]\n  }\n}`,
+              },
+              { type: "h2", text: "Revenue forecast", id: "forecast" },
+              {
+                type: "code",
+                lang: "bash",
+                code: `GET /v1/health/forecast\nAuthorization: Bearer eyJ...\n\n// Response\n{\n  "data": {\n    "period_label": "July 2026",\n    "expected_low": 18740000,\n    "expected_mid": 23420000,\n    "expected_high": 24600000,\n    "active_subscriptions": 12,\n    "at_risk_revenue": 10040000,\n    "recovery_rate_pct": 65,\n    "confidence": "medium",\n    "note": "Forecast includes dunning recovery estimate based on your historical retry success rate."\n  }\n}`,
+              },
+              {
+                type: "h2",
+                text: "Health score calculation",
+                id: "score-calc",
+              },
+              {
+                type: "table",
+                headers: ["Factor", "Deduction"],
+                rows: [
+                  ["DUNNING state", "-40"],
+                  ["SUSPENDED state", "-60"],
+                  ["PAST_DUE state", "-20"],
+                  ["GRACE_PERIOD state", "-10"],
+                  ["PAUSED state", "-10"],
+                  ["Each dunning attempt", "-10 to -40"],
+                  ["Subscription under 30 days", "-5"],
+                  ["Recovered from dunning", "-10"],
+                ],
+              },
+            ],
+          },
+          {
             id: "ref-webhooks",
             label: "Webhooks",
             icon: "ti-webhook",
@@ -2682,6 +2858,12 @@ router.post('/tori', express.raw({ type: 'application/json' }), async (req, res)
                 text: "Retry schedule for failed deliveries",
                 id: "retries",
               },
+              { type: "h2", text: "Delete an endpoint", id: "delete" },
+              {
+                type: "code",
+                lang: "bash",
+                code: `DELETE /v1/webhooks/endpoints/{id}\nAuthorization: Bearer eyJ...\n\n// Response\n{ "data": { "status": "deleted" } }\n\n// Note: deleting an endpoint also deletes all associated delivery logs`,
+              },
               {
                 type: "p",
                 text: "If your server does not return 2xx, Tori retries delivery at 5 minutes, 30 minutes, 2 hours, then 6 hours. Every attempt is logged and replayable from the dashboard.",
@@ -2690,6 +2872,55 @@ router.post('/tori', express.raw({ type: 'application/json' }), async (req, res)
                 type: "callout",
                 variant: "warn",
                 text: "Respond 200 immediately and process asynchronously. If processing takes more than a few seconds, Tori may time out and schedule an unnecessary retry. Duplicate events are possible make your webhook handler idempotent by checking whether you have already processed an event ID before acting on it.",
+              },
+            ],
+          },
+          {
+            id: "ref-portal",
+            label: "Customer portal",
+            icon: "ti-user-circle",
+            blocks: [
+              {
+                type: "p",
+                text: "The customer portal lets your subscribers manage their own billing without contacting support. You generate a short-lived token and redirect the customer to the portal URL.",
+              },
+              { type: "h2", text: "Generate portal token", id: "token" },
+              {
+                type: "p",
+                text: "Available on both Dashboard API and Platform API.",
+              },
+              {
+                type: "code",
+                lang: "bash",
+                code: `# Platform API\nGET /v1/platform/customers/{id}/portal-token\nX-API-Key: tori_live_...\n\n// Response\n{\n  "data": {\n    "token": "eyJ...",\n    "expires_in": "3600"\n  }\n}`,
+              },
+              { type: "p", text: "Redirect the customer to the portal URL:" },
+              {
+                type: "code",
+                lang: "bash",
+                code: `https://portal.tori.ng?token=eyJ...\n\n// Or your own domain if you embed the portal:\nhttps://app.classpay.ng/billing?token=eyJ...`,
+              },
+              { type: "h2", text: "Portal data", id: "data" },
+              {
+                type: "code",
+                lang: "bash",
+                code: `GET /v1/portal?token=eyJ...\n\n// Response\n{\n  "data": {\n    "customer": { "id": "cus_...", "email": "amaka@startup.ng", "name": "Amaka Obi" },\n    "subscriptions": [\n      {\n        "id": "sub_...",\n        "status": "ACTIVE",\n        "current_period_end": "2026-07-07T00:00:00Z",\n        "plan": { "name": "Pro", "amount": 1500000, "interval": "monthly" }\n      }\n    ]\n  }\n}`,
+              },
+              { type: "h2", text: "Portal actions", id: "actions" },
+              {
+                type: "code",
+                lang: "bash",
+                code: `# All portal routes use ?token=eyJ... query param, no other auth needed\n\nPOST /v1/portal/subscriptions/{id}/pause?token=eyJ...\nPOST /v1/portal/subscriptions/{id}/resume?token=eyJ...\nPOST /v1/portal/subscriptions/{id}/cancel?token=eyJ...\n\n// Each returns the updated subscription object`,
+              },
+              {
+                type: "callout",
+                variant: "warn",
+                text: "Portal tokens expire after 1 hour. Generate a fresh token each time the customer visits the billing page. Never store or reuse portal tokens.",
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Portal actions fire the same webhooks as direct API calls. subscription.paused, subscription.resumed, and subscription.cancelled will be delivered to your registered endpoints.",
               },
             ],
           },
