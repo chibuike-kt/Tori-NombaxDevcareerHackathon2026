@@ -22,8 +22,8 @@ export default function SubscriptionsPage() {
   const [filter, setFilter] = useState("ALL");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  // New subscription form state
   const [checkoutEmail, setCheckoutEmail] = useState("");
   const [checkoutName, setCheckoutName] = useState("");
   const [checkoutPlanId, setCheckoutPlanId] = useState("");
@@ -56,15 +56,36 @@ export default function SubscriptionsPage() {
 
   const cancel = useMutation({
     mutationFn: cancelSubscription,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["subscriptions"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["subscriptions"] });
+      setActionError(null);
+    },
+    onError: (e: unknown) =>
+      setActionError(
+        e instanceof Error ? e.message : "Failed to cancel subscription",
+      ),
   });
   const pause = useMutation({
     mutationFn: pauseSubscription,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["subscriptions"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["subscriptions"] });
+      setActionError(null);
+    },
+    onError: (e: unknown) =>
+      setActionError(
+        e instanceof Error ? e.message : "Failed to pause subscription",
+      ),
   });
   const resume = useMutation({
     mutationFn: resumeSubscription,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["subscriptions"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["subscriptions"] });
+      setActionError(null);
+    },
+    onError: (e: unknown) =>
+      setActionError(
+        e instanceof Error ? e.message : "Failed to resume subscription",
+      ),
   });
 
   const checkout = useMutation({
@@ -98,6 +119,8 @@ export default function SubscriptionsPage() {
     "ALL",
     "ACTIVE",
     "TRIALING",
+    "GRACE_PERIOD",
+    "PAST_DUE",
     "DUNNING",
     "PAUSED",
     "SUSPENDED",
@@ -185,9 +208,7 @@ export default function SubscriptionsPage() {
               </p>
               <div className="flex gap-2 justify-center">
                 <button
-                  onClick={() => {
-                    setCheckoutSuccess(null);
-                  }}
+                  onClick={() => setCheckoutSuccess(null)}
                   className="text-sm px-4 py-2 rounded-lg font-bold text-white"
                   style={{ background: "#0F1728" }}
                 >
@@ -408,6 +429,28 @@ export default function SubscriptionsPage() {
         </div>
       </div>
 
+      {actionError && (
+        <div
+          className="rounded-lg px-4 py-3 mb-3 flex items-center gap-2"
+          style={{ background: "#FDECEC", border: "1px solid #FDCACA" }}
+        >
+          <i
+            className="ti ti-alert-circle"
+            style={{ fontSize: 15, color: "#DC2626" }}
+          />
+          <span className="text-xs font-semibold" style={{ color: "#DC2626" }}>
+            {actionError}
+          </span>
+          <button
+            onClick={() => setActionError(null)}
+            className="ml-auto"
+            style={{ color: "#DC2626" }}
+          >
+            <i className="ti ti-x" style={{ fontSize: 14 }} />
+          </button>
+        </div>
+      )}
+
       <div
         className="bg-white border rounded-xl"
         style={{ borderColor: "#EAECEF" }}
@@ -536,18 +579,21 @@ export default function SubscriptionsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5">
-                        {sub.status === "ACTIVE" && (
+                        {(sub.status === "ACTIVE" ||
+                          sub.status === "GRACE_PERIOD") && (
                           <>
-                            <button
-                              onClick={() => pause.mutate(sub.id)}
-                              className="text-[11px] px-2.5 py-1 rounded-md font-bold border"
-                              style={{
-                                borderColor: "#E5E7EB",
-                                color: "#6B7280",
-                              }}
-                            >
-                              Pause
-                            </button>
+                            {sub.status === "ACTIVE" && (
+                              <button
+                                onClick={() => pause.mutate(sub.id)}
+                                className="text-[11px] px-2.5 py-1 rounded-md font-bold border"
+                                style={{
+                                  borderColor: "#E5E7EB",
+                                  color: "#6B7280",
+                                }}
+                              >
+                                Pause
+                              </button>
+                            )}
                             <button
                               onClick={() => cancel.mutate(sub.id)}
                               className="text-[11px] px-2.5 py-1 rounded-md font-bold border"
