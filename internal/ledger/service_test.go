@@ -16,6 +16,10 @@ type mockLedgerRepo struct {
 	entries []*domain.LedgerEntry
 }
 
+func (m *mockLedgerRepo) GetMonthlyRevenue(_ context.Context, _ uuid.UUID, _, _ time.Time) ([]domain.MonthlyRevenueRow, error) {
+	return nil, nil
+}
+
 func (m *mockLedgerRepo) Append(_ context.Context, tenantID uuid.UUID, subscriptionID, invoiceID, customerID *uuid.UUID, entryType domain.LedgerEntryType, direction domain.LedgerDirection, amount int64, currency, description, idempotencyKey string, metadata []byte) (*domain.LedgerEntry, error) {
 	e := &domain.LedgerEntry{
 		ID:             uuid.New(),
