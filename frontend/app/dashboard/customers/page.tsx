@@ -44,11 +44,11 @@ export default function CustomersPage() {
   );
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 lg:p-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between mb-5">
         <div>
           <h1
-            className="text-2xl font-extrabold"
+            className="text-xl lg:text-2xl font-extrabold"
             style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
           >
             Customers
@@ -62,10 +62,11 @@ export default function CustomersPage() {
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 text-sm px-4 py-2.5 rounded-lg font-bold text-white"
+          className="flex items-center gap-1.5 text-sm px-3 lg:px-4 py-2.5 rounded-lg font-bold text-white"
           style={{ background: "#00B37E" }}
         >
-          <i className="ti ti-plus" /> Add customer
+          <i className="ti ti-plus" />{" "}
+          <span className="hidden sm:inline">Add customer</span>
         </button>
       </div>
 
@@ -82,7 +83,7 @@ export default function CustomersPage() {
             Subscriptions and click &quot;New subscription&quot; to subscribe them to a
             plan.
           </p>
-          <div className="grid grid-cols-3 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
             <div>
               <label
                 className="text-xs font-semibold block mb-1.5"
@@ -103,7 +104,10 @@ export default function CustomersPage() {
                 className="text-xs font-semibold block mb-1.5"
                 style={{ color: "#4B5563" }}
               >
-                Name (optional)
+                Name{" "}
+                <span className="font-normal" style={{ color: "#9CA3AF" }}>
+                  optional
+                </span>
               </label>
               <input
                 value={name}
@@ -118,12 +122,9 @@ export default function CustomersPage() {
                 className="text-xs font-semibold block mb-1.5"
                 style={{ color: "#4B5563" }}
               >
-                External ID (optional)
-                <span
-                  className="ml-1.5 font-normal"
-                  style={{ color: "#9CA3AF" }}
-                >
-                  your own user ID
+                External ID{" "}
+                <span className="font-normal" style={{ color: "#9CA3AF" }}>
+                  optional
                 </span>
               </label>
               <input
@@ -167,7 +168,7 @@ export default function CustomersPage() {
       )}
 
       <div
-        className="flex items-center gap-2 mb-4 border rounded-lg px-3.5 py-2.5 bg-white w-80"
+        className="flex items-center gap-2 mb-4 border rounded-lg px-3.5 py-2.5 bg-white"
         style={{ borderColor: "#E5E7EB" }}
       >
         <i
@@ -220,85 +221,91 @@ export default function CustomersPage() {
             </button>
           </div>
         ) : (
-          <table className="w-full">
-            <thead>
-              <tr
-                style={{
-                  background: "#FAFBFC",
-                  borderBottom: "0.5px solid #EAECEF",
-                }}
-              >
-                {["Customer", "Name", "External ID", "Created", ""].map((h) => (
-                  <th
-                    key={h}
-                    className="text-left px-4 py-3 text-[11px] font-semibold"
-                    style={{ color: "#98A2B3" }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((c) => {
-                const av = avatarFor(c.email);
-                return (
-                  <tr
-                    key={c.id}
-                    onClick={() => router.push(`/dashboard/customers/${c.id}`)}
-                    style={{
-                      borderTop: "0.5px solid #F2F4F6",
-                      cursor: "pointer",
-                    }}
-                    className="hover:bg-gray-50"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          className="w-8 h-8 rounded-full inline-flex items-center justify-center text-xs font-bold flex-shrink-0"
-                          style={{ background: av.bg, color: av.color }}
-                        >
-                          {av.initials}
-                        </span>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[500px]">
+              <thead>
+                <tr
+                  style={{
+                    background: "#FAFBFC",
+                    borderBottom: "0.5px solid #EAECEF",
+                  }}
+                >
+                  {["Customer", "Name", "External ID", "Created", ""].map(
+                    (h) => (
+                      <th
+                        key={h}
+                        className="text-left px-4 py-3 text-[11px] font-semibold"
+                        style={{ color: "#98A2B3" }}
+                      >
+                        {h}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((c) => {
+                  const av = avatarFor(c.email);
+                  return (
+                    <tr
+                      key={c.id}
+                      onClick={() =>
+                        router.push(`/dashboard/customers/${c.id}`)
+                      }
+                      style={{
+                        borderTop: "0.5px solid #F2F4F6",
+                        cursor: "pointer",
+                      }}
+                      className="hover:bg-gray-50"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className="w-8 h-8 rounded-full inline-flex items-center justify-center text-xs font-bold flex-shrink-0"
+                            style={{ background: av.bg, color: av.color }}
+                          >
+                            {av.initials}
+                          </span>
+                          <span
+                            className="text-xs font-semibold truncate max-w-[140px]"
+                            style={{ color: "#1F2733" }}
+                          >
+                            {c.email}
+                          </span>
+                        </div>
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-medium"
+                        style={{ color: "#4B5563" }}
+                      >
+                        {c.name ?? "Not set"}
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-mono"
+                        style={{ color: "#98A2B3" }}
+                      >
+                        {c.external_id ?? "Not set"}
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-medium"
+                        style={{ color: "#98A2B3" }}
+                      >
+                        {formatDate(c.created_at)}
+                      </td>
+                      <td className="px-4 py-3">
                         <span
                           className="text-xs font-semibold"
-                          style={{ color: "#1F2733" }}
+                          style={{ color: "#00B37E" }}
                         >
-                          {c.email}
+                          View
                         </span>
-                      </div>
-                    </td>
-                    <td
-                      className="px-4 py-3 text-xs font-medium"
-                      style={{ color: "#4B5563" }}
-                    >
-                      {c.name ?? "Not set"}
-                    </td>
-                    <td
-                      className="px-4 py-3 text-xs font-mono"
-                      style={{ color: "#98A2B3" }}
-                    >
-                      {c.external_id ?? "Not set"}
-                    </td>
-                    <td
-                      className="px-4 py-3 text-xs font-medium"
-                      style={{ color: "#98A2B3" }}
-                    >
-                      {formatDate(c.created_at)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className="text-xs font-semibold"
-                        style={{ color: "#00B37E" }}
-                      >
-                        View
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
