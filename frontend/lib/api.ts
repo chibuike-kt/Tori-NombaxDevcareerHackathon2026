@@ -11,12 +11,14 @@ function getRefreshToken(): string | null {
 }
 
 let isRefreshing = false;
-let refreshQueue: Array<(token: string) => void> = [];
+let refreshQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (e: Error) => void;
+}> = [];
 
 async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return null;
-
   try {
     const res = await fetch(`${API_BASE}/v1/auth/refresh`, {
       method: "POST",
@@ -50,25 +52,27 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
   if (res.status === 401) {
-    // Try to refresh the token before giving up
     if (isRefreshing) {
-      // Another request is already refreshing — queue this one
       return new Promise<T>((resolve, reject) => {
-        refreshQueue.push(async (newToken: string) => {
-          try {
-            const retryHeaders = {
-              ...headers,
-              Authorization: `Bearer ${newToken}`,
-            };
-            const retryRes = await fetch(`${API_BASE}${path}`, {
-              ...options,
-              headers: retryHeaders,
-            });
-            if (!retryRes.ok) reject(new Error("Request failed after refresh"));
-            else resolve(await retryRes.json());
-          } catch (e) {
-            reject(e);
-          }
+        refreshQueue.push({
+          resolve: async (newToken: string) => {
+            try {
+              const retryHeaders = {
+                ...headers,
+                Authorization: `Bearer ${newToken}`,
+              };
+              const retryRes = await fetch(`${API_BASE}${path}`, {
+                ...options,
+                headers: retryHeaders,
+              });
+              if (!retryRes.ok)
+                reject(new Error("Request failed after token refresh"));
+              else resolve(await retryRes.json());
+            } catch (e) {
+              reject(e instanceof Error ? e : new Error("Request failed"));
+            }
+          },
+          reject,
         });
       });
     }
@@ -78,11 +82,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     isRefreshing = false;
 
     if (newToken) {
-      // Drain the queue
-      refreshQueue.forEach((cb) => cb(newToken));
+      refreshQueue.forEach(({ resolve }) => resolve(newToken));
       refreshQueue = [];
 
-      // Retry original request with new token
       const retryHeaders = { ...headers, Authorization: `Bearer ${newToken}` };
       const retryRes = await fetch(`${API_BASE}${path}`, {
         ...options,
@@ -97,8 +99,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       return retryRes.json();
     }
 
-    // Refresh failed — session is truly expired
+    // Refresh failed — drain queue with rejections
+    refreshQueue.forEach(({ reject }) => reject(new Error("Session expired")));
     refreshQueue = [];
+
     if (typeof window !== "undefined") {
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
