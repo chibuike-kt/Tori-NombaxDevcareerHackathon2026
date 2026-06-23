@@ -9,10 +9,8 @@ import (
 
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/postgres"
+	"github.com/google/uuid"
 )
-
-// Seeds the dev tenant with realistic Nigerian demo data so the dashboard
-// shows live numbers. Idempotent by external_id and plan name — safe to re-run.
 
 func main() {
 	ctx := context.Background()
@@ -32,7 +30,7 @@ func main() {
 	plansRepo := postgres.NewPlanRepo(pool)
 	customersRepo := postgres.NewCustomerRepo(pool)
 	subsRepo := postgres.NewSubscriptionRepo(pool)
-	ledgerRepo := postgres.NewLedgerRepo(pool)
+	webhookRepo := postgres.NewWebhookRepo(pool)
 
 	tenant, err := tenants.GetByEmail(ctx, tenantEmail)
 	if err != nil {
@@ -43,22 +41,24 @@ func main() {
 
 	// ---- Plans ----
 	type planDef struct {
-		name   string
-		amount int64
-		trial  int
+		name     string
+		amount   int64
+		trial    int
+		interval string
 	}
 	defs := []planDef{
-		{"Basic", 250000, 0},
-		{"Starter", 500000, 7},
-		{"Pro", 1500000, 14},
-		{"Business", 5000000, 0},
+		{"Basic", 250000, 0, "monthly"},
+		{"Starter", 500000, 7, "monthly"},
+		{"Pro", 1500000, 14, "monthly"},
+		{"Business", 5000000, 0, "monthly"},
+		{"Annual Pro", 15000000, 0, "annual"},
 	}
 
 	existingPlans, _ := plansRepo.List(ctx, tid)
 	byName := map[string]*domain.Plan{}
 	for _, p := range existingPlans {
-			byName[p.Name] = p
-		}
+		byName[p.Name] = p
+	}
 
 	var plans []*domain.Plan
 	for _, d := range defs {
@@ -66,13 +66,16 @@ func main() {
 			plans = append(plans, p)
 			continue
 		}
-		p, err := plansRepo.Create(ctx, tid, d.name, nil, d.amount, "NGN", domain.PlanInterval("monthly"), 1, d.trial, nil)
+		p, err := plansRepo.Create(ctx, tid, d.name, nil, d.amount, "NGN",
+			domain.PlanInterval(d.interval), 1, d.trial, nil)
 		if err != nil {
 			fail("create plan "+d.name, err)
 		}
 		plans = append(plans, p)
 		fmt.Printf("  plan %s created\n", d.name)
 	}
+
+	monthlyPlans := plans[:4]
 
 	// ---- Customers ----
 	people := []struct{ name, email string }{
@@ -94,23 +97,21 @@ func main() {
 		{"Kelechi Onyeka", "kelechi@games.ng"},
 		{"Zainab Yusuf", "zainab@learn.ng"},
 		{"Oluwaseun Afolabi", "seun@cloud.ng"},
+		{"Babajide Adewale", "jide@hrtech.ng"},
+		{"Chidinma Okonkwo", "chidinma@legal.ng"},
 	}
 
-var customers []*domain.Customer
+	var customers []*domain.Customer
 	for i, p := range people {
 		ext := fmt.Sprintf("seed-cust-%02d", i+1)
-
-		// try email lookup first since we may have created this customer manually
 		if existing, err := customersRepo.GetByEmail(ctx, tid, p.email); err == nil && existing != nil {
 			customers = append(customers, existing)
 			continue
 		}
-		// try external_id lookup
 		if existing, err := customersRepo.GetByExternalID(ctx, tid, ext); err == nil && existing != nil {
 			customers = append(customers, existing)
 			continue
 		}
-
 		name := p.name
 		extID := ext
 		c, err := customersRepo.Create(ctx, tid, &extID, p.email, &name, nil, nil)
@@ -122,84 +123,161 @@ var customers []*domain.Customer
 	}
 	fmt.Printf("  %d customers ready\n", len(customers))
 
-	// ---- Subscriptions across states ----
-	// Weighted: mostly active, some trialing/dunning/paused/cancelled.
-	states := []domain.SubscriptionStatus{
-		domain.StatusActive, domain.StatusActive, domain.StatusActive, domain.StatusActive,
-		domain.StatusActive, domain.StatusActive, domain.StatusActive, domain.StatusActive,
-		domain.StatusActive, domain.StatusActive,
-		domain.StatusTrialing, domain.StatusTrialing,
-		domain.StatusDunning, domain.StatusDunning,
-		domain.StatusPaused, domain.StatusPaused,
-		domain.StatusCancelled, domain.StatusCancelled,
+	// ---- Subscriptions ----
+	type subScenario struct {
+		status         domain.SubscriptionStatus
+		dunningAttempt int
+		monthsActive   int
+		description    string
+	}
+
+	scenarios := []subScenario{
+		{domain.StatusActive, 0, 8, "long-term active"},
+		{domain.StatusActive, 0, 6, "active"},
+		{domain.StatusActive, 0, 4, "active"},
+		{domain.StatusActive, 0, 10, "long-term active"},
+		{domain.StatusActive, 0, 3, "active"},
+		{domain.StatusActive, 0, 5, "active"},
+		{domain.StatusActive, 0, 2, "active"},
+		{domain.StatusActive, 0, 7, "long-term active"},
+		{domain.StatusActive, 0, 3, "active"},
+		{domain.StatusActive, 1, 4, "active — recovered from dunning once"},
+		{domain.StatusTrialing, 0, 0, "trialing — 9 days left"},
+		{domain.StatusTrialing, 0, 0, "trialing — 3 days left"},
+		{domain.StatusGracePeriod, 0, 2, "grace period — first failure"},
+		{domain.StatusDunning, 1, 3, "dunning attempt 1"},
+		{domain.StatusDunning, 2, 4, "dunning attempt 2"},
+		{domain.StatusPaused, 0, 3, "paused by customer"},
+		{domain.StatusPaused, 0, 2, "paused by customer"},
+		{domain.StatusSuspended, 0, 3, "suspended after dunning exhausted"},
+		{domain.StatusCancelled, 0, 5, "cancelled after 5 months"},
+		{domain.StatusCancelled, 0, 1, "cancelled early"},
 	}
 
 	now := time.Now().UTC()
 	rng := rand.New(rand.NewSource(42))
 
 	for i, c := range customers {
-		status := states[i%len(states)]
-		plan := plans[rng.Intn(len(plans))]
+		if i >= len(scenarios) {
+			break
+		}
+		sc := scenarios[i]
+		plan := monthlyPlans[rng.Intn(len(monthlyPlans))]
 
-		periodStart := now.AddDate(0, 0, -rng.Intn(20))
+		periodStart := now.AddDate(0, 0, -rng.Intn(15)-1)
 		periodEnd := periodStart.AddDate(0, 1, 0)
 		var trialEnd *time.Time
 
-		switch status {
+		switch sc.status {
 		case domain.StatusTrialing:
-			t := now.AddDate(0, 0, 5+rng.Intn(7))
+			daysLeft := 9
+			if i == 11 {
+				daysLeft = 3
+			}
+			t := now.AddDate(0, 0, daysLeft)
 			trialEnd = &t
 			periodEnd = t
 		case domain.StatusCancelled:
-			periodStart = now.AddDate(0, -2, 0)
-			periodEnd = now.AddDate(0, -1, 0)
+			periodStart = now.AddDate(0, -sc.monthsActive, 0)
+			periodEnd = now.AddDate(0, -sc.monthsActive+1, 0)
+		case domain.StatusSuspended:
+			periodStart = now.AddDate(0, -1, -15)
+			periodEnd = now.AddDate(0, 0, -15)
 		}
 
 		key := fmt.Sprintf("seed-sub-%02d", i+1)
-		sub, err := subsRepo.Create(ctx, tid, c.ID, plan.ID, status, periodStart, periodEnd, trialEnd, &key, nil)
+		sub, err := subsRepo.Create(ctx, tid, c.ID, plan.ID, sc.status,
+			periodStart, periodEnd, trialEnd, &key, nil)
 		if err != nil {
-			// already seeded — skip
 			continue
 		}
 
-		// Dunning subs carry a retry attempt
-		if status == domain.StatusDunning {
-			retry := now.AddDate(0, 0, 4)
-			_, _ = subsRepo.UpdateDunning(ctx, sub.ID, tid, domain.StatusDunning, 2, &retry)
+		if sc.status == domain.StatusDunning {
+			retry := now.AddDate(0, 0, 2+rng.Intn(5))
+			_, _ = subsRepo.UpdateDunning(ctx, sub.ID, tid, domain.StatusDunning,
+				sc.dunningAttempt, &retry)
 		}
 
-		// Ledger history: charges for anything that has billed
-		if status == domain.StatusActive || status == domain.StatusDunning || status == domain.StatusPaused {
-			months := 3
-			for m := 0; m < months; m++ {
-				ik := fmt.Sprintf("seed-charge-%s-%d", sub.ID, m)
-				subID := sub.ID
-				custID := c.ID
-				_, _ = ledgerRepo.Append(ctx, tid, &subID, nil, &custID,
-					domain.EntryCharge, domain.DirectionDebit, plan.Amount, "NGN",
-					"Subscription renewal", ik, nil)
-			}
+		if sc.status == domain.StatusGracePeriod {
+			retry := now.Add(36 * time.Hour)
+			_, _ = subsRepo.UpdateDunning(ctx, sub.ID, tid, domain.StatusGracePeriod, 0, &retry)
 		}
-	}
 
-	// A couple of refunds for realism
-	if len(customers) > 2 {
-		for i := 0; i < 2; i++ {
-			c := customers[i]
-			subs, _ := subsRepo.ListByCustomer(ctx, tid, c.ID)
-			if len(subs) == 0 {
-				continue
-			}
-			subID := subs[0].ID
+		// Insert backdated ledger entries directly via SQL
+		for m := 0; m < sc.monthsActive; m++ {
+			chargeTime := now.AddDate(0, -m, 0).Add(-time.Duration(rng.Intn(5)) * 24 * time.Hour)
+			ik := fmt.Sprintf("seed-charge-%s-m%d", sub.ID, m)
+			entryID := uuid.New()
+			subID := sub.ID
 			custID := c.ID
-			ik := fmt.Sprintf("seed-refund-%s", subID)
-			_, _ = ledgerRepo.Append(ctx, tid, &subID, nil, &custID,
-				domain.EntryRefund, domain.DirectionCredit, 250000, "NGN",
-				"Goodwill refund", ik, nil)
+			_, err := pool.Exec(ctx, `
+				INSERT INTO ledger_entries
+					(id, tenant_id, subscription_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, created_at)
+				VALUES ($1, $2, $3, $4, 'CHARGE', 'DEBIT', $5, 'NGN', $6, $7, $8)
+				ON CONFLICT (idempotency_key) DO NOTHING
+			`, entryID, tid, subID, custID, plan.Amount,
+				fmt.Sprintf("Subscription renewal — month %d", m+1), ik, chargeTime)
+			if err != nil {
+				fmt.Printf("  ledger insert error: %v\n", err)
+			}
+		}
+
+		// Recovery charge for dunning recovery
+		if sc.dunningAttempt > 0 && sc.status == domain.StatusActive {
+			ik := fmt.Sprintf("seed-recovery-%s", sub.ID)
+			entryID := uuid.New()
+			subID := sub.ID
+			custID := c.ID
+			_, _ = pool.Exec(ctx, `
+				INSERT INTO ledger_entries
+					(id, tenant_id, subscription_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, created_at)
+				VALUES ($1, $2, $3, $4, 'CHARGE', 'DEBIT', $5, 'NGN', $6, $7, $8)
+				ON CONFLICT (idempotency_key) DO NOTHING
+			`, entryID, tid, subID, custID, plan.Amount, "Dunning recovery charge", ik, now.AddDate(0, 0, -3))
+		}
+
+		fmt.Printf("  sub %02d: %-35s %-20s %s\n", i+1, c.Email, plan.Name, sc.description)
+	}
+
+	// ---- Refunds — backdated ----
+	for i := 0; i < 3; i++ {
+		c := customers[i]
+		subs, _ := subsRepo.ListByCustomer(ctx, tid, c.ID)
+		if len(subs) == 0 {
+			continue
+		}
+		subID := subs[0].ID
+		custID := c.ID
+		ik := fmt.Sprintf("seed-refund-%02d", i+1)
+		amount := int64(250000 * (i + 1))
+		refundTime := now.AddDate(0, -(i + 1), 0)
+		entryID := uuid.New()
+		_, _ = pool.Exec(ctx, `
+			INSERT INTO ledger_entries
+				(id, tenant_id, subscription_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, created_at)
+			VALUES ($1, $2, $3, $4, 'REFUND', 'CREDIT', $5, 'NGN', $6, $7, $8)
+			ON CONFLICT (idempotency_key) DO NOTHING
+		`, entryID, tid, subID, custID, amount, "Goodwill refund", ik, refundTime)
+	}
+
+	// ---- Webhook endpoint ----
+	endpoints, _ := webhookRepo.ListEndpoints(ctx, tid)
+	if len(endpoints) == 0 {
+		secret := "whsec_demo_a1b2c3d4e5f6789012345678901234567890abcd"
+		_, err = webhookRepo.CreateEndpoint(ctx, tid,
+			"https://demo.classpay.ng/webhooks/tori",
+			[]string{"*"}, secret, "2026-06-01")
+		if err != nil {
+			fmt.Printf("  webhook endpoint error: %v\n", err)
+		} else {
+			fmt.Println("  webhook endpoint created")
 		}
 	}
 
-	fmt.Println("seed complete.")
+	fmt.Println("\nseed complete.")
+	fmt.Printf("  login:     %s\n", tenantEmail)
+	fmt.Printf("  password:  tori-dev-2026\n")
+	fmt.Println("  dashboard: http://localhost:3000/login")
 }
 
 func fail(stage string, err error) {
