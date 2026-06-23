@@ -57,7 +57,7 @@ function MetricCard({
         </span>
       </div>
       <div
-        className="text-[23px] font-bold"
+        className="text-xl lg:text-[23px] font-bold"
         style={{
           color: accent ? "#00B37E" : "#0F1728",
           letterSpacing: "-0.02em",
@@ -142,13 +142,13 @@ function OnboardingChecklist({
           {steps.map((s, i) => (
             <div
               key={i}
-              className="w-8 h-1.5 rounded-full"
+              className="w-6 lg:w-8 h-1.5 rounded-full"
               style={{ background: s.done ? "#00B37E" : "#F1F3F5" }}
             />
           ))}
         </div>
       </div>
-      <div className="p-3 grid grid-cols-2 gap-2">
+      <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
         {steps.map((step, i) => (
           <Link
             key={i}
@@ -275,14 +275,14 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 lg:p-6 max-w-7xl mx-auto">
       {needsAttention.length > 0 && (
         <div
           className="rounded-xl border px-4 py-3 mb-5 flex items-center gap-2.5"
           style={{ background: "#FDF0D5", borderColor: "#FDE68A" }}
         >
           <i
-            className="ti ti-alert-triangle"
+            className="ti ti-alert-triangle flex-shrink-0"
             style={{ fontSize: 16, color: "#8A5A00" }}
           />
           <span className="text-sm font-semibold" style={{ color: "#8A5A00" }}>
@@ -291,10 +291,10 @@ export default function DashboardPage() {
           </span>
           <Link
             href="/dashboard/health"
-            className="text-sm font-bold ml-auto"
+            className="text-sm font-bold ml-auto flex-shrink-0"
             style={{ color: "#00B37E" }}
           >
-            View billing health →
+            View →
           </Link>
         </div>
       )}
@@ -302,7 +302,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1
-            className="text-2xl font-extrabold"
+            className="text-xl lg:text-2xl font-extrabold"
             style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
           >
             Overview
@@ -316,10 +316,11 @@ export default function DashboardPage() {
         </div>
         <Link
           href="/dashboard/subscriptions"
-          className="flex items-center gap-1.5 text-sm px-4 py-2.5 rounded-lg font-bold text-white"
+          className="flex items-center gap-1.5 text-sm px-3 lg:px-4 py-2.5 rounded-lg font-bold text-white"
           style={{ background: "#00B37E" }}
         >
-          <i className="ti ti-plus" /> New subscription
+          <i className="ti ti-plus" />{" "}
+          <span className="hidden sm:inline">New subscription</span>
         </Link>
       </div>
 
@@ -330,7 +331,8 @@ export default function DashboardPage() {
         hasAPIKey={hasAPIKey}
       />
 
-      <div className="grid grid-cols-4 gap-3 mb-4">
+      {/* Metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <MetricCard
           label="MRR"
           value={mrr ? formatKoboShort(mrr.mrr_kobo) : "..."}
@@ -341,9 +343,9 @@ export default function DashboardPage() {
           accent
         />
         <MetricCard
-          label="Active subscriptions"
+          label="Active subs"
           value={String(activeCount)}
-          sub={`${customers.length} total customers`}
+          sub={`${customers.length} customers`}
           icon="ti-refresh"
           iconBg="#E8EFF9"
           iconColor="#2563A8"
@@ -357,19 +359,18 @@ export default function DashboardPage() {
           iconColor="#E24B4A"
         />
         <MetricCard
-          label="Dunning recovered"
+          label="Recovered"
           value={recovery ? formatKoboShort(recovery.recovered_kobo) : "..."}
-          sub="auto-recovered revenue"
+          sub="auto-recovered"
           icon="ti-rotate-clockwise"
           iconBg="#FDF0D5"
           iconColor="#B8860B"
         />
       </div>
 
-      <div
-        className="grid gap-3 mb-4"
-        style={{ gridTemplateColumns: "1fr 1fr 1fr" }}
-      >
+      {/* Middle row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+        {/* Revenue summary */}
         <div
           className="bg-white border rounded-xl"
           style={{ borderColor: "#EAECEF" }}
@@ -430,6 +431,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Subscription states */}
         <div
           className="bg-white border rounded-xl"
           style={{ borderColor: "#EAECEF" }}
@@ -492,6 +494,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Billing health */}
         <div
           className="bg-white border rounded-xl"
           style={{ borderColor: "#EAECEF" }}
@@ -515,7 +518,7 @@ export default function DashboardPage() {
             {health ? (
               <>
                 <div className="flex items-center gap-3 mb-4">
-                  <svg viewBox="0 0 72 72" className="w-16 h-16 flex-shrink-0">
+                  <svg viewBox="0 0 72 72" className="w-14 h-14 flex-shrink-0">
                     <circle
                       cx="36"
                       cy="36"
@@ -617,6 +620,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Recent subscriptions */}
       <div
         className="bg-white border rounded-xl"
         style={{ borderColor: "#EAECEF" }}
@@ -662,75 +666,81 @@ export default function DashboardPage() {
             </Link>
           </div>
         ) : (
-          <table className="w-full">
-            <thead>
-              <tr style={{ background: "#FAFBFC" }}>
-                {["Customer", "Plan", "Amount", "Status", "Next billing"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="text-left px-4 py-2.5 text-[11px] font-semibold"
-                      style={{ color: "#98A2B3" }}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px]">
+              <thead>
+                <tr style={{ background: "#FAFBFC" }}>
+                  {["Customer", "Plan", "Amount", "Status", "Next billing"].map(
+                    (h) => (
+                      <th
+                        key={h}
+                        className="text-left px-4 py-2.5 text-[11px] font-semibold"
+                        style={{ color: "#98A2B3" }}
+                      >
+                        {h}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {subs.slice(0, 8).map((sub) => {
+                  const cust = custById.get(sub.customer_id);
+                  const plan = planById.get(sub.plan_id);
+                  const av = avatarFor(cust?.email ?? sub.customer_id);
+                  return (
+                    <tr
+                      key={sub.id}
+                      style={{ borderTop: "0.5px solid #F2F4F6" }}
                     >
-                      {h}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {subs.slice(0, 8).map((sub) => {
-                const cust = custById.get(sub.customer_id);
-                const plan = planById.get(sub.plan_id);
-                const av = avatarFor(cust?.email ?? sub.customer_id);
-                return (
-                  <tr key={sub.id} style={{ borderTop: "0.5px solid #F2F4F6" }}>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[10px] font-bold"
-                          style={{ background: av.bg, color: av.color }}
-                        >
-                          {av.initials}
-                        </span>
-                        <span
-                          className="text-xs font-semibold"
-                          style={{ color: "#1F2733" }}
-                        >
-                          {cust?.email ?? "Unknown"}
-                        </span>
-                      </div>
-                    </td>
-                    <td
-                      className="px-4 py-3 text-xs font-medium"
-                      style={{ color: "#4B5563" }}
-                    >
-                      {plan?.name ?? "..."}
-                    </td>
-                    <td
-                      className="px-4 py-3 text-xs font-bold"
-                      style={{ color: "#0F1728" }}
-                    >
-                      {plan ? formatKobo(plan.amount) : "..."}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusPill status={sub.status} />
-                    </td>
-                    <td
-                      className="px-4 py-3 text-xs font-medium"
-                      style={{
-                        color: sub.dunning_attempt > 0 ? "#B8860B" : "#4B5563",
-                      }}
-                    >
-                      {sub.dunning_attempt > 0
-                        ? `Retry · attempt ${sub.dunning_attempt}`
-                        : formatDate(sub.current_period_end)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                            style={{ background: av.bg, color: av.color }}
+                          >
+                            {av.initials}
+                          </span>
+                          <span
+                            className="text-xs font-semibold truncate max-w-[120px]"
+                            style={{ color: "#1F2733" }}
+                          >
+                            {cust?.email ?? "Unknown"}
+                          </span>
+                        </div>
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-medium"
+                        style={{ color: "#4B5563" }}
+                      >
+                        {plan?.name ?? "..."}
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-bold"
+                        style={{ color: "#0F1728" }}
+                      >
+                        {plan ? formatKobo(plan.amount) : "..."}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusPill status={sub.status} />
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-medium"
+                        style={{
+                          color:
+                            sub.dunning_attempt > 0 ? "#B8860B" : "#4B5563",
+                        }}
+                      >
+                        {sub.dunning_attempt > 0
+                          ? `Retry · ${sub.dunning_attempt}`
+                          : formatDate(sub.current_period_end)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
