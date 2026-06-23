@@ -230,3 +230,23 @@ func fromPgUUID(u pgtype.UUID) *uuid.UUID {
 	id := uuid.UUID(u.Bytes)
 	return &id
 }
+
+func (r *LedgerRepo) GetMonthlyRevenue(ctx context.Context, tenantID uuid.UUID, from, to time.Time) ([]domain.MonthlyRevenueRow, error) {
+	rows, err := r.q.GetMonthlyRevenue(ctx, db.GetMonthlyRevenueParams{
+		TenantID:    tenantID,
+		CreatedAt:   from,
+		CreatedAt_2: to,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.MonthlyRevenueRow, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, domain.MonthlyRevenueRow{
+			Month:    row.Month,
+			Charged:  row.Charged,
+			Refunded: row.Refunded,
+		})
+	}
+	return result, nil
+}
