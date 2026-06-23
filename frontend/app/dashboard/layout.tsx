@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { Sidebar } from "@/components/sidebar";
 
 export default function DashboardLayout({
@@ -5,10 +8,66 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
     <div className="flex min-h-screen" style={{ background: "#F8F9FB" }}>
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto">{children}</main>
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-20 lg:hidden"
+          style={{ background: "rgba(0,0,0,0.4)" }}
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar — hidden on mobile, visible on lg+ */}
+      <div
+        className={`
+        fixed inset-y-0 left-0 z-30 lg:static lg:z-auto
+        transform transition-transform duration-200 ease-in-out
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+      `}
+      >
+        <Sidebar onClose={() => setSidebarOpen(false)} />
+      </div>
+
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Mobile top bar */}
+        <div
+          className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b"
+          style={{ borderColor: "#F0F0F0" }}
+        >
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-1.5 rounded-lg"
+            style={{ color: "#0F1728" }}
+          >
+            <i className="ti ti-menu-2" style={{ fontSize: 22 }} />
+          </button>
+          <div className="flex items-center gap-2">
+            <div
+              className="w-7 h-7 rounded-md flex items-center justify-center"
+              style={{ background: "#0F1728" }}
+            >
+              <svg viewBox="0 0 14 14" className="w-3.5 h-3.5">
+                <path
+                  d="M7 1L11.5 3.75V8.25L7 11L2.5 8.25V3.75L7 1Z"
+                  fill="#00B37E"
+                />
+              </svg>
+            </div>
+            <span
+              className="text-lg font-extrabold"
+              style={{ color: "#0F1728" }}
+            >
+              Tori
+            </span>
+          </div>
+        </div>
+
+        <main className="flex-1 overflow-y-auto">{children}</main>
+      </div>
     </div>
   );
 }
