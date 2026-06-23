@@ -190,6 +190,51 @@ func (q *Queries) GetMRR(ctx context.Context, arg GetMRRParams) (interface{}, er
 	return mrr, err
 }
 
+const getMonthlyRevenue = `-- name: GetMonthlyRevenue :many
+SELECT
+  DATE_TRUNC('month', created_at)::TIMESTAMPTZ AS month,
+  SUM(CASE WHEN direction = 'DEBIT' AND entry_type = 'CHARGE' THEN amount ELSE 0 END)::BIGINT AS charged,
+  SUM(CASE WHEN direction = 'CREDIT' AND entry_type = 'REFUND' THEN amount ELSE 0 END)::BIGINT AS refunded
+FROM ledger_entries
+WHERE tenant_id = $1
+  AND created_at >= $2
+  AND created_at <= $3
+GROUP BY DATE_TRUNC('month', created_at)
+ORDER BY month ASC
+`
+
+type GetMonthlyRevenueParams struct {
+	TenantID    uuid.UUID `json:"tenant_id"`
+	CreatedAt   time.Time `json:"created_at"`
+	CreatedAt_2 time.Time `json:"created_at_2"`
+}
+
+type GetMonthlyRevenueRow struct {
+	Month    time.Time `json:"month"`
+	Charged  int64     `json:"charged"`
+	Refunded int64     `json:"refunded"`
+}
+
+func (q *Queries) GetMonthlyRevenue(ctx context.Context, arg GetMonthlyRevenueParams) ([]GetMonthlyRevenueRow, error) {
+	rows, err := q.db.Query(ctx, getMonthlyRevenue, arg.TenantID, arg.CreatedAt, arg.CreatedAt_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetMonthlyRevenueRow{}
+	for rows.Next() {
+		var i GetMonthlyRevenueRow
+		if err := rows.Scan(&i.Month, &i.Charged, &i.Refunded); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getRevenueByPlan = `-- name: GetRevenueByPlan :many
 SELECT
     p.id   AS plan_id,

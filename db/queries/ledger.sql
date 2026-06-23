@@ -82,3 +82,15 @@ WHERE l.tenant_id = $1
   AND l.created_at < $3
 GROUP BY p.id, p.name
 ORDER BY total_charged DESC;
+
+-- name: GetMonthlyRevenue :many
+SELECT
+  DATE_TRUNC('month', created_at)::TIMESTAMPTZ AS month,
+  SUM(CASE WHEN direction = 'DEBIT' AND entry_type = 'CHARGE' THEN amount ELSE 0 END)::BIGINT AS charged,
+  SUM(CASE WHEN direction = 'CREDIT' AND entry_type = 'REFUND' THEN amount ELSE 0 END)::BIGINT AS refunded
+FROM ledger_entries
+WHERE tenant_id = $1
+  AND created_at >= $2
+  AND created_at <= $3
+GROUP BY DATE_TRUNC('month', created_at)
+ORDER BY month ASC;
