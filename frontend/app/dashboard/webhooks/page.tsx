@@ -36,7 +36,6 @@ export default function WebhooksPage() {
     queryKey: ["webhook-endpoints"],
     queryFn: () => api.get<{ data: Endpoint[] }>("/v1/webhooks/endpoints"),
   });
-
   const { data: deliveriesData } = useQuery({
     queryKey: ["webhook-deliveries"],
     queryFn: () => api.get<{ data: Delivery[] }>("/v1/webhooks/logs"),
@@ -69,9 +68,7 @@ export default function WebhooksPage() {
 
   const retryDelivery = useMutation({
     mutationFn: (id: string) => api.post(`/v1/webhooks/logs/${id}/retry`, {}),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["webhook-deliveries"] });
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["webhook-deliveries"] }),
   });
 
   const copySecret = () => {
@@ -102,11 +99,11 @@ export default function WebhooksPage() {
   ];
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 lg:p-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between mb-5">
         <div>
           <h1
-            className="text-2xl font-extrabold"
+            className="text-xl lg:text-2xl font-extrabold"
             style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
           >
             Webhooks
@@ -120,14 +117,15 @@ export default function WebhooksPage() {
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 text-sm px-4 py-2.5 rounded-lg font-bold text-white"
+          className="flex items-center gap-1.5 text-sm px-3 lg:px-4 py-2.5 rounded-lg font-bold text-white"
           style={{ background: "#00B37E" }}
         >
-          <i className="ti ti-plus" /> Add endpoint
+          <i className="ti ti-plus" />{" "}
+          <span className="hidden sm:inline">Add endpoint</span>
         </button>
       </div>
 
-      {/* Signing secret reveal */}
+      {/* Signing secret */}
       {newSecret && (
         <div
           className="rounded-xl border p-5 mb-5"
@@ -140,7 +138,7 @@ export default function WebhooksPage() {
             >
               <i className="ti ti-key text-white" style={{ fontSize: 18 }} />
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <p
                 className="text-sm font-bold mb-0.5"
                 style={{ color: "#0F1728" }}
@@ -173,15 +171,14 @@ export default function WebhooksPage() {
                 >
                   X-Tori-Signature
                 </code>{" "}
-                header using a timing-safe comparison. If they do not match,
-                reject the request.
+                header using a timing-safe comparison.
               </p>
               <div
-                className="flex items-center gap-2 bg-white rounded-lg px-4 py-2.5 border"
+                className="flex items-center gap-2 bg-white rounded-lg px-3 py-2.5 border"
                 style={{ borderColor: "#D1FAE5" }}
               >
                 <code
-                  className="text-xs font-mono flex-1 break-all"
+                  className="text-xs font-mono flex-1 break-all min-w-0"
                   style={{ color: "#0F1728" }}
                 >
                   {newSecret}
@@ -200,6 +197,7 @@ export default function WebhooksPage() {
             </div>
             <button
               onClick={() => setNewSecret(null)}
+              className="flex-shrink-0"
               style={{ color: "#6B7280" }}
             >
               <i className="ti ti-x" style={{ fontSize: 18 }} />
@@ -297,99 +295,102 @@ export default function WebhooksPage() {
             </button>
           </div>
         ) : (
-          <table className="w-full">
-            <thead>
-              <tr
-                style={{
-                  background: "#FAFBFC",
-                  borderBottom: "0.5px solid #EAECEF",
-                }}
-              >
-                {["URL", "Status", "Version", "Created", ""].map((h) => (
-                  <th
-                    key={h}
-                    className="text-left px-4 py-3 text-[11px] font-semibold"
-                    style={{ color: "#98A2B3" }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {endpoints.map((ep) => (
-                <tr key={ep.id} style={{ borderTop: "0.5px solid #F2F4F6" }}>
-                  <td
-                    className="px-4 py-3 font-mono text-xs max-w-xs truncate"
-                    style={{ color: "#0F1728" }}
-                  >
-                    {ep.url}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                      style={{
-                        background: ep.is_active ? "#E3F7EF" : "#FDECEC",
-                        color: ep.is_active ? "#0A7A56" : "#A32D2D",
-                      }}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[500px]">
+              <thead>
+                <tr
+                  style={{
+                    background: "#FAFBFC",
+                    borderBottom: "0.5px solid #EAECEF",
+                  }}
+                >
+                  {["URL", "Status", "Version", "Created", ""].map((h) => (
+                    <th
+                      key={h}
+                      className="text-left px-4 py-3 text-[11px] font-semibold"
+                      style={{ color: "#98A2B3" }}
                     >
-                      {ep.is_active ? "ACTIVE" : "DISABLED"}
-                    </span>
-                  </td>
-                  <td
-                    className="px-4 py-3 text-xs font-mono"
-                    style={{ color: "#98A2B3" }}
-                  >
-                    {ep.api_version}
-                  </td>
-                  <td
-                    className="px-4 py-3 text-xs font-medium"
-                    style={{ color: "#98A2B3" }}
-                  >
-                    {formatDate(ep.created_at)}
-                  </td>
-                  <td className="px-4 py-3">
-                    {confirmDelete === ep.id ? (
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="text-xs font-medium"
-                          style={{ color: "#6B7280" }}
-                        >
-                          Delete?
-                        </span>
-                        <button
-                          onClick={() => deleteEndpoint.mutate(ep.id)}
-                          className="text-[11px] font-bold px-2 py-1 rounded"
-                          style={{ background: "#FDECEC", color: "#DC2626" }}
-                        >
-                          Yes
-                        </button>
-                        <button
-                          onClick={() => setConfirmDelete(null)}
-                          className="text-[11px] font-bold px-2 py-1 rounded"
-                          style={{ background: "#F1F3F5", color: "#6B7280" }}
-                        >
-                          No
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setConfirmDelete(ep.id)}
-                        className="text-[11px] font-bold px-2.5 py-1 rounded border"
-                        style={{ borderColor: "#FDCACA", color: "#DC2626" }}
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </td>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {endpoints.map((ep) => (
+                  <tr key={ep.id} style={{ borderTop: "0.5px solid #F2F4F6" }}>
+                    <td
+                      className="px-4 py-3 font-mono text-xs max-w-[160px] truncate"
+                      style={{ color: "#0F1728" }}
+                    >
+                      {ep.url}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        style={{
+                          background: ep.is_active ? "#E3F7EF" : "#FDECEC",
+                          color: ep.is_active ? "#0A7A56" : "#A32D2D",
+                        }}
+                      >
+                        {ep.is_active ? "ACTIVE" : "DISABLED"}
+                      </span>
+                    </td>
+                    <td
+                      className="px-4 py-3 text-xs font-mono"
+                      style={{ color: "#98A2B3" }}
+                    >
+                      {ep.api_version}
+                    </td>
+                    <td
+                      className="px-4 py-3 text-xs font-medium"
+                      style={{ color: "#98A2B3" }}
+                    >
+                      {formatDate(ep.created_at)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {confirmDelete === ep.id ? (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="text-xs font-medium"
+                            style={{ color: "#6B7280" }}
+                          >
+                            Delete?
+                          </span>
+                          <button
+                            onClick={() => deleteEndpoint.mutate(ep.id)}
+                            className="text-[11px] font-bold px-2 py-1 rounded"
+                            style={{ background: "#FDECEC", color: "#DC2626" }}
+                          >
+                            Yes
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete(null)}
+                            className="text-[11px] font-bold px-2 py-1 rounded"
+                            style={{ background: "#F1F3F5", color: "#6B7280" }}
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDelete(ep.id)}
+                          className="text-[11px] font-bold px-2.5 py-1 rounded border"
+                          style={{ borderColor: "#FDCACA", color: "#DC2626" }}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      {/* Bottom grid — stacks on mobile */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         {/* Supported events */}
         <div
           className="bg-white border rounded-xl p-5"
@@ -467,67 +468,75 @@ export default function WebhooksPage() {
               </p>
             </div>
           ) : (
-            <table className="w-full">
-              <thead>
-                <tr style={{ background: "#FAFBFC" }}>
-                  {["Event", "Status", "Attempts", "Time", ""].map((h) => (
-                    <th
-                      key={h}
-                      className="text-left px-4 py-3 text-[11px] font-semibold"
-                      style={{ color: "#98A2B3" }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {deliveries.map((d) => {
-                  const s = deliveryStatus(d.status);
-                  return (
-                    <tr key={d.id} style={{ borderTop: "0.5px solid #F2F4F6" }}>
-                      <td
-                        className="px-4 py-3 text-xs font-mono"
-                        style={{ color: "#0F1728" }}
-                      >
-                        {d.event_type}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                          style={{ background: s.bg, color: s.color }}
-                        >
-                          {d.status}
-                        </span>
-                      </td>
-                      <td
-                        className="px-4 py-3 text-xs font-medium"
-                        style={{ color: "#6B7280" }}
-                      >
-                        {d.attempt_count}
-                      </td>
-                      <td
-                        className="px-4 py-3 text-xs font-medium"
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[380px]">
+                <thead>
+                  <tr style={{ background: "#FAFBFC" }}>
+                    {["Event", "Status", "Attempts", "Time", ""].map((h) => (
+                      <th
+                        key={h}
+                        className="text-left px-4 py-3 text-[11px] font-semibold"
                         style={{ color: "#98A2B3" }}
                       >
-                        {formatDate(d.created_at)}
-                      </td>
-                      <td className="px-4 py-3">
-                        {d.status === "failed" && (
-                          <button
-                            onClick={() => retryDelivery.mutate(d.id)}
-                            className="text-[11px] font-bold px-2.5 py-1 rounded border"
-                            style={{ borderColor: "#E5E7EB", color: "#6B7280" }}
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {deliveries.map((d) => {
+                    const s = deliveryStatus(d.status);
+                    return (
+                      <tr
+                        key={d.id}
+                        style={{ borderTop: "0.5px solid #F2F4F6" }}
+                      >
+                        <td
+                          className="px-4 py-3 text-xs font-mono"
+                          style={{ color: "#0F1728" }}
+                        >
+                          {d.event_type}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                            style={{ background: s.bg, color: s.color }}
                           >
-                            Retry
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                            {d.status}
+                          </span>
+                        </td>
+                        <td
+                          className="px-4 py-3 text-xs font-medium"
+                          style={{ color: "#6B7280" }}
+                        >
+                          {d.attempt_count}
+                        </td>
+                        <td
+                          className="px-4 py-3 text-xs font-medium"
+                          style={{ color: "#98A2B3" }}
+                        >
+                          {formatDate(d.created_at)}
+                        </td>
+                        <td className="px-4 py-3">
+                          {d.status === "failed" && (
+                            <button
+                              onClick={() => retryDelivery.mutate(d.id)}
+                              className="text-[11px] font-bold px-2.5 py-1 rounded border"
+                              style={{
+                                borderColor: "#E5E7EB",
+                                color: "#6B7280",
+                              }}
+                            >
+                              Retry
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
