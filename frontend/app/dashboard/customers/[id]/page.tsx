@@ -21,12 +21,10 @@ export default function CustomerDetailPage({
     queryKey: ["customer", id],
     queryFn: () => getCustomer(id),
   });
-
   const { data: subsData } = useQuery({
     queryKey: ["customer-subscriptions", id],
     queryFn: () => getCustomerSubscriptions(id),
   });
-
   const { data: plansData } = useQuery({
     queryKey: ["plans"],
     queryFn: () => import("@/lib/api").then((m) => m.getPlans()),
@@ -48,7 +46,7 @@ export default function CustomerDetailPage({
       setPortalCopied(true);
       setTimeout(() => setPortalCopied(false), 3000);
     } catch {
-      // silent
+      /* silent */
     } finally {
       setGeneratingPortal(false);
     }
@@ -56,7 +54,7 @@ export default function CustomerDetailPage({
 
   if (isLoading) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-6">
         <div className="text-sm font-medium" style={{ color: "#8A94A6" }}>
           Loading customer...
         </div>
@@ -66,13 +64,13 @@ export default function CustomerDetailPage({
 
   if (!customer) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
-        <div className="text-sm font-medium" style={{ color: "#DC2626" }}>
+      <div className="p-6">
+        <div className="text-sm font-medium mb-2" style={{ color: "#DC2626" }}>
           Customer not found.
         </div>
         <Link
           href="/dashboard/customers"
-          className="text-sm font-bold mt-2 inline-block"
+          className="text-sm font-bold"
           style={{ color: "#00B37E" }}
         >
           Back to customers
@@ -92,8 +90,8 @@ export default function CustomerDetailPage({
     .reduce((a, b) => a + b, 0);
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
+    <div className="p-4 lg:p-6 max-w-4xl mx-auto">
+      <div className="flex items-center gap-3 mb-5">
         <Link
           href="/dashboard/customers"
           className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border"
@@ -104,20 +102,20 @@ export default function CustomerDetailPage({
       </div>
 
       <div
-        className="bg-white border rounded-xl p-6 mb-4"
+        className="bg-white border rounded-xl p-5 mb-4"
         style={{ borderColor: "#EAECEF" }}
       >
         <div className="flex items-start gap-4">
           <span
-            className="w-16 h-16 rounded-full inline-flex items-center justify-center text-xl font-extrabold flex-shrink-0"
+            className="w-12 h-12 lg:w-16 lg:h-16 rounded-full inline-flex items-center justify-center text-lg lg:text-xl font-extrabold flex-shrink-0"
             style={{ background: av.bg, color: av.color }}
           >
             {av.initials}
           </span>
-          <div className="flex-1">
-            <div className="flex items-start justify-between mb-0.5">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
               <h1
-                className="text-2xl font-extrabold"
+                className="text-xl lg:text-2xl font-extrabold truncate"
                 style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
               >
                 {customer.name ?? customer.email}
@@ -139,17 +137,17 @@ export default function CustomerDetailPage({
                 {generatingPortal
                   ? "Generating..."
                   : portalCopied
-                    ? "Portal link copied"
+                    ? "Copied"
                     : "Copy portal link"}
               </button>
             </div>
             <p
-              className="text-sm font-medium mb-3"
+              className="text-sm font-medium mb-3 truncate"
               style={{ color: "#8A94A6" }}
             >
               {customer.email}
             </p>
-            <div className="flex gap-6">
+            <div className="flex flex-wrap gap-4 lg:gap-6">
               <div>
                 <p
                   className="text-xs font-semibold mb-0.5"
@@ -157,7 +155,10 @@ export default function CustomerDetailPage({
                 >
                   Customer ID
                 </p>
-                <p className="text-xs font-mono" style={{ color: "#4B5563" }}>
+                <p
+                  className="text-xs font-mono truncate max-w-[140px] lg:max-w-none"
+                  style={{ color: "#4B5563" }}
+                >
                   {customer.id}
                 </p>
               </div>
@@ -190,7 +191,7 @@ export default function CustomerDetailPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         {[
           ["Total subscriptions", subs.length.toString(), "#0F1728"],
           ["Active", activeSubs.toString(), "#00B37E"],
@@ -203,7 +204,7 @@ export default function CustomerDetailPage({
         ].map(([label, value, color]) => (
           <div
             key={label}
-            className="bg-white border rounded-xl p-5"
+            className="bg-white border rounded-xl p-4 lg:p-5"
             style={{ borderColor: "#EAECEF" }}
           >
             <p
@@ -213,7 +214,7 @@ export default function CustomerDetailPage({
               {label}
             </p>
             <p
-              className="text-2xl font-extrabold"
+              className="text-xl lg:text-2xl font-extrabold"
               style={{ color, letterSpacing: "-0.02em" }}
             >
               {value}
@@ -250,68 +251,74 @@ export default function CustomerDetailPage({
             </p>
           </div>
         ) : (
-          <table className="w-full">
-            <thead>
-              <tr
-                style={{
-                  background: "#FAFBFC",
-                  borderBottom: "0.5px solid #EAECEF",
-                }}
-              >
-                {["Plan", "Amount", "Status", "Period end", "Dunning"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="text-left px-4 py-3 text-[11px] font-semibold"
-                      style={{ color: "#98A2B3" }}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px]">
+              <thead>
+                <tr
+                  style={{
+                    background: "#FAFBFC",
+                    borderBottom: "0.5px solid #EAECEF",
+                  }}
+                >
+                  {["Plan", "Amount", "Status", "Period end", "Dunning"].map(
+                    (h) => (
+                      <th
+                        key={h}
+                        className="text-left px-4 py-3 text-[11px] font-semibold"
+                        style={{ color: "#98A2B3" }}
+                      >
+                        {h}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {subs.map((sub) => {
+                  const plan = planById.get(sub.plan_id);
+                  return (
+                    <tr
+                      key={sub.id}
+                      style={{ borderTop: "0.5px solid #F2F4F6" }}
                     >
-                      {h}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {subs.map((sub) => {
-                const plan = planById.get(sub.plan_id);
-                return (
-                  <tr key={sub.id} style={{ borderTop: "0.5px solid #F2F4F6" }}>
-                    <td
-                      className="px-4 py-3 text-xs font-semibold"
-                      style={{ color: "#1F2733" }}
-                    >
-                      {plan?.name ?? "Unknown plan"}
-                    </td>
-                    <td
-                      className="px-4 py-3 text-xs font-bold"
-                      style={{ color: "#0F1728" }}
-                    >
-                      {plan ? formatKobo(plan.amount) : "..."}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusPill status={sub.status} />
-                    </td>
-                    <td
-                      className="px-4 py-3 text-xs font-medium"
-                      style={{ color: "#4B5563" }}
-                    >
-                      {formatDate(sub.current_period_end)}
-                    </td>
-                    <td
-                      className="px-4 py-3 text-xs font-medium"
-                      style={{
-                        color: sub.dunning_attempt > 0 ? "#B8860B" : "#C4CACD",
-                      }}
-                    >
-                      {sub.dunning_attempt > 0
-                        ? `Attempt ${sub.dunning_attempt}`
-                        : "None"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      <td
+                        className="px-4 py-3 text-xs font-semibold"
+                        style={{ color: "#1F2733" }}
+                      >
+                        {plan?.name ?? "Unknown plan"}
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-bold"
+                        style={{ color: "#0F1728" }}
+                      >
+                        {plan ? formatKobo(plan.amount) : "..."}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusPill status={sub.status} />
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-medium"
+                        style={{ color: "#4B5563" }}
+                      >
+                        {formatDate(sub.current_period_end)}
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-medium"
+                        style={{
+                          color:
+                            sub.dunning_attempt > 0 ? "#B8860B" : "#C4CACD",
+                        }}
+                      >
+                        {sub.dunning_attempt > 0
+                          ? `Attempt ${sub.dunning_attempt}`
+                          : "None"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
