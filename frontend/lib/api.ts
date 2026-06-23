@@ -342,3 +342,15 @@ export interface RevenueForecast {
   confidence: "high" | "medium" | "low";
   note: string;
 }
+
+export interface MonthlyRevenue {
+  month: string;
+  charged_kobo: number;
+  refunded_kobo: number;
+  net_kobo: number;
+}
+
+export const getMonthlyRevenue = (from?: string, to?: string) =>
+  api.get<MonthlyRevenue[]>(
+    `/v1/ledger/monthly${from ? `?from=${from}&to=${to}` : ""}`,
+  );
