@@ -151,11 +151,11 @@ export default function SubscriptionsPage() {
   const activePlans = plans.filter((p) => p.is_active);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 lg:p-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between mb-5">
         <div>
           <h1
-            className="text-2xl font-extrabold"
+            className="text-xl lg:text-2xl font-extrabold"
             style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
           >
             Subscriptions
@@ -172,10 +172,11 @@ export default function SubscriptionsPage() {
             setShowForm(true);
             setCheckoutSuccess(null);
           }}
-          className="flex items-center gap-1.5 text-sm px-4 py-2.5 rounded-lg font-bold text-white"
+          className="flex items-center gap-1.5 text-sm px-3 lg:px-4 py-2.5 rounded-lg font-bold text-white"
           style={{ background: "#00B37E" }}
         >
-          <i className="ti ti-plus" /> New subscription
+          <i className="ti ti-plus" />{" "}
+          <span className="hidden sm:inline">New subscription</span>
         </button>
       </div>
 
@@ -268,7 +269,7 @@ export default function SubscriptionsPage() {
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                     <div>
                       <label
                         className="text-xs font-semibold block mb-1.5"
@@ -330,7 +331,7 @@ export default function SubscriptionsPage() {
                       >
                         External ID{" "}
                         <span style={{ color: "#9CA3AF", fontWeight: 400 }}>
-                          optional, your own user ID
+                          optional
                         </span>
                       </label>
                       <input
@@ -388,45 +389,51 @@ export default function SubscriptionsPage() {
         </div>
       )}
 
-      <div className="flex gap-2 mb-4 flex-wrap">
-        {states.map((s) => (
-          <button
-            key={s}
-            onClick={() => setFilter(s)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold"
-            style={{
-              background: filter === s ? "#0F1728" : "#fff",
-              color: filter === s ? "#fff" : "#6B7280",
-              border: `1px solid ${filter === s ? "#0F1728" : "#E5E7EB"}`,
-            }}
-          >
-            {s}{" "}
-            <span
-              className="px-1.5 py-0.5 rounded-full text-[10px]"
+      {/* Filter tabs — horizontally scrollable on mobile */}
+      <div className="overflow-x-auto pb-2 mb-4">
+        <div className="flex gap-2 min-w-max">
+          {states.map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilter(s)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap"
               style={{
-                background: filter === s ? "rgba(255,255,255,0.2)" : "#F1F3F5",
+                background: filter === s ? "#0F1728" : "#fff",
+                color: filter === s ? "#fff" : "#6B7280",
+                border: `1px solid ${filter === s ? "#0F1728" : "#E5E7EB"}`,
               }}
             >
-              {counts[s]}
-            </span>
-          </button>
-        ))}
-        <div
-          className="ml-auto flex items-center gap-2 border rounded-lg px-3 py-1.5"
-          style={{ borderColor: "#E5E7EB", background: "#fff" }}
-        >
-          <i
-            className="ti ti-search"
-            style={{ fontSize: 14, color: "#9CA3AF" }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by customer or plan..."
-            className="outline-none text-xs font-medium w-52"
-            style={{ color: "#0F1728" }}
-          />
+              {s}{" "}
+              <span
+                className="px-1.5 py-0.5 rounded-full text-[10px]"
+                style={{
+                  background:
+                    filter === s ? "rgba(255,255,255,0.2)" : "#F1F3F5",
+                }}
+              >
+                {counts[s]}
+              </span>
+            </button>
+          ))}
         </div>
+      </div>
+
+      {/* Search */}
+      <div
+        className="flex items-center gap-2 border rounded-lg px-3 py-2 mb-4 bg-white"
+        style={{ borderColor: "#E5E7EB" }}
+      >
+        <i
+          className="ti ti-search"
+          style={{ fontSize: 14, color: "#9CA3AF" }}
+        />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by customer or plan..."
+          className="outline-none text-xs font-medium flex-1"
+          style={{ color: "#0F1728" }}
+        />
       </div>
 
       {actionError && (
@@ -435,7 +442,7 @@ export default function SubscriptionsPage() {
           style={{ background: "#FDECEC", border: "1px solid #FDCACA" }}
         >
           <i
-            className="ti ti-alert-circle"
+            className="ti ti-alert-circle flex-shrink-0"
             style={{ fontSize: 15, color: "#DC2626" }}
           />
           <span className="text-xs font-semibold" style={{ color: "#DC2626" }}>
@@ -443,7 +450,7 @@ export default function SubscriptionsPage() {
           </span>
           <button
             onClick={() => setActionError(null)}
-            className="ml-auto"
+            className="ml-auto flex-shrink-0"
             style={{ color: "#DC2626" }}
           >
             <i className="ti ti-x" style={{ fontSize: 14 }} />
@@ -481,119 +488,149 @@ export default function SubscriptionsPage() {
             </p>
           </div>
         ) : (
-          <table className="w-full">
-            <thead>
-              <tr
-                style={{
-                  background: "#FAFBFC",
-                  borderBottom: "0.5px solid #EAECEF",
-                }}
-              >
-                {[
-                  "Customer",
-                  "Plan",
-                  "Amount",
-                  "Status",
-                  "Period end",
-                  "Dunning",
-                  "Actions",
-                ].map((h) => (
-                  <th
-                    key={h}
-                    className="text-left px-4 py-3 text-[11px] font-semibold"
-                    style={{ color: "#98A2B3" }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((sub) => {
-                const cust = custById.get(sub.customer_id);
-                const plan = planById.get(sub.plan_id);
-                const av = avatarFor(cust?.email ?? sub.customer_id);
-                return (
-                  <tr key={sub.id} style={{ borderTop: "0.5px solid #F2F4F6" }}>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[10px] font-bold flex-shrink-0"
-                          style={{ background: av.bg, color: av.color }}
-                        >
-                          {av.initials}
-                        </span>
-                        <div>
-                          <div
-                            className="text-xs font-semibold"
-                            style={{ color: "#1F2733" }}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px]">
+              <thead>
+                <tr
+                  style={{
+                    background: "#FAFBFC",
+                    borderBottom: "0.5px solid #EAECEF",
+                  }}
+                >
+                  {[
+                    "Customer",
+                    "Plan",
+                    "Amount",
+                    "Status",
+                    "Period end",
+                    "Dunning",
+                    "Actions",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      className="text-left px-4 py-3 text-[11px] font-semibold"
+                      style={{ color: "#98A2B3" }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((sub) => {
+                  const cust = custById.get(sub.customer_id);
+                  const plan = planById.get(sub.plan_id);
+                  const av = avatarFor(cust?.email ?? sub.customer_id);
+                  return (
+                    <tr
+                      key={sub.id}
+                      style={{ borderTop: "0.5px solid #F2F4F6" }}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                            style={{ background: av.bg, color: av.color }}
                           >
-                            {cust?.email ?? "Unknown"}
-                          </div>
-                          <div
-                            className="text-[10px] font-mono"
-                            style={{ color: "#C4CACD" }}
-                          >
-                            {sub.id.slice(0, 8)}...
+                            {av.initials}
+                          </span>
+                          <div>
+                            <div
+                              className="text-xs font-semibold"
+                              style={{ color: "#1F2733" }}
+                            >
+                              {cust?.email ?? "Unknown"}
+                            </div>
+                            <div
+                              className="text-[10px] font-mono"
+                              style={{ color: "#C4CACD" }}
+                            >
+                              {sub.id.slice(0, 8)}...
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td
-                      className="px-4 py-3 text-xs font-semibold"
-                      style={{ color: "#4B5563" }}
-                    >
-                      {plan?.name ?? "Unknown"}
-                    </td>
-                    <td
-                      className="px-4 py-3 text-xs font-bold"
-                      style={{ color: "#0F1728" }}
-                    >
-                      {plan ? formatKobo(plan.amount) : "..."}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusPill status={sub.status} />
-                    </td>
-                    <td
-                      className="px-4 py-3 text-xs font-medium"
-                      style={{ color: "#4B5563" }}
-                    >
-                      {formatDate(sub.current_period_end)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {sub.dunning_attempt > 0 ? (
-                        <span
-                          className="text-xs font-bold"
-                          style={{ color: "#B8860B" }}
-                        >
-                          Attempt {sub.dunning_attempt}
-                        </span>
-                      ) : (
-                        <span
-                          className="text-xs font-medium"
-                          style={{ color: "#C4CACD" }}
-                        >
-                          None
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1.5">
-                        {(sub.status === "ACTIVE" ||
-                          sub.status === "GRACE_PERIOD") && (
-                          <>
-                            {sub.status === "ACTIVE" && (
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-semibold"
+                        style={{ color: "#4B5563" }}
+                      >
+                        {plan?.name ?? "Unknown"}
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-bold"
+                        style={{ color: "#0F1728" }}
+                      >
+                        {plan ? formatKobo(plan.amount) : "..."}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusPill status={sub.status} />
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-medium"
+                        style={{ color: "#4B5563" }}
+                      >
+                        {formatDate(sub.current_period_end)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {sub.dunning_attempt > 0 ? (
+                          <span
+                            className="text-xs font-bold"
+                            style={{ color: "#B8860B" }}
+                          >
+                            Attempt {sub.dunning_attempt}
+                          </span>
+                        ) : (
+                          <span
+                            className="text-xs font-medium"
+                            style={{ color: "#C4CACD" }}
+                          >
+                            None
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1.5">
+                          {(sub.status === "ACTIVE" ||
+                            sub.status === "GRACE_PERIOD") && (
+                            <>
+                              {sub.status === "ACTIVE" && (
+                                <button
+                                  onClick={() => pause.mutate(sub.id)}
+                                  className="text-[11px] px-2.5 py-1 rounded-md font-bold border"
+                                  style={{
+                                    borderColor: "#E5E7EB",
+                                    color: "#6B7280",
+                                  }}
+                                >
+                                  Pause
+                                </button>
+                              )}
                               <button
-                                onClick={() => pause.mutate(sub.id)}
+                                onClick={() => cancel.mutate(sub.id)}
                                 className="text-[11px] px-2.5 py-1 rounded-md font-bold border"
                                 style={{
-                                  borderColor: "#E5E7EB",
-                                  color: "#6B7280",
+                                  borderColor: "#FDCACA",
+                                  color: "#DC2626",
                                 }}
                               >
-                                Pause
+                                Cancel
                               </button>
-                            )}
+                            </>
+                          )}
+                          {sub.status === "PAUSED" && (
+                            <button
+                              onClick={() => resume.mutate(sub.id)}
+                              className="text-[11px] px-2.5 py-1 rounded-md font-bold border"
+                              style={{
+                                borderColor: "#00B37E",
+                                color: "#00B37E",
+                              }}
+                            >
+                              Resume
+                            </button>
+                          )}
+                          {(sub.status === "DUNNING" ||
+                            sub.status === "PAST_DUE") && (
                             <button
                               onClick={() => cancel.mutate(sub.id)}
                               className="text-[11px] px-2.5 py-1 rounded-md font-bold border"
@@ -604,34 +641,15 @@ export default function SubscriptionsPage() {
                             >
                               Cancel
                             </button>
-                          </>
-                        )}
-                        {sub.status === "PAUSED" && (
-                          <button
-                            onClick={() => resume.mutate(sub.id)}
-                            className="text-[11px] px-2.5 py-1 rounded-md font-bold border"
-                            style={{ borderColor: "#00B37E", color: "#00B37E" }}
-                          >
-                            Resume
-                          </button>
-                        )}
-                        {(sub.status === "DUNNING" ||
-                          sub.status === "PAST_DUE") && (
-                          <button
-                            onClick={() => cancel.mutate(sub.id)}
-                            className="text-[11px] px-2.5 py-1 rounded-md font-bold border"
-                            style={{ borderColor: "#FDCACA", color: "#DC2626" }}
-                          >
-                            Cancel
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
