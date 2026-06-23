@@ -98,6 +98,7 @@ type LedgerRepository interface {
 	ListByTypeAndDateRange(ctx context.Context, tenantID uuid.UUID, types []string, from, to time.Time, limit, offset int) ([]*LedgerEntry, error)
 	GetSummary(ctx context.Context, tenantID uuid.UUID, from, to time.Time) (*LedgerSummary, error)
 	GetMRR(ctx context.Context, tenantID uuid.UUID, from, to time.Time) (int64, error)
+	GetMonthlyRevenue(ctx context.Context, tenantID uuid.UUID, from, to time.Time) ([]MonthlyRevenueRow, error)
 }
 
 type JobRepository interface {

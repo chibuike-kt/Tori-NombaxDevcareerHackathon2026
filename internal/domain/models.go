@@ -283,3 +283,9 @@ type PaymentResult struct {
 	FailureCode    string
 	FailureMessage string
 }
+
+type MonthlyRevenueRow struct {
+	Month    time.Time
+	Charged  int64
+	Refunded int64
+}
