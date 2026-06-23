@@ -68,7 +68,7 @@ export default function FinancePage() {
   const recovery = recoveryData?.data;
   const summary = summaryData?.data;
   const forecast = forecastData?.data;
-  const monthlyRevenue = monthlyData ?? [];
+  const monthlyRevenue = monthlyData?.data ?? [];
 
   const ranges: Range[] = ["7D", "30D", "90D", "1Y"];
 
