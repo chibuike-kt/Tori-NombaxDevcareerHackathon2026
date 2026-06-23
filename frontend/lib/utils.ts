@@ -24,16 +24,26 @@ export function formatDate(dateStr: string): string {
 }
 
 export function statusPill(status: string): { bg: string; color: string } {
-  const map: Record<string, { bg: string; color: string }> = {
-    ACTIVE: { bg: "#E3F7EF", color: "#0A7A56" },
-    TRIALING: { bg: "#EEEDFE", color: "#4F46B5" },
-    PAST_DUE: { bg: "#FDF0D5", color: "#8A5A00" },
-    DUNNING: { bg: "#FDF0D5", color: "#8A5A00" },
-    PAUSED: { bg: "#E8EFF9", color: "#2563A8" },
-    SUSPENDED: { bg: "#FDECEC", color: "#A32D2D" },
-    CANCELLED: { bg: "#F1F3F5", color: "#6B7280" },
-  };
-  return map[status] ?? { bg: "#F1F3F5", color: "#6B7280" };
+  switch (status) {
+    case "ACTIVE":
+      return { bg: "#E3F7EF", color: "#0A7A56" };
+    case "TRIALING":
+      return { bg: "#EEF2FF", color: "#4338CA" };
+    case "GRACE_PERIOD":
+      return { bg: "#FEF9C3", color: "#854D0E" };
+    case "PAST_DUE":
+      return { bg: "#FEF3C7", color: "#92400E" };
+    case "DUNNING":
+      return { bg: "#FDF0D5", color: "#8A5A00" };
+    case "PAUSED":
+      return { bg: "#EFF6FF", color: "#1D4ED8" };
+    case "SUSPENDED":
+      return { bg: "#FDECEC", color: "#A32D2D" };
+    case "CANCELLED":
+      return { bg: "#F1F3F5", color: "#6B7280" };
+    default:
+      return { bg: "#F1F3F5", color: "#6B7280" };
+  }
 }
 
 const avatarColors = [
