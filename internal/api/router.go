@@ -112,6 +112,7 @@ r.Group(func(r chi.Router) {
 
 		r.Get("/v1/health", healthH.GetPortfolioHealth)
 		r.Get("/v1/health/forecast", healthH.GetRevenueForecast)
+		r.Get("/v1/ledger/monthly", ledgerH.MonthlyRevenue)
 
 		r.Get("/v1/api-keys", apiKeyH.GetAPIKeyHint)
 		r.Post("/v1/api-keys", apiKeyH.CreateAPIKey)
