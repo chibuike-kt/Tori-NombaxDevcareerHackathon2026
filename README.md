@@ -1,4 +1,4 @@
-# Tori — Recurring Billing Infrastructure for Nomba
+# Tori | Recurring Billing Infrastructure for Nomba
 
 > The managed subscriptions layer that Nomba does not ship.
 > Built for the **Nomba × DevCareer Hackathon 2026** by Kingsley Chibueze ([@chibuike_kt](https://twitter.com/chibuike_kt))
@@ -607,7 +607,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full architecture and security 
 
 - [x] Public GitHub repository with commit history within hackathon dates
 - [x] Working MVP URL — https://frontend-production-e3be.up.railway.app
-- [ ] Demo video (2-3 minutes)
+- [] Demo video (2-3 minutes)
 - [x] Architecture and security note — ARCHITECTURE.md
 - [x] Test credentials — dev@tori.ng / tori-dev-2026
 
