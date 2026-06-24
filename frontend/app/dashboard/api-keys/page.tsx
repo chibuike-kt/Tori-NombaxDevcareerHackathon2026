@@ -49,11 +49,11 @@ export default function APIKeysPage() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 lg:p-6 max-w-4xl mx-auto">
+      <div className="flex items-center justify-between mb-5">
         <div>
           <h1
-            className="text-2xl font-extrabold"
+            className="text-xl lg:text-2xl font-extrabold"
             style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
           >
             API Keys
@@ -68,15 +68,16 @@ export default function APIKeysPage() {
         {!showCreateForm && !revealedKey && (
           <button
             onClick={() => setShowCreateForm(true)}
-            className="flex items-center gap-1.5 text-sm px-4 py-2.5 rounded-lg font-bold text-white"
+            className="flex items-center gap-1.5 text-sm px-3 lg:px-4 py-2.5 rounded-lg font-bold text-white"
             style={{ background: "#00B37E" }}
           >
-            <i className="ti ti-plus" /> Create key
+            <i className="ti ti-plus" />{" "}
+            <span className="hidden sm:inline">Create key</span>
           </button>
         )}
       </div>
 
-      {/* One-time reveal banner */}
+      {/* One-time reveal */}
       {revealedKey && (
         <div
           className="rounded-xl border p-5 mb-5"
@@ -104,11 +105,11 @@ export default function APIKeysPage() {
                 hash.
               </p>
               <div
-                className="flex items-center gap-2 bg-white rounded-lg px-4 py-3 border"
+                className="flex items-center gap-2 bg-white rounded-lg px-3 py-2.5 border"
                 style={{ borderColor: "#D1FAE5" }}
               >
                 <code
-                  className="text-xs font-mono flex-1 break-all"
+                  className="text-xs font-mono flex-1 break-all min-w-0"
                   style={{ color: "#0F1728" }}
                 >
                   {revealedKey}
@@ -127,7 +128,8 @@ export default function APIKeysPage() {
             </div>
             <button
               onClick={() => setRevealedKey(null)}
-              style={{ color: "#6B7280", flexShrink: 0 }}
+              className="flex-shrink-0"
+              style={{ color: "#6B7280" }}
             >
               <i className="ti ti-x" style={{ fontSize: 18 }} />
             </button>
@@ -135,7 +137,7 @@ export default function APIKeysPage() {
         </div>
       )}
 
-      {/* Create key form */}
+      {/* Create form */}
       {showCreateForm && (
         <div
           className="bg-white border rounded-xl p-5 mb-5"
@@ -185,7 +187,7 @@ export default function APIKeysPage() {
         </div>
       )}
 
-      {/* Active key display */}
+      {/* Active key */}
       <div
         className="bg-white border rounded-xl mb-4"
         style={{ borderColor: "#EAECEF" }}
@@ -203,7 +205,7 @@ export default function APIKeysPage() {
           ) : activeHint ? (
             <div className="flex items-center gap-3">
               <div
-                className="w-9 h-9 rounded-lg flex items-center justify-center"
+                className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
                 style={{ background: "#F1F3F5" }}
               >
                 <i
@@ -211,10 +213,10 @@ export default function APIKeysPage() {
                   style={{ fontSize: 18, color: "#6B7280" }}
                 />
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-0.5">
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2 mb-0.5">
                   <code
-                    className="text-sm font-mono font-semibold"
+                    className="text-sm font-mono font-semibold truncate"
                     style={{ color: "#0F1728" }}
                   >
                     {activeHint}
@@ -351,7 +353,7 @@ export default function APIKeysPage() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               <div>
                 <p
                   className="text-sm font-semibold"
@@ -369,7 +371,7 @@ export default function APIKeysPage() {
               </div>
               <button
                 onClick={() => setShowRotateConfirm(true)}
-                className="text-sm px-4 py-2 rounded-lg font-bold border flex-shrink-0 ml-4"
+                className="text-sm px-4 py-2 rounded-lg font-bold border flex-shrink-0"
                 style={{ borderColor: "#FDCACA", color: "#DC2626" }}
               >
                 Rotate key
