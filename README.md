@@ -38,7 +38,7 @@ Your product → Tori API → Nomba → Customer bank
 
 Generic billing tools are built for Western card infrastructure. Nigeria is different:
 
-- **GTBank and Access Bank** cards are frequently issued blocked for online transactions. A generic retry system wastes attempts on these — they will never succeed.
+- **Nigerian Bank** cards are frequently issued blocked for online transactions. A generic retry system wastes attempts on these — they will never succeed.
 - **Salary cycles** in Nigeria cluster around specific days. A card that fails on the 3rd can succeed on the 25th when salary arrives. Generic exponential backoff misses this window.
 - **Bank outages** are common. An issuer-unavailable error at 2am is not the same as a stolen card — they need different handling.
 - **Customers avoid contacting support**. A self-service portal that lets customers pause or update their subscription without a support ticket is not a nice-to-have.
