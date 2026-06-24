@@ -5,7 +5,6 @@ import { useState, useMemo } from "react";
 import { TABS, type Block } from "@/lib/docs-data";
 
 function InlineText({ text }: { text: string }) {
-  // split on backticks — odd indices are inline code
   const parts = text.split("`");
   return (
     <>
@@ -94,10 +93,10 @@ function BlockRenderer({ block }: { block: Block }) {
     case "table":
       return (
         <div
-          className="rounded-xl border overflow-hidden mb-5"
+          className="rounded-xl border overflow-x-auto mb-5"
           style={{ borderColor: "#E5E7EB" }}
         >
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[400px]">
             <thead>
               <tr style={{ background: "#F8F9FA" }}>
                 {block.headers.map((h) => (
@@ -158,6 +157,7 @@ export default function DocsPage() {
   const [activeSectionId, setActiveSectionId] = useState(
     TABS[0].groups[0].items[0].id,
   );
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const activeTab = useMemo(
     () => TABS.find((t) => t.id === activeTabId)!,
@@ -182,14 +182,18 @@ export default function DocsPage() {
     setActiveSectionId(tab.groups[0].items[0].id);
   };
 
+  const handleSectionClick = (id: string) => {
+    setActiveSectionId(id);
+    setSidebarOpen(false);
+  };
+
   return (
     <div>
       <div
         className="text-center py-2.5 text-sm font-semibold"
         style={{ background: "#00B37E", color: "white" }}
       >
-        <i className="ti ti-sparkles mr-1" /> Try the Tori API instantly — no
-        account needed.{" "}
+        <i className="ti ti-sparkles mr-1" /> Try the Tori API instantly.{" "}
         <span className="underline cursor-pointer">See how →</span>
       </div>
 
@@ -197,8 +201,16 @@ export default function DocsPage() {
         className="border-b sticky top-0 z-40 bg-white"
         style={{ borderColor: "#F0F0F0" }}
       >
-        <div className="flex items-center gap-8 px-8 py-3.5">
-          <Link href="/" className="flex items-center gap-2">
+        <div className="flex items-center gap-3 px-4 lg:px-8 py-3.5">
+          {/* Mobile sidebar toggle */}
+          <button
+            className="lg:hidden p-1.5 rounded-lg flex-shrink-0"
+            onClick={() => setSidebarOpen(true)}
+            style={{ color: "#0F1728" }}
+          >
+            <i className="ti ti-menu-2" style={{ fontSize: 20 }} />
+          </button>
+          <Link href="/" className="flex items-center gap-2 flex-shrink-0">
             <div
               className="w-7 h-7 rounded-md flex items-center justify-center"
               style={{ background: "#0F1728" }}
@@ -217,7 +229,7 @@ export default function DocsPage() {
               Tori
             </span>
           </Link>
-          <div className="flex-1 max-w-xl mx-auto">
+          <div className="flex-1 max-w-xl mx-auto hidden sm:block">
             <div
               className="flex items-center gap-2 rounded-lg px-3.5 py-2 border"
               style={{ background: "#F8F9FA", borderColor: "#E5E7EB" }}
@@ -234,7 +246,7 @@ export default function DocsPage() {
                 style={{ color: "#0F1728" }}
               />
               <span
-                className="text-xs font-semibold px-1.5 py-0.5 rounded border"
+                className="text-xs font-semibold px-1.5 py-0.5 rounded border hidden lg:block"
                 style={{ color: "#9CA3AF", borderColor: "#E5E7EB" }}
               >
                 Ctrl K
@@ -243,19 +255,19 @@ export default function DocsPage() {
           </div>
           <Link
             href="/dashboard"
-            className="flex items-center gap-1 text-sm px-4 py-2 rounded-lg font-bold text-white"
+            className="flex items-center gap-1 text-sm px-3 lg:px-4 py-2 rounded-lg font-bold text-white flex-shrink-0"
             style={{ background: "#0F1728" }}
           >
-            Dashboard{" "}
+            <span className="hidden sm:inline">Dashboard</span>
             <i className="ti ti-chevron-right" style={{ fontSize: 14 }} />
           </Link>
         </div>
-        <div className="flex gap-7 px-8">
+        <div className="flex gap-4 lg:gap-7 px-4 lg:px-8 overflow-x-auto">
           {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => switchTab(tab.id)}
-              className="pb-3 text-sm font-semibold"
+              className="pb-3 text-sm font-semibold whitespace-nowrap flex-shrink-0"
               style={{
                 color: tab.id === activeTabId ? "#0F1728" : "#6B7280",
                 borderBottom:
@@ -270,9 +282,63 @@ export default function DocsPage() {
         </div>
       </nav>
 
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setSidebarOpen(false)}
+          />
+          <aside className="relative w-72 bg-white h-full overflow-y-auto py-6 px-4 z-10">
+            <div className="flex items-center justify-between mb-4 px-2">
+              <span className="text-sm font-bold" style={{ color: "#0F1728" }}>
+                Navigation
+              </span>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                style={{ color: "#6B7280" }}
+              >
+                <i className="ti ti-x" style={{ fontSize: 18 }} />
+              </button>
+            </div>
+            {activeTab.groups.map((section) => (
+              <div key={section.group} className="mb-6">
+                <p
+                  className="text-xs font-bold uppercase tracking-wider mb-2 px-2"
+                  style={{ color: "#9CA3AF" }}
+                >
+                  {section.group}
+                </p>
+                {section.items.map((item) => {
+                  const active = item.id === activeSectionId;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleSectionClick(item.id)}
+                      className="flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm font-medium mb-0.5 w-full text-left"
+                      style={{
+                        background: active ? "#E6F8F2" : "transparent",
+                        color: active ? "#00B37E" : "#4B5563",
+                      }}
+                    >
+                      <i
+                        className={`ti ${item.icon}`}
+                        style={{ fontSize: 15 }}
+                      />{" "}
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </aside>
+        </div>
+      )}
+
       <div className="flex max-w-7xl mx-auto">
+        {/* Desktop sidebar */}
         <aside
-          className="w-64 flex-shrink-0 border-r py-6 px-4 h-[calc(100vh-110px)] overflow-y-auto sticky top-[110px]"
+          className="hidden lg:block w-64 flex-shrink-0 border-r py-6 px-4 h-[calc(100vh-110px)] overflow-y-auto sticky top-[110px]"
           style={{ borderColor: "#F0F0F0" }}
         >
           {activeTab.groups.map((section) => (
@@ -304,32 +370,34 @@ export default function DocsPage() {
           ))}
         </aside>
 
-        <main className="flex-1 px-12 py-8 max-w-3xl">
+        <main className="flex-1 px-4 lg:px-12 py-6 lg:py-8 min-w-0">
           <p className="text-sm font-bold mb-2" style={{ color: "#00B37E" }}>
             {activeTab.label}
           </p>
-          <div className="flex items-start justify-between mb-2">
+          <div className="flex items-start justify-between mb-2 gap-3">
             <h1
-              className="text-4xl font-extrabold"
+              className="text-2xl lg:text-4xl font-extrabold"
               style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
             >
               {activeSection.label}
             </h1>
             <button
-              className="flex items-center gap-1.5 text-sm px-3.5 py-2 rounded-lg font-bold text-white flex-shrink-0"
+              className="flex items-center gap-1.5 text-sm px-3 lg:px-3.5 py-2 rounded-lg font-bold text-white flex-shrink-0"
               style={{ background: "#00B37E" }}
             >
-              <i className="ti ti-sparkles" /> Open in Claude
+              <i className="ti ti-sparkles" />{" "}
+              <span className="hidden sm:inline">Open in Claude</span>
             </button>
           </div>
-          <div className="mt-6">
+          <div className="mt-6 max-w-3xl">
             {activeSection.blocks.map((block, i) => (
               <BlockRenderer key={i} block={block} />
             ))}
           </div>
         </main>
 
-        <aside className="w-56 flex-shrink-0 py-8 px-6 h-[calc(100vh-110px)] sticky top-[110px]">
+        {/* TOC — desktop only */}
+        <aside className="hidden xl:block w-56 flex-shrink-0 py-8 px-6 h-[calc(100vh-110px)] sticky top-[110px]">
           <p
             className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider mb-3"
             style={{ color: "#9CA3AF" }}
@@ -348,12 +416,13 @@ export default function DocsPage() {
           ))}
         </aside>
       </div>
+
       <footer
         className="border-t mt-8"
         style={{ borderColor: "#F0F0F0", background: "#FAFAF8" }}
       >
-        <div className="max-w-7xl mx-auto px-8 py-12 grid grid-cols-5 gap-8">
-          <div className="col-span-1">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-10 grid grid-cols-2 lg:grid-cols-5 gap-8">
+          <div className="col-span-2 lg:col-span-1">
             <div className="flex items-center gap-2 mb-3">
               <div
                 className="w-7 h-7 rounded-md flex items-center justify-center"
@@ -407,9 +476,9 @@ export default function DocsPage() {
           ))}
         </div>
         <div className="border-t" style={{ borderColor: "#F0F0F0" }}>
-          <div className="max-w-7xl mx-auto px-8 py-5 flex justify-between items-center">
+          <div className="max-w-7xl mx-auto px-6 lg:px-8 py-5 flex flex-wrap gap-4 justify-between items-center">
             <span className="text-sm font-medium" style={{ color: "#9CA3AF" }}>
-              © 2026 Tori · Built on Nomba · Nomba × DevCareer Hackathon 2026
+              2026 Tori · Built on Nomba · Nomba x DevCareer Hackathon 2026
             </span>
             <div className="flex gap-4">
               <a
