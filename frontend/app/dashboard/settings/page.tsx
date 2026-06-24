@@ -31,37 +31,33 @@ export default function SettingsPage() {
       setSaveError("");
       setTimeout(() => setSaved(false), 2500);
     },
-    onError: (e: unknown) => {
-      setSaveError(e instanceof Error ? e.message : "Failed to save changes");
-    },
+    onError: (e: unknown) =>
+      setSaveError(e instanceof Error ? e.message : "Failed to save changes"),
   });
 
-const handleLogout = async () => {
-  try {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/v1/auth/logout`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem("access_token");
+      if (token) {
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/v1/auth/logout`,
+          { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+        );
+      }
+    } catch {
+      /* proceed */
+    } finally {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      router.push("/login");
     }
-  } catch {
-    // proceed regardless
-  } finally {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    router.push("/login");
-  }
-};
+  };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <div className="mb-6">
+    <div className="p-4 lg:p-6 max-w-3xl mx-auto">
+      <div className="mb-5">
         <h1
-          className="text-2xl font-extrabold"
+          className="text-xl lg:text-2xl font-extrabold"
           style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
         >
           Settings
@@ -71,6 +67,7 @@ const handleLogout = async () => {
         </p>
       </div>
 
+      {/* Account details */}
       <div
         className="bg-white border rounded-xl mb-4"
         style={{ borderColor: "#EAECEF" }}
@@ -83,7 +80,7 @@ const handleLogout = async () => {
         <div className="p-5">
           <div className="flex items-center gap-4 mb-5">
             <div
-              className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-extrabold"
+              className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-extrabold flex-shrink-0"
               style={{ background: "#E6F8F2", color: "#00B37E" }}
             >
               {name?.slice(0, 2).toUpperCase() ?? "T"}
@@ -97,7 +94,7 @@ const handleLogout = async () => {
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <label
                 className="text-xs font-semibold block mb-1.5"
@@ -152,6 +149,7 @@ const handleLogout = async () => {
         </div>
       </div>
 
+      {/* Dunning config */}
       <div
         className="bg-white border rounded-xl mb-4"
         style={{ borderColor: "#EAECEF" }}
@@ -165,7 +163,7 @@ const handleLogout = async () => {
           <p className="text-sm font-medium mb-4" style={{ color: "#6B7280" }}>
             Configure how Tori handles failed payments for your subscriptions.
           </p>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <label
                 className="text-xs font-semibold block mb-1.5"
@@ -208,7 +206,7 @@ const handleLogout = async () => {
             >
               Current retry schedule
             </p>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {["Day 3", "Day 7", "Day 14", "Day 21"].map((d) => (
                 <span
                   key={d}
@@ -223,6 +221,7 @@ const handleLogout = async () => {
         </div>
       </div>
 
+      {/* Nomba integration */}
       <div
         className="bg-white border rounded-xl mb-4"
         style={{ borderColor: "#EAECEF" }}
@@ -238,8 +237,8 @@ const handleLogout = async () => {
             style={{ background: "#FFF8E1" }}
           >
             <i
-              className="ti ti-clock"
-              style={{ fontSize: 18, color: "#B8860B", flexShrink: 0 }}
+              className="ti ti-clock flex-shrink-0"
+              style={{ fontSize: 18, color: "#B8860B" }}
             />
             <div>
               <p
@@ -258,6 +257,7 @@ const handleLogout = async () => {
         </div>
       </div>
 
+      {/* Danger zone */}
       <div
         className="bg-white border rounded-xl"
         style={{ borderColor: "#EAECEF" }}
@@ -267,7 +267,7 @@ const handleLogout = async () => {
             Danger zone
           </h2>
         </div>
-        <div className="p-5 flex items-center justify-between">
+        <div className="p-5 flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-bold" style={{ color: "#0F1728" }}>
               Log out
@@ -281,7 +281,7 @@ const handleLogout = async () => {
           </div>
           <button
             onClick={handleLogout}
-            className="text-sm px-4 py-2 rounded-lg font-bold border"
+            className="text-sm px-4 py-2 rounded-lg font-bold border flex-shrink-0"
             style={{ borderColor: "#FDCACA", color: "#DC2626" }}
           >
             Log out
