@@ -1,12 +1,62 @@
 "use client";
 
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
+import {
+  getInvoices,
+  getCustomers,
+  getSubscriptions,
+  type Invoice,
+} from "@/lib/api";
+import { formatKobo, formatDate, avatarFor } from "@/lib/utils";
+
+function statusStyle(status: string) {
+  switch (status) {
+    case "paid":
+      return { bg: "#E3F7EF", color: "#0A7A56" };
+    case "open":
+      return { bg: "#EEF2FF", color: "#4338CA" };
+    case "void":
+      return { bg: "#F1F3F5", color: "#6B7280" };
+    case "uncollectible":
+      return { bg: "#FDECEC", color: "#A32D2D" };
+    default:
+      return { bg: "#F1F3F5", color: "#6B7280" };
+  }
+}
+
 export default function InvoicesPage() {
+  const [statusFilter, setStatusFilter] = useState("");
+
+  const { data: invoicesData, isLoading } = useQuery({
+    queryKey: ["invoices", statusFilter],
+    queryFn: () => getInvoices(statusFilter || undefined),
+  });
+const { data: customersData } = useQuery({
+  queryKey: ["customers", 100],
+  queryFn: () => getCustomers(100),
+});
+  const { data: subsData } = useQuery({
+    queryKey: ["subscriptions"],
+    queryFn: getSubscriptions,
+  });
+
+  const invoices = invoicesData?.data ?? [];
+  const customers = customersData?.data ?? [];
+  const subs = subsData?.data ?? [];
+
+  const custById = new Map(customers.map((c) => [c.id, c]));
+  const subById = new Map(subs.map((s) => [s.id, s]));
+
+  const statuses = ["", "open", "paid", "void", "uncollectible"];
+
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 lg:p-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between mb-5">
         <div>
           <h1
-            className="text-2xl font-extrabold"
+            className="text-xl lg:text-2xl font-extrabold"
             style={{ color: "#0F1728", letterSpacing: "-0.02em" }}
           >
             Invoices
@@ -15,35 +65,26 @@ export default function InvoicesPage() {
             className="text-sm font-medium mt-0.5"
             style={{ color: "#8A94A6" }}
           >
-            All billing invoices across your subscriptions
+            {invoices.length} invoice{invoices.length !== 1 ? "s" : ""}
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        {[
-          ["Total invoiced", "₦0", "#0F1728"],
-          ["Paid", "₦0", "#00A36C"],
-          ["Outstanding", "₦0", "#B8860B"],
-        ].map(([label, val, color]) => (
-          <div
-            key={label}
-            className="bg-white border rounded-xl p-5"
-            style={{ borderColor: "#EAECEF" }}
+      {/* Status filter */}
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {statuses.map((s) => (
+          <button
+            key={s}
+            onClick={() => setStatusFilter(s)}
+            className="px-3.5 py-1.5 rounded-lg text-xs font-bold"
+            style={{
+              background: statusFilter === s ? "#0F1728" : "#fff",
+              color: statusFilter === s ? "#fff" : "#6B7280",
+              border: `1px solid ${statusFilter === s ? "#0F1728" : "#E5E7EB"}`,
+            }}
           >
-            <p
-              className="text-xs font-semibold mb-2"
-              style={{ color: "#8A94A6" }}
-            >
-              {label}
-            </p>
-            <p
-              className="text-2xl font-extrabold"
-              style={{ color: color, letterSpacing: "-0.02em" }}
-            >
-              {val}
-            </p>
-          </div>
+            {s === "" ? "ALL" : s.toUpperCase()}
+          </button>
         ))}
       </div>
 
@@ -51,74 +92,135 @@ export default function InvoicesPage() {
         className="bg-white border rounded-xl"
         style={{ borderColor: "#EAECEF" }}
       >
-        <div
-          className="px-5 py-4 border-b flex items-center justify-between"
-          style={{ borderColor: "#F0F2F4" }}
-        >
-          <span className="text-sm font-bold" style={{ color: "#0F1728" }}>
-            Invoice history
-          </span>
-          <div className="flex gap-2">
-            {["All", "Paid", "Open", "Void"].map((f) => (
-              <button
-                key={f}
-                className="text-xs font-bold px-3 py-1.5 rounded-lg border"
-                style={{ borderColor: "#E5E7EB", color: "#6B7280" }}
-              >
-                {f}
-              </button>
-            ))}
+        {isLoading ? (
+          <div
+            className="p-12 text-center text-sm font-medium"
+            style={{ color: "#8A94A6" }}
+          >
+            Loading invoices...
           </div>
-        </div>
-        <table className="w-full">
-          <thead>
-            <tr
-              style={{
-                background: "#FAFBFC",
-                borderBottom: "0.5px solid #EAECEF",
-              }}
+        ) : invoices.length === 0 ? (
+          <div className="p-12 text-center">
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
+              style={{ background: "#F1F3F5", color: "#9CA3AF" }}
             >
-              {[
-                "Invoice ID",
-                "Customer",
-                "Amount",
-                "Status",
-                "Due date",
-                "Actions",
-              ].map((h) => (
-                <th
-                  key={h}
-                  className="text-left px-4 py-3 text-[11px] font-semibold"
-                  style={{ color: "#98A2B3" }}
+              <i className="ti ti-receipt" style={{ fontSize: 22 }} />
+            </div>
+            <p className="text-sm font-bold mb-1" style={{ color: "#0F1728" }}>
+              No invoices yet
+            </p>
+            <p
+              className="text-xs font-medium mb-4"
+              style={{ color: "#8A94A6" }}
+            >
+              Invoices are generated automatically when a subscription charge
+              succeeds.
+            </p>
+            <Link
+              href="/dashboard/subscriptions"
+              className="text-sm font-bold"
+              style={{ color: "#00B37E" }}
+            >
+              View subscriptions →
+            </Link>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px]">
+              <thead>
+                <tr
+                  style={{
+                    background: "#FAFBFC",
+                    borderBottom: "0.5px solid #EAECEF",
+                  }}
                 >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={6} className="px-4 py-14 text-center">
-                <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
-                  style={{ background: "#F1F3F5", color: "#9CA3AF" }}
-                >
-                  <i className="ti ti-receipt" style={{ fontSize: 22 }} />
-                </div>
-                <p className="text-sm font-bold" style={{ color: "#0F1728" }}>
-                  No invoices yet
-                </p>
-                <p
-                  className="text-xs font-medium mt-1"
-                  style={{ color: "#8A94A6" }}
-                >
-                  Invoices are generated automatically when subscriptions are
-                  charged.
-                </p>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                  {[
+                    "Customer",
+                    "Subscription",
+                    "Amount",
+                    "Status",
+                    "Due date",
+                    "Paid at",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      className="text-left px-4 py-3 text-[11px] font-semibold"
+                      style={{ color: "#98A2B3" }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map((inv: Invoice) => {
+                  const cust = custById.get(inv.customer_id);
+                  const sub = subById.get(inv.subscription_id);
+                  const av = avatarFor(cust?.email ?? inv.customer_id);
+                  const s = statusStyle(inv.status);
+                  return (
+                    <tr
+                      key={inv.id}
+                      style={{ borderTop: "0.5px solid #F2F4F6" }}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                            style={{ background: av.bg, color: av.color }}
+                          >
+                            {av.initials}
+                          </span>
+                          <span
+                            className="text-xs font-semibold truncate max-w-[120px]"
+                            style={{ color: "#1F2733" }}
+                          >
+                            {cust?.email ?? "Unknown"}
+                          </span>
+                        </div>
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-mono"
+                        style={{ color: "#98A2B3" }}
+                      >
+                        {sub
+                          ? sub.id.slice(0, 8) + "..."
+                          : inv.subscription_id.slice(0, 8) + "..."}
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-bold"
+                        style={{ color: "#0F1728" }}
+                      >
+                        {formatKobo(inv.amount)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                          style={{ background: s.bg, color: s.color }}
+                        >
+                          {inv.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-medium"
+                        style={{ color: "#4B5563" }}
+                      >
+                        {formatDate(inv.due_date)}
+                      </td>
+                      <td
+                        className="px-4 py-3 text-xs font-medium"
+                        style={{ color: inv.paid_at ? "#00B37E" : "#C4CACD" }}
+                      >
+                        {inv.paid_at ? formatDate(inv.paid_at) : "Unpaid"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

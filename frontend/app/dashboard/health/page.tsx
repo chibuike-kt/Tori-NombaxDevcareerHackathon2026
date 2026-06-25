@@ -91,10 +91,10 @@ export default function HealthPage() {
     queryKey: ["plans"],
     queryFn: getPlans,
   });
-  const { data: customersData } = useQuery({
-    queryKey: ["customers"],
-    queryFn: getCustomers,
-  });
+const { data: customersData } = useQuery({
+  queryKey: ["customers", 100],
+  queryFn: () => getCustomers(100),
+});
 
   const portfolio = healthData?.data;
   const plans = plansData?.data ?? [];

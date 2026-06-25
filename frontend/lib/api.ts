@@ -157,8 +157,8 @@ export const createPlan = (body: Partial<Plan>) =>
   api.post<{ data: Plan }>("/v1/plans", body);
 
 // Customers
-export const getCustomers = () =>
-  api.get<{ data: Customer[] }>("/v1/customers");
+export const getCustomers = (limit = 50) =>
+  api.get<{ data: Customer[] }>(`/v1/customers?limit=${limit}`);
 export const getCustomer = (id: string) =>
   api.get<{ data: Customer }>(`/v1/customers/${id}`);
 export const createCustomer = (body: Partial<Customer>) =>
@@ -357,4 +357,22 @@ export interface MonthlyRevenue {
 export const getMonthlyRevenue = (from?: string, to?: string) =>
   api.get<{ data: MonthlyRevenue[] }>(
     `/v1/ledger/monthly${from ? `?from=${from}&to=${to}` : ""}`,
+  );
+
+export interface Invoice {
+  id: string;
+  subscription_id: string;
+  customer_id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  due_date: string;
+  paid_at?: string;
+  nomba_charge_ref?: string;
+  created_at: string;
+}
+
+export const getInvoices = (status?: string) =>
+  api.get<{ data: Invoice[] }>(
+    `/v1/invoices${status ? `?status=${status}` : ""}`,
   );

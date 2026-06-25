@@ -221,7 +221,7 @@ export default function DashboardPage() {
   });
   const { data: customersData } = useQuery({
     queryKey: ["customers"],
-    queryFn: getCustomers,
+    queryFn: () => getCustomers(100),
   });
   const { data: plansData } = useQuery({
     queryKey: ["plans"],

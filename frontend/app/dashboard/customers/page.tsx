@@ -11,7 +11,7 @@ export default function CustomersPage() {
   const router = useRouter();
   const { data, isLoading } = useQuery({
     queryKey: ["customers"],
-    queryFn: getCustomers,
+    queryFn: () => getCustomers(100),
   });
   const customers = data?.data ?? [];
   const [showForm, setShowForm] = useState(false);
