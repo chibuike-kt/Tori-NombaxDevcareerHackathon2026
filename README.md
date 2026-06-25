@@ -267,6 +267,22 @@ Second delivery → duplicate (idempotent)
 
 ---
 
+### 5. Nightly Reconciliation
+
+Every 24 hours, the worker fetches all successful Nomba transactions and matches them against the immutable ledger by `merchantTxRef`. Discrepancies — missing ledger entries or amount mismatches — are flagged and persisted to `reconciliation_runs` for operator review.
+
+```
+Nomba /transactions/accounts/{subAccountId}
+    ↓ paginate all SUCCESS transactions
+Match each by merchantTxRef → ledger_entries.idempotency_key
+    ↓
+matched         → all good
+missing_in_ledger → flagged, logged, persisted
+amount_mismatch → flagged, logged, persisted
+    ↓
+Write reconciliation_runs row with full summary
+```
+
 ## Billing state machine
 
 Eight validated states with 28 unit tests covering every valid and invalid transition:
@@ -558,6 +574,8 @@ payment/      — NombaClient interface, HTTP client, mandate client, mock
 
 postgres/     — Repository implementations (sqlc generated + manual)
 
+reconciliation/ — nightly reconciliation service, job handler, scheduler
+
 scheduler/    — SKIP LOCKED job worker with stale lock recovery
 
 subscription/ — State machine (pure Transition function, 28 unit tests)
@@ -605,9 +623,9 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full architecture and security 
 
 ## Submission checklist
 
-- [x] Public GitHub repository with commit history within hackathon dates
+- [x] Public GitHub repository with clean commit history
 - [x] Working MVP URL — https://frontend-production-e3be.up.railway.app
-- [] Demo video (2-3 minutes)
+- [x] Nightly reconciliation — Nomba transactions vs ledger, discrepancy detection, run history
 - [x] Architecture and security note — ARCHITECTURE.md
 - [x] Test credentials — dev@tori.ng / tori-dev-2026
 

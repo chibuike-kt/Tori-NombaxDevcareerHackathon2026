@@ -254,7 +254,7 @@ The caller is responsible for:
 Card failures in Nigeria fall into two categories with different handling:
 
 **Permanently non-retriable** — stop immediately, no further attempts:
-- `card_blocked` — card issued blocked for online transactions (common with GTBank, Access Bank)
+- `card_blocked` — card issued blocked for online transactions (common with Nigerian banks)
 - `card_expired` — card is past expiry date
 - `do_not_honour` — issuer permanent decline
 - `invalid_account` — account does not exist
@@ -507,7 +507,47 @@ When a subscription is cancelled or manually recovered, all pending jobs for tha
 
 ---
 
-## 12. Rate limiting
+## 12. Reconciliation
+
+A nightly reconciliation job runs automatically for every tenant when the worker starts.
+
+### What it does
+
+Fetches all successful transactions from Nomba's `/transactions/accounts/{subAccountId}` for the previous 24 hours and matches each one against `ledger_entries` by `merchantTxRef` — which Tori sets to the idempotency key on every charge call.
+
+### Three outcomes per transaction
+
+| Result | Meaning |
+|--------|---------|
+| `matched` | Nomba transaction found in ledger, amounts agree |
+| `missing_in_ledger` | Nomba has the charge but Tori has no ledger entry |
+| `amount_mismatch` | Both exist but kobo amounts differ |
+
+### Run summary
+
+Every run writes one row to `reconciliation_runs`:
+nomba_tx_count    -- transactions fetched from Nomba
+
+matched_count     -- perfectly matched
+
+missing_count     -- missing from ledger
+
+mismatch_count    -- amount disagreements
+
+total_nomba_kobo  -- total value Nomba processed
+
+total_ledger_kobo -- total value Tori recorded
+
+discrepancies     -- JSON array of flagged items
+
+status            -- ok | discrepancies_found
+
+### Pagination
+
+Tori paginates through all Nomba transaction pages using the cursor field until `HasMore` is false. No transactions are missed regardless of volume.
+
+
+## 13. Rate limiting
 
 ### Per-IP global limiting
 
@@ -526,7 +566,7 @@ All request bodies are limited to 1MB. This prevents memory exhaustion from over
 
 ---
 
-## 13. Security summary
+## 14. Security summary
 
 | Concern | Implementation |
 |---------|---------------|
@@ -543,10 +583,11 @@ All request bodies are limited to 1MB. This prevents memory exhaustion from over
 | Rate limiting | Per-IP global + per-tenant authenticated |
 | CORS | Configured for frontend origin |
 | Card data | Never stored — Nomba handles tokenisation |
+| Nomba webhook secret | `NOMBA_WEBHOOK_SECRET` env var — HMAC-SHA256 verification enforced on every inbound event |
 
 ---
 
-## 14. Infrastructure
+## 15. Infrastructure
 
 ### Railway deployment
 api      → go build -o bin/api ./cmd/api     → ./bin/api
@@ -574,7 +615,7 @@ Database migrations are applied manually via the `db/migrations/` directory usin
 
 ---
 
-## 15. Test credentials
+## 16. Test credentials
 
 | Field | Value |
 |-------|-------|
@@ -588,7 +629,7 @@ Database migrations are applied manually via the `db/migrations/` directory usin
 
 ---
 
-## 16. Repository structure
+## 17. Repository structure
 cmd/
 
 api/          -- API server entrypoint
