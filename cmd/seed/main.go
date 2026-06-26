@@ -203,7 +203,7 @@ func main() {
 			_, _ = subsRepo.UpdateDunning(ctx, sub.ID, tid, domain.StatusGracePeriod, 0, &retry)
 		}
 
-		// Insert backdated ledger entries directly via SQL
+		// Backdated ledger entries
 		for m := 0; m < sc.monthsActive; m++ {
 			chargeTime := now.AddDate(0, -m, 0).Add(-time.Duration(rng.Intn(5)) * 24 * time.Hour)
 			ik := fmt.Sprintf("seed-charge-%s-m%d", sub.ID, m)
@@ -220,6 +220,52 @@ func main() {
 			if err != nil {
 				fmt.Printf("  ledger insert error: %v\n", err)
 			}
+
+			// Invoice for each successful charge
+			invoiceStatus := "paid"
+			dueDate := chargeTime
+			paidAt := chargeTime.Add(2 * time.Hour) // paid 2 hours after charge
+			invoiceIK := fmt.Sprintf("seed-invoice-%s-m%d", sub.ID, m)
+			lineItems := fmt.Sprintf(`[{"description": "%s — monthly billing", "amount": %d, "currency": "NGN"}]`, plan.Name, plan.Amount)
+			_, _ = pool.Exec(ctx, `
+				INSERT INTO invoices
+					(id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, line_items, idempotency_key, created_at)
+				VALUES ($1, $2, $3, $4, $5, 'NGN', $6, $7, $8, $9, $10, $11)
+				ON CONFLICT (idempotency_key) DO NOTHING
+			`, uuid.New(), tid, subID, custID, plan.Amount, invoiceStatus,
+				dueDate, paidAt, lineItems, invoiceIK, chargeTime)
+		}
+
+		// Open invoice for current period (active subscriptions)
+		if sc.status == domain.StatusActive || sc.status == domain.StatusGracePeriod ||
+			sc.status == domain.StatusDunning || sc.status == domain.StatusPastDue {
+			invoiceStatus := "open"
+			if sc.status == domain.StatusGracePeriod || sc.status == domain.StatusDunning {
+				invoiceStatus = "open"
+			}
+			dueDate := periodEnd
+			invoiceIK := fmt.Sprintf("seed-invoice-current-%s", sub.ID)
+			lineItems := fmt.Sprintf(`[{"description": "%s — monthly billing", "amount": %d, "currency": "NGN"}]`, plan.Name, plan.Amount)
+			_, _ = pool.Exec(ctx, `
+				INSERT INTO invoices
+					(id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, line_items, idempotency_key, created_at)
+				VALUES ($1, $2, $3, $4, $5, 'NGN', $6, $7, $8, $9, $10)
+				ON CONFLICT (idempotency_key) DO NOTHING
+			`, uuid.New(), tid, sub.ID, c.ID, plan.Amount, invoiceStatus,
+				dueDate, lineItems, invoiceIK, now)
+		}
+
+		// Void invoice for cancelled subscriptions
+		if sc.status == domain.StatusCancelled || sc.status == domain.StatusSuspended {
+			invoiceIK := fmt.Sprintf("seed-invoice-void-%s", sub.ID)
+			lineItems := fmt.Sprintf(`[{"description": "%s — billing voided", "amount": %d, "currency": "NGN"}]`, plan.Name, plan.Amount)
+			_, _ = pool.Exec(ctx, `
+				INSERT INTO invoices
+					(id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, line_items, idempotency_key, created_at)
+				VALUES ($1, $2, $3, $4, $5, 'NGN', 'void', $6, $7, $8, $9)
+				ON CONFLICT (idempotency_key) DO NOTHING
+			`, uuid.New(), tid, sub.ID, c.ID, plan.Amount,
+				periodEnd, lineItems, invoiceIK, now)
 		}
 
 		// Recovery charge for dunning recovery
@@ -228,18 +274,19 @@ func main() {
 			entryID := uuid.New()
 			subID := sub.ID
 			custID := c.ID
+			recoveryTime := now.AddDate(0, 0, -3)
 			_, _ = pool.Exec(ctx, `
 				INSERT INTO ledger_entries
 					(id, tenant_id, subscription_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, created_at)
 				VALUES ($1, $2, $3, $4, 'CHARGE', 'DEBIT', $5, 'NGN', $6, $7, $8)
 				ON CONFLICT (idempotency_key) DO NOTHING
-			`, entryID, tid, subID, custID, plan.Amount, "Dunning recovery charge", ik, now.AddDate(0, 0, -3))
+			`, entryID, tid, subID, custID, plan.Amount, "Dunning recovery charge", ik, recoveryTime)
 		}
 
 		fmt.Printf("  sub %02d: %-35s %-20s %s\n", i+1, c.Email, plan.Name, sc.description)
 	}
 
-	// ---- Refunds — backdated ----
+	// ---- Refunds ----
 	for i := 0; i < 3; i++ {
 		c := customers[i]
 		subs, _ := subsRepo.ListByCustomer(ctx, tid, c.ID)
