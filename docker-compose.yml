@@ -61,5 +61,16 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8080
 
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile.seed
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - seed
+
 volumes:
   postgres_data:
