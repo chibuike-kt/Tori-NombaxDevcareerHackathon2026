@@ -29,6 +29,8 @@ export function statusPill(status: string): { bg: string; color: string } {
       return { bg: "#E3F7EF", color: "#0A7A56" };
     case "TRIALING":
       return { bg: "#EEF2FF", color: "#4338CA" };
+    case "PENDING_PAYMENT":
+      return { bg: "#FFF7ED", color: "#C05A00" };
     case "GRACE_PERIOD":
       return { bg: "#FEF9C3", color: "#854D0E" };
     case "PAST_DUE":

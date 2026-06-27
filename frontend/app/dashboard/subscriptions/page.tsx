@@ -117,6 +117,7 @@ export default function SubscriptionsPage() {
 
   const states = [
     "ALL",
+    "PENDING_PAYMENT",
     "ACTIVE",
     "TRIALING",
     "GRACE_PERIOD",
