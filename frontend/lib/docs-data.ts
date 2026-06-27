@@ -1162,7 +1162,7 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox` },
       "id": "ep_abc123-...", "url": "https://yourapp.ng/webhooks/tori",
       "is_active": true, "api_version": "2026-06-01", "created_at": "2026-06-26T00:00:00Z"
     },
-    "secret": "whsec_a1b2c3d4e5f6789012345678901234567890abcd"
+    "secret": "whsec_a1b2c3d4e5f...."
   },
   "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
 }` },
