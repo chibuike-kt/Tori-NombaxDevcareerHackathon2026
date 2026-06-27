@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getMRR,
   getChurn,
@@ -82,38 +82,46 @@ export default function FinancePage() {
   const [range, setRange] = useState<Range>("1Y");
   const { from, to, period } = rangeParams(range);
 
-  const { data: mrrData } = useQuery({
-    queryKey: ["mrr", period],
-    queryFn: () => getMRR(period),
-  });
-  const { data: churnData } = useQuery({
-    queryKey: ["churn", from, to],
-    queryFn: () => getChurn(from, to),
-  });
-  const { data: recoveryData } = useQuery({
-    queryKey: ["recovery", from, to],
-    queryFn: () => getDunningRecovery(from, to),
-  });
-  const { data: summaryData } = useQuery({
-    queryKey: ["ledger-summary", from, to],
-    queryFn: () => getLedgerSummary(from, to),
-  });
-  const { data: forecastData } = useQuery({
-    queryKey: ["forecast"],
-    queryFn: getRevenueForecast,
-  });
-  const { data: monthlyData } = useQuery({
-    queryKey: ["monthly-revenue", from, to],
-    queryFn: () => getMonthlyRevenue(from, to),
-  });
+const queryClient = useQueryClient();
 
-  const mrr = mrrData?.data;
-  const churn = churnData?.data;
-  const recovery = recoveryData?.data;
-  const summary = summaryData?.data;
-  const forecast = forecastData?.data;
-  const monthlyRevenue = monthlyData?.data ?? [];
-  const ranges: Range[] = ["7D", "30D", "90D", "1Y"];
+const { data: mrrData } = useQuery({
+  queryKey: ["mrr", period],
+  queryFn: () => getMRR(period),
+  staleTime: 0,
+});
+const { data: churnData } = useQuery({
+  queryKey: ["churn", from, to],
+  queryFn: () => getChurn(from, to),
+  staleTime: 0,
+});
+const { data: recoveryData } = useQuery({
+  queryKey: ["recovery", from, to],
+  queryFn: () => getDunningRecovery(from, to),
+  staleTime: 0,
+});
+const { data: summaryData } = useQuery({
+  queryKey: ["ledger-summary", from, to],
+  queryFn: () => getLedgerSummary(from, to),
+  staleTime: 0,
+});
+const { data: forecastData } = useQuery({
+  queryKey: ["forecast"],
+  queryFn: getRevenueForecast,
+  staleTime: 0,
+});
+const { data: monthlyData } = useQuery({
+  queryKey: ["monthly-revenue", from, to],
+  queryFn: () => getMonthlyRevenue(from, to),
+  staleTime: 0,
+});
+
+const mrr = mrrData?.data;
+const churn = churnData?.data;
+const recovery = recoveryData?.data;
+const summary = summaryData?.data;
+const forecast = forecastData?.data;
+const monthlyRevenue = monthlyData?.data ?? [];
+const ranges: Range[] = ["7D", "30D", "90D", "1Y"];
 
   return (
     <div className="p-4 lg:p-6 max-w-7xl mx-auto">
@@ -132,24 +140,38 @@ export default function FinancePage() {
             Revenue, churn, and dunning recovery metrics
           </p>
         </div>
-        <div
-          className="flex gap-1 p-1 rounded-lg"
-          style={{ background: "#F1F3F5" }}
-        >
-          {ranges.map((r) => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className="text-xs font-bold px-2.5 lg:px-3 py-1.5 rounded-md"
-              style={{
-                background: range === r ? "#fff" : "transparent",
-                color: range === r ? "#0F1728" : "#6B7280",
-                boxShadow: range === r ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
-              }}
-            >
-              {r}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => queryClient.invalidateQueries()}
+            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border"
+            style={{
+              background: "#fff",
+              color: "#4B5563",
+              borderColor: "#E5E7EB",
+            }}
+          >
+            <i className="ti ti-refresh" style={{ fontSize: 13 }} /> Refresh
+          </button>
+          <div
+            className="flex gap-1 p-1 rounded-lg"
+            style={{ background: "#F1F3F5" }}
+          >
+            {ranges.map((r) => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className="text-xs font-bold px-2.5 lg:px-3 py-1.5 rounded-md"
+                style={{
+                  background: range === r ? "#fff" : "transparent",
+                  color: range === r ? "#0F1728" : "#6B7280",
+                  boxShadow:
+                    range === r ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                }}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
