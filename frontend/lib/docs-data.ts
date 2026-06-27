@@ -5,15 +5,24 @@ export type Block =
   | { type: "code"; lang?: string; code: string }
   | { type: "callout"; variant?: "info" | "warn" | "success"; text: string }
   | { type: "table"; headers: string[]; rows: string[][] }
-  | { type: "list"; items: string[] };
+  | { type: "list"; items: string[] }
+  | { type: "param"; name: string; paramType: string; required?: boolean; description: string }
+  | { type: "response"; status: number; description: string; body?: string };
 
-export type Section = { id: string; label: string; icon: string; blocks: Block[] };
+export type Section = {
+  id: string; label: string; icon: string;
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  endpoint?: string; group?: string; blocks: Block[];
+};
 export type Group = { group: string; items: Section[] };
 export type Tab = { id: string; label: string; groups: Group[] };
 
 const BASE = "https://api.tori.ng";
 
 export const TABS: Tab[] = [
+  // ═══════════════════════════════════════════════════════════
+  // TAB 1  DOCUMENTATION
+  // ═══════════════════════════════════════════════════════════
   {
     id: "documentation",
     label: "Documentation",
@@ -22,775 +31,59 @@ export const TABS: Tab[] = [
         group: "Introduction",
         items: [
           {
-            id: "welcome",
-            label: "Welcome to Tori",
-            icon: "ti-hand-stop",
+            id: "welcome", label: "Welcome to Tori", icon: "ti-hand-stop",
             blocks: [
-              {
-                type: "p",
-                text: "Tori is a subscription billing engine built natively on Nomba's payment infrastructure. It solves one specific problem: every Nigerian SaaS, edtech, and creator platform that charges customers on a recurring basis has had to build the same billing system from scratch. Subscriptions, payment retries, access control, revenue reporting all of it, rebuilt by every team, every time.",
-              },
-              {
-                type: "p",
-                text: "Tori is that system. Built once, running on Nomba's rails, available to every business that needs it.",
-              },
-              {
-                type: "callout",
-                variant: "success",
-                text: "You can test the full API right now with no account. Try creating a plan, customer, and subscription in the sandbox without signing up.",
-              },
+              { type: "p", text: "Tori is a recurring billing engine built natively on Nomba's payment infrastructure. It solves one specific problem: every Nigerian SaaS, edtech, and creator platform that charges customers on a recurring basis has had to build the same billing system from scratch. Tori is that system." },
+              { type: "callout", variant: "success", text: "Live demo available. Log in with dev@tori.ng / tori-dev-2026 to explore 20 real subscribers across all billing states, 10 months of ledger history, and real Nomba sandbox integration." },
               { type: "h2", text: "What Tori does", id: "what" },
-              {
-                type: "p",
-                text: "When you integrate Tori, three things happen. You make three API calls to set up a subscription. After that, Tori handles everything else automatically for as long as the subscription is active.",
-              },
-              {
-                type: "list",
-                items: [
-                  "Tori charges the customer through Nomba on each billing cycle monthly, annual, or a custom interval you define",
-                  "When a charge fails, Tori classifies the reason and decides whether to retry, and when",
-                  "Every attempt, success, failure, refund, and credit is written to an immutable ledger you can audit at any time",
-                  "Your product receives a webhook event for every billing action so you can react suspend access, send a receipt, restore service",
-                  "Your dashboard shows MRR, churn rate, dunning recovery, and net revenue computed from real data",
-                ],
-              },
-              { type: "h2", text: "What Tori does not do", id: "what-not" },
-              {
-                type: "p",
-                text: "Tori is not a payment processor. It does not move money directly. Nomba moves the money. Tori is the orchestration layer that decides when to charge, what to do when it fails, and how to record what happened. Think of Nomba as the engine and Tori as the transmission you interact with Tori, and Tori talks to Nomba on your behalf.",
-              },
+              { type: "list", items: [
+                "Charges customers through Nomba on each billing cycle  monthly, annual, or custom",
+                "Classifies payment failures and retries on Nigerian payday windows",
+                "Writes every charge, refund, and adjustment to an immutable double-entry ledger",
+                "Fires signed webhooks to your product for every billing event",
+                "Reconciles every Nomba transaction against the ledger nightly",
+                "Computes MRR, churn, dunning recovery, and revenue forecast from real data",
+              ]},
               { type: "h2", text: "The three objects", id: "objects" },
-              {
-                type: "p",
-                text: "Everything in Tori is built around three core objects. Once you understand these three things, the entire system makes sense.",
-              },
-              {
-                type: "table",
-                headers: ["Object", "What it represents", "Example"],
-                rows: [
-                  [
-                    "Plan",
-                    "A pricing template what you charge and how often",
-                    "₦15,000/month with a 14-day free trial",
-                  ],
-                  [
-                    "Customer",
-                    "A person or business that pays you",
-                    "amaka@startup.ng, mapped to your own user ID",
-                  ],
-                  [
-                    "Subscription",
-                    "The live billing relationship between a customer and a plan",
-                    "Amaka on the Pro plan, currently ACTIVE",
-                  ],
-                ],
-              },
-              {
-                type: "p",
-                text: "You create a plan once. You create a customer when someone signs up. You create a subscription to link the two. That is the entire setup. Everything else charging, retrying, reporting happens automatically.",
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "Why Tori",
-        items: [
-          {
-            id: "vs-Other payment processors",
-            label: "Tori vs Other payment processors subscriptions",
-            icon: "ti-arrows-diff",
-            blocks: [
-              {
-                type: "p",
-                text: "Other payment processors has subscriptions and recurring charges. So why does Tori exist? Because those tools solve a different problem. They are payment processors that added subscription features. Tori is a subscription engine built on top of a payment processor. The distinction matters more than it sounds.",
-              },
-              { type: "h2", text: "One call vs three calls", id: "one-call" },
-              {
-                type: "p",
-                text: "On Other payment processors, subscribing a customer requires: an existing transaction on your integration (so Other payment processors has a card authorisation to charge), a customer object, and then a subscription creation call. If the customer is new, they must complete a checkout first. You cannot create a subscription for someone who has never paid you.",
-              },
-              {
-                type: "p",
-                text: "On Tori, you pass an email and a plan ID. Tori finds or creates the customer automatically and starts the subscription in the same call. One endpoint, one network round trip, no prior state required.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `# Tori: one call, no prior customer needed
-                POST /v1/platform/checkout
-                {
-                  "email": "amaka@startup.ng",
-                  "plan_id": "plan_...",
-                  "external_id": "your-user-123"
-                }
-
-                # Response: customer object + subscription object + customer_created flag
-                # If amaka already exists, Tori finds her. If not, Tori creates her.
-                # Either way, the subscription starts.`,
-              },
-              {
-                type: "h2",
-                text: "Nigerian failure classification",
-                id: "failure-classification",
-              },
-              {
-                type: "p",
-                text: "When a Other payment processors subscription charge fails, Other payment processors retries on a fixed schedule. It does not know or care why the charge failed. A GTB card blocked for online transactions gets retried the same number of times as a card with temporarily insufficient funds. Both waste retry slots. Both generate failed transaction fees.",
-              },
-              {
-                type: "p",
-                text: "Tori reads the failure code returned by Nomba and classifies it before deciding what to do next. Blocked cards, expired cards, and do-not-honour responses are classified as permanent and not retried. Insufficient funds, bank outages, and timeouts are classified as retriable and scheduled across payday windows.",
-              },
-              {
-                type: "table",
-                headers: [
-                  "Failure type",
-                  "Other payment processors behaviour",
-                  "Tori behaviour",
-                ],
-                rows: [
-                  [
-                    "Card blocked for online transactions",
-                    "Retries on fixed schedule (wastes 4 attempts)",
-                    "Classified permanent, stops immediately",
-                  ],
-                  [
-                    "Insufficient funds",
-                    "Retries on fixed schedule",
-                    "Classified retriable, retries on payday windows: Day 3, 7, 14, 21",
-                  ],
-                  [
-                    "Bank system outage",
-                    "Retries on fixed schedule",
-                    "Classified retriable, short retry window",
-                  ],
-                  [
-                    "Card expired",
-                    "Retries on fixed schedule",
-                    "Classified permanent, stops immediately",
-                  ],
-                ],
-              },
-              { type: "h2", text: "Proration", id: "proration" },
-              {
-                type: "p",
-                text: "Other payment processors has no proration. If a customer on a ₦10,000/month plan upgrades to ₦20,000/month on day 15, you either charge them the full ₦20,000 immediately (overcharging by half a month) or wait until their next billing cycle (giving them the upgrade for free for two weeks). Neither is correct.",
-              },
-              {
-                type: "p",
-                text: "Tori computes the exact credit for unused days on the old plan and the exact charge for remaining days on the new plan. The net adjustment is written to the ledger as a PRORATION entry. The customer pays exactly what they owe, to the kobo.",
-              },
-              {
-                type: "h2",
-                text: "The ledger vs a transaction list",
-                id: "ledger-vs-transactions",
-              },
-              {
-                type: "p",
-                text: "Other payment processors gives you a list of transactions. Each transaction is a payment event. There is no concept of a financial ledger, no MRR computation, no churn tracking, no dunning recovery rate. You get the raw data and build the reporting yourself.",
-              },
-              {
-                type: "p",
-                text: "Tori maintains an append-only ledger behind every subscription. Every charge, refund, credit, and adjustment writes one immutable row. From that ledger, Tori computes MRR, ARR, churn rate, and dunning recovery automatically. You query one endpoint and get the number, with full traceability back to the individual entries behind it.",
-              },
-              { type: "h2", text: "Webhook replay", id: "webhook-replay" },
-              {
-                type: "p",
-                text: "Other payment processors delivers webhooks on a best-effort basis. If your server is down, the event is lost. There is no dashboard to see what was delivered, no way to replay a missed event without contacting support.",
-              },
-              {
-                type: "p",
-                text: "Tori logs every webhook delivery attempt with the full payload, response status, and timestamp. If a delivery fails, Tori retries on a schedule. If you need to replay a specific event, you call one endpoint. Every delivery is inspectable from the dashboard.",
-              },
-              {
-                type: "h2",
-                text: "Subscription states",
-                id: "states-comparison",
-              },
-              {
-                type: "p",
-                text: "Other payment processors subscriptions have two meaningful states: active and cancelled. There is no paused state, no dunning state, no suspended state. If a customer wants to pause their subscription, you have to cancel it and create a new one when they come back.",
-              },
-              {
-                type: "p",
-                text: "Tori has seven states enforced by a pure state machine: TRIALING, ACTIVE, PAST_DUE, DUNNING, PAUSED, SUSPENDED, and CANCELLED. Each transition is validated before it happens. A paused subscription can be resumed. A dunning subscription recovers automatically when a retry succeeds. A cancelled subscription is terminal. The state model reflects how subscriptions actually behave in the real world.",
-              },
-              {
-                type: "callout",
-                variant: "success",
-                text: "None of this means Other payment processors is bad. Other payment processors is excellent at what it does: moving money. Tori is built on top of Nomba's payment rails to handle the subscription lifecycle layer that payment processors do not provide. If you are building a recurring revenue business in Nigeria, you need both: a payment processor to move the money, and Tori to manage the relationship.",
-              },
+              { type: "table", headers: ["Object", "Represents", "Example"], rows: [
+                ["Plan", "Pricing template  amount, interval, trial", "₦15,000/month, 14-day trial"],
+                ["Customer", "A person or business that pays you", "amaka@startup.ng, linked to your user ID"],
+                ["Subscription", "The live billing relationship", "Amaka on Pro, currently ACTIVE"],
+              ]},
+              { type: "h2", text: "What Tori does not do", id: "what-not" },
+              { type: "p", text: "Tori is not a payment processor. Nomba moves the money. Tori is the orchestration layer  it decides when to charge, what to do when it fails, and how to record what happened. Think of Nomba as the engine and Tori as the transmission." },
             ],
           },
           {
-            id: "when-to-use",
-            label: "When to use Tori",
-            icon: "ti-target",
+            id: "nomba-integration", label: "Nomba integration", icon: "ti-credit-card",
             blocks: [
-              {
-                type: "p",
-                text: "Tori is the right choice when your business has recurring revenue relationships with customers, not just one-off payments. The signal is whether you think in terms of subscribers and churn rather than transactions and revenue.",
-              },
-              { type: "h2", text: "Use Tori if", id: "use-tori" },
-              {
-                type: "list",
-                items: [
-                  "You charge customers on a recurring schedule: monthly, annual, termly, or any other interval",
-                  "You need to handle payment failures intelligently without building retry logic yourself",
-                  "You want MRR, churn, and revenue metrics without building a reporting layer",
-                  "You need customers to be able to pause, resume, or cancel their own subscriptions",
-                  "You want an auditable financial record of every naira that has moved through your billing system",
-                  "You are building on Nomba's payment infrastructure and want the subscription layer to match",
-                ],
-              },
-              { type: "h2", text: "Do not use Tori if", id: "dont-use" },
-              {
-                type: "list",
-                items: [
-                  "You only need one-off payments with no recurring component",
-                  "You already have a mature billing system and are not looking to migrate",
-                  "Your billing intervals are so irregular that no subscription model fits (use direct charges instead)",
-                ],
-              },
-              {
-                type: "h2",
-                text: "Tori and Nomba together",
-                id: "tori-and-nomba",
-              },
-              {
-                type: "p",
-                text: "Tori does not replace Nomba. Nomba moves the money. Tori manages the subscription relationship and tells Nomba when to charge, how much, and for whom. Think of the stack as: your product talks to Tori, Tori talks to Nomba, Nomba moves the naira.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `Your product
-    |
-    | POST /v1/platform/checkout
-    v
-  Tori (subscription engine)
-    |
-    | ChargeToken request
-    v
-  Nomba (payment processor)
-    |
-    | Naira moves
-    v
-  Customer's bank account`,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "Integration Guides",
-        items: [
-          {
-            id: "guide-saas",
-            label: "SaaS: ClassPay walkthrough",
-            icon: "ti-building-store",
-            blocks: [
-              {
-                type: "p",
-                text: "This guide walks through a complete, real integration. The product is ClassPay, a Nigerian edtech platform that charges schools ₦25,000/month for Basic and ₦75,000/month for Pro. The backend is Laravel. The goal is recurring billing with zero custom billing logic.",
-              },
-              {
-                type: "p",
-                text: "The same pattern applies to any Nigerian SaaS, membership platform, creator tool, or API business. The product changes. The integration is identical every time.",
-              },
-              {
-                type: "h2",
-                text: "Step 1: Create your plans",
-                id: "guide-plans",
-              },
-              {
-                type: "p",
-                text: "Log into the Tori dashboard, go to Plans, and create one plan for each pricing tier. ClassPay creates two:",
-              },
-              {
-                type: "code",
-                lang: "json",
-                code: `// Basic plan
-{
-  "name": "Basic",
-  "amount": 2500000,
-  "interval": "monthly",
-  "trial_period_days": 14
-}
-
-// Pro plan
-{
-  "name": "Pro",
-  "amount": 7500000,
-  "interval": "monthly",
-  "trial_period_days": 14
-}`,
-              },
-              {
-                type: "p",
-                text: "Copy the plan IDs from the response and store them in your environment config alongside your API key and webhook secret:",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `TORI_API_KEY=tori_live_...
-TORI_PLAN_BASIC=plan_abc123...
-TORI_PLAN_PRO=plan_xyz456...
-TORI_WEBHOOK_SECRET=whsec_...`,
-              },
-              {
-                type: "h2",
-                text: "Step 2: Create your API key",
-                id: "guide-apikey",
-              },
-              {
-                type: "p",
-                text: "Go to API Keys in the dashboard, click Create key, name it something meaningful like Production server, and copy the key immediately. It is shown once. Store it in your secret manager or environment config. Never put it in client-side code.",
-              },
-              {
-                type: "h2",
-                text: "Step 3: Wire signup into Tori",
-                id: "guide-signup",
-              },
-              {
-                type: "p",
-                text: "When a school completes registration and picks a plan, your backend makes one call to Tori. Pass the school's email, the plan ID, and your own database ID as the external_id. Tori finds or creates the customer and starts the subscription automatically.",
-              },
-              {
-                type: "code",
-                lang: "php",
-                code: `// SchoolRegistrationController.php
-
-public function complete(Request $request)
-{
-    // Create the school in your own database
-    $school = School::create([
-        'name'  => $request->name,
-        'email' => $request->email,
-        'plan'  => $request->plan,
-    ]);
-
-    // Start their Tori subscription in one call
-    $planId = $request->plan === 'pro'
-        ? env('TORI_PLAN_PRO')
-        : env('TORI_PLAN_BASIC');
-
-    $response = Http::withHeaders([
-        'X-API-Key'    => env('TORI_API_KEY'),
-        'Content-Type' => 'application/json',
-    ])->post('https://api.tori.ng/v1/platform/checkout', [
-        'email'           => $school->email,
-        'plan_id'         => $planId,
-        'name'            => $school->name,
-        'external_id'     => (string) $school->id,
-        'idempotency_key' => 'signup_' . $school->id,
-    ]);
-
-    // Store Tori subscription ID for later reference
-    $school->update([
-        'tori_subscription_id' => $response['data']['subscription']['id'],
-    ]);
-
-    // Grant trial access
-    $school->update(['access' => 'trial']);
-
-    return redirect()->route('dashboard');
-}`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "The idempotency_key prevents duplicate subscriptions if your server retries the request due to a timeout. Use a value that is unique per signup attempt, such as your own user ID prefixed with the action name.",
-              },
-              {
-                type: "h2",
-                text: "Step 4: Listen for webhooks",
-                id: "guide-webhooks",
-              },
-              {
-                type: "p",
-                text: "Register your webhook URL in the Tori dashboard under Webhooks. Tori sends a signed POST request to your server every time a billing event happens. Your handler verifies the signature and updates your local state accordingly.",
-              },
-              {
-                type: "p",
-                text: "The key insight is that you never call Tori on every request to check subscription status. You store the state locally when Tori sends the webhook, and read from your own database on every request. Fast, no external dependency on the hot path.",
-              },
-              {
-                type: "code",
-                lang: "php",
-                code: `// ToriWebhookController.php
-
-public function handle(Request $request)
-{
-    // Always verify the signature first
-    $signature = $request->header('X-Tori-Signature');
-    $payload   = $request->getContent();
-    $expected  = 'sha256=' . hash_hmac(
-        'sha256',
-        $payload,
-        env('TORI_WEBHOOK_SECRET')
-    );
-
-    if (!hash_equals($expected, $signature)) {
-        return response('Invalid signature', 401);
-    }
-
-    $event  = $request->json()->all();
-    $school = School::where(
-        'tori_subscription_id',
-        $event['data']['id']
-    )->first();
-
-    if (!$school) {
-        return response('ok', 200);
-    }
-
-    switch ($event['event_type']) {
-
-        case 'subscription.activated':
-            // Trial ended, first payment succeeded
-            $school->update([
-                'access'              => 'full',
-                'subscription_status' => 'active',
-                'payment_warning'     => false,
-            ]);
-            break;
-
-        case 'payment.failed':
-            // Charge failed, Tori will retry
-            $school->update(['payment_warning' => true]);
-            break;
-
-        case 'dunning.started':
-            // Retries underway, soft restriction
-            $school->update(['access' => 'restricted']);
-            break;
-
-        case 'dunning.recovered':
-            // Retry succeeded, restore full access
-            $school->update([
-                'access'          => 'full',
-                'payment_warning' => false,
-            ]);
-            break;
-
-        case 'dunning.exhausted':
-            // All retries failed, suspend access
-            $school->update([
-                'access'              => 'suspended',
-                'subscription_status' => 'suspended',
-            ]);
-            break;
-
-        case 'subscription.cancelled':
-            $school->update([
-                'access'              => 'none',
-                'subscription_status' => 'cancelled',
-            ]);
-            break;
-
-        case 'subscription.paused':
-            $school->update(['access' => 'paused']);
-            break;
-
-        case 'subscription.resumed':
-            $school->update(['access' => 'full']);
-            break;
-    }
-
-    // Always return 200 immediately
-    // Do heavy work (emails, etc.) asynchronously
-    return response('ok', 200);
-}`,
-              },
-              {
-                type: "h2",
-                text: "Step 5: Access control",
-                id: "guide-access",
-              },
-              {
-                type: "p",
-                text: "Every route that requires an active subscription checks one field in your database. You stored it when the webhook arrived. No API call on the hot path.",
-              },
-              {
-                type: "code",
-                lang: "php",
-                code: `// Middleware: CheckSubscriptionAccess.php
-
-public function handle(Request $request, Closure $next)
-{
-    $school = auth()->user()->school;
-
-    match ($school->access) {
-        'suspended' => redirect()->route('billing.suspended'),
-        'none'      => redirect()->route('billing.cancelled'),
-        'restricted' => tap($next($request), function () {
-            session(['billing_warning' => true]);
-        }),
-        default     => $next($request),
-    };
-}`,
-              },
-              {
-                type: "h2",
-                text: "Step 6: Let customers manage their subscription",
-                id: "guide-selfserve",
-              },
-              {
-                type: "p",
-                text: "When a school admin wants to pause or cancel, your backend calls Tori. Tori fires the webhook. Your webhook handler updates local state. The school sees the change immediately on their next page load.",
-              },
-              {
-                type: "code",
-                lang: "php",
-                code: `// BillingController.php
-
-public function pause(Request $request)
-{
-    $school = auth()->user()->school;
-
-    Http::withHeaders(['X-API-Key' => env('TORI_API_KEY')])
-        ->post(
-            "https://api.tori.ng/v1/platform/subscriptions"
-            . "/{$school->tori_subscription_id}/pause"
-        );
-
-    // Tori fires subscription.paused
-    // Your webhook handler updates access to 'paused'
-    return back()->with('message', 'Subscription paused.');
-}
-
-public function cancel(Request $request)
-{
-    $school = auth()->user()->school;
-
-    Http::withHeaders(['X-API-Key' => env('TORI_API_KEY')])
-        ->post(
-            "https://api.tori.ng/v1/platform/subscriptions"
-            . "/{$school->tori_subscription_id}/cancel"
-        );
-
-    return back()->with('message', 'Subscription cancelled.');
-}`,
-              },
-              {
-                type: "h2",
-                text: "What Tori handles automatically from this point",
-                id: "guide-auto",
-              },
-              {
-                type: "list",
-                items: [
-                  "Charges the school every month via Nomba on the correct date with correct month-end handling",
-                  "When a charge fails, classifies the reason: blocked card stops immediately, insufficient funds retries on Day 3, 7, 14, and 21",
-                  "Fires webhooks to your server for every state change so ClassPay reacts without polling",
-                  "Writes every charge, refund, and adjustment to the immutable ledger",
-                  "Computes MRR, churn rate, and dunning recovery rate visible on your Tori dashboard",
-                  "Transitions the subscription through the full lifecycle: TRIALING to ACTIVE to DUNNING to SUSPENDED or back to ACTIVE on recovery",
-                ],
-              },
-              {
-                type: "h2",
-                text: "What you never had to build",
-                id: "guide-never",
-              },
-              {
-                type: "list",
-                items: [
-                  "No cron job for monthly charges",
-                  "No retry logic for failed payments",
-                  "No Nigerian card failure classification",
-                  "No dunning schedule or payday-aware retry timing",
-                  "No revenue reporting or MRR calculation",
-                  "No immutable ledger or audit trail",
-                  "No webhook delivery system",
-                ],
-              },
-              {
-                type: "callout",
-                variant: "success",
-                text: "You built ClassPay. Tori handled billing. The same four-step pattern (create plans, wire signup, handle webhooks, control access) works for any Nigerian product charging recurring revenue.",
-              },
-            ],
-          },
-          {
-            id: "guide-node",
-            label: "Node.js integration",
-            icon: "ti-brand-nodejs",
-            blocks: [
-              {
-                type: "p",
-                text: "The same integration pattern in Node.js with Express. One checkout call at signup, one webhook handler for all billing events.",
-              },
-              { type: "h2", text: "Signup", id: "node-signup" },
-              {
-                type: "code",
-                lang: "js",
-                code: `// routes/auth.js
-
-router.post('/register', async (req, res) => {
-  const { name, email, plan } = req.body;
-
-  // Create user in your database
-  const user = await db.users.create({ name, email, plan });
-
-  const planId = plan === 'pro'
-    ? process.env.TORI_PLAN_PRO
-    : process.env.TORI_PLAN_BASIC;
-
-  // Start subscription in one call
-  const toriRes = await fetch(
-    'https://api.tori.ng/v1/platform/checkout',
-    {
-      method: 'POST',
-      headers: {
-        'X-API-Key': process.env.TORI_API_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email,
-        plan_id: planId,
-        name,
-        external_id: String(user.id),
-        idempotency_key: \`signup_\${user.id}\`,
-      }),
-    }
-  );
-
-  const { data } = await toriRes.json();
-
-  await db.users.update(user.id, {
-    tori_subscription_id: data.subscription.id,
-    access: 'trial',
-  });
-
-  res.json({ success: true });
-});`,
-              },
-              { type: "h2", text: "Webhook handler", id: "node-webhooks" },
-              {
-                type: "code",
-                lang: "js",
-                code: `// routes/webhooks.js
-const crypto = require('crypto');
-
-router.post('/tori', express.raw({ type: 'application/json' }), async (req, res) => {
-  const signature = req.headers['x-tori-signature'];
-  const expected  = 'sha256=' + crypto
-    .createHmac('sha256', process.env.TORI_WEBHOOK_SECRET)
-    .update(req.body)
-    .digest('hex');
-
-  if (!crypto.timingSafeEqual(
-    Buffer.from(expected),
-    Buffer.from(signature)
-  )) {
-    return res.status(401).send('Invalid signature');
-  }
-
-  const event = JSON.parse(req.body);
-  const user  = await db.users.findBy({
-    tori_subscription_id: event.data.id
-  });
-
-  if (!user) return res.status(200).send('ok');
-
-  const accessMap = {
-    'subscription.activated': 'full',
-    'dunning.recovered':      'full',
-    'subscription.resumed':   'full',
-    'dunning.started':        'restricted',
-    'subscription.paused':    'paused',
-    'dunning.exhausted':      'suspended',
-    'subscription.cancelled': 'none',
-  };
-
-  if (accessMap[event.event_type]) {
-    await db.users.update(user.id, {
-      access: accessMap[event.event_type],
-    });
-  }
-
-  if (event.event_type === 'payment.failed') {
-    await db.users.update(user.id, { payment_warning: true });
-  }
-
-  // Always 200 immediately
-  res.status(200).send('ok');
-});`,
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "Pass the raw request body to the HMAC function, not the parsed JSON. Express parses the body before your handler runs. Use express.raw() on the webhook route specifically, or store the raw body in a middleware before parsing.",
-              },
-            ],
-          },
-          {
-            id: "guide-checklist",
-            label: "Integration checklist",
-            icon: "ti-checklist",
-            blocks: [
-              {
-                type: "p",
-                text: "Use this checklist before going live with a Tori integration.",
-              },
-              { type: "h2", text: "Setup", id: "checklist-setup" },
-              {
-                type: "list",
-                items: [
-                  "API key created from the dashboard and stored in secret manager, not in source code",
-                  "Webhook endpoint registered in the Tori dashboard with the correct URL",
-                  "Webhook secret stored in environment config",
-                  "Plan IDs stored in environment config",
-                  "Tori subscription ID stored against each user or account in your database",
-                ],
-              },
-              { type: "h2", text: "Signup flow", id: "checklist-signup" },
-              {
-                type: "list",
-                items: [
-                  "Checkout call made server-side, never from the browser",
-                  "Idempotency key passed on every checkout call",
-                  "external_id set to your own user or account ID",
-                  "Tori subscription ID saved to your database after checkout",
-                  "Initial access state set to trial if plan has a trial period",
-                ],
-              },
-              { type: "h2", text: "Webhook handler", id: "checklist-webhooks" },
-              {
-                type: "list",
-                items: [
-                  "Signature verified on every incoming webhook before processing",
-                  "Handler returns 200 immediately and processes events asynchronously",
-                  "Handler is idempotent: processing the same event twice produces the same result",
-                  "All relevant event types handled: activated, failed, dunning started, dunning recovered, dunning exhausted, paused, resumed, cancelled",
-                  "Local access state updated in your database on each event",
-                ],
-              },
-              { type: "h2", text: "Access control", id: "checklist-access" },
-              {
-                type: "list",
-                items: [
-                  "Subscription status read from your own database, not from Tori API on every request",
-                  "Suspended and cancelled states block access to paid features",
-                  "Restricted state shows a payment warning without fully blocking access",
-                  "Trial state shows remaining trial days",
-                ],
-              },
-              { type: "h2", text: "Before go-live", id: "checklist-golive" },
-              {
-                type: "list",
-                items: [
-                  "Test the full dunning flow using test cards in the sandbox",
-                  "Verify webhook signature verification rejects tampered payloads",
-                  "Confirm idempotency: calling checkout twice with the same key returns the same subscription",
-                  "Confirm access is suspended when dunning exhausted fires",
-                  "Confirm access is restored when dunning recovered fires",
-                  "Check that cancelled subscriptions cannot be reactivated",
-                ],
-              },
+              { type: "p", text: "Tori is built natively on three Nomba payment APIs. Understanding how they work together explains the full flow from signup to automatic recurring charge." },
+              { type: "h2", text: "The three Nomba APIs", id: "three-apis" },
+              { type: "table", headers: ["API", "Nomba endpoint", "When Tori uses it"], rows: [
+                ["Hosted checkout", "POST /v1/checkout/order", "Customer subscribes  creates Nomba payment page with tokenizeCard: true"],
+                ["Tokenised card charge", "POST /v1/checkout/tokenized-card-payment", "Every renewal and dunning retry  no customer action needed"],
+                ["Direct debit mandate", "POST /v1/direct-debits", "Alternative  bank account debit instead of card"],
+              ]},
+              { type: "h2", text: "Checkout and tokenisation flow", id: "checkout-flow" },
+              { type: "code", lang: "bash", code: `Step 1  POST /v1/platform/checkout → Tori creates Nomba checkout session
+Step 2  Tori returns checkout_url
+Step 3  You redirect customer to checkout_url immediately
+Step 4  Customer enters card on Nomba hosted page
+Step 5  Nomba fires payment_success webhook → Tori
+Step 6  Tori extracts tokenizedCardData.tokenKey
+Step 7  Tori stores tokenKey on subscription
+Step 8  Nomba redirects customer to your callback_url
+Step 9  Every future charge uses stored tokenKey automatically` },
+              { type: "callout", variant: "info", text: "Card data never touches Tori. Tori stores only the tokenKey reference. Card numbers and CVV are handled entirely by Nomba's PCI-compliant infrastructure." },
+              { type: "h2", text: "Inbound webhook verification", id: "nomba-webhook" },
+              { type: "code", lang: "bash", code: "Signed string: eventType:requestId:userId:walletId:transactionId:type:time:responseCode:timestamp\nAlgorithm: HMAC-SHA256 → base64 encode → compare with nomba-signature header" },
+              { type: "p", text: "Tori also deduplicates Nomba webhooks by requestId via Redis with a 24-hour TTL  preventing double-processing on Nomba retries." },
+              { type: "h2", text: "Nightly reconciliation", id: "reconciliation" },
+              { type: "table", headers: ["Outcome", "Meaning", "Action"], rows: [
+                ["matched", "Nomba transaction found in ledger, amounts agree", "All good"],
+                ["missing_in_ledger", "Nomba has the charge, no Tori ledger entry", "Review → create ADMIN_OVERRIDE entry"],
+                ["amount_mismatch", "Both exist but amounts differ", "Investigate conversion logic"],
+              ]},
             ],
           },
         ],
@@ -799,228 +92,86 @@ router.post('/tori', express.raw({ type: 'application/json' }), async (req, res)
         group: "Getting Started",
         items: [
           {
-            id: "keys",
-            label: "Obtain API keys",
-            icon: "ti-key",
+            id: "keys", label: "Obtain API keys", icon: "ti-key",
             blocks: [
-              {
-                type: "p",
-                text: "Every call to the Platform API must include your secret API key. This key is how Tori knows which account is making the request and which customers and plans belong to that account.",
-              },
-              {
-                type: "p",
-                text: "You receive your key automatically when you create a Tori account. It is shown exactly once on the screen immediately after signup. If you miss it, you will need to rotate the key and get a new one.",
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "Your API key is shown only once. Copy it into a password manager or secret storage system immediately. Tori stores only a hash of the key and cannot show it to you again. If you lose it, rotate it from the dashboard the old key stops working immediately.",
-              },
-              { type: "h2", text: "What the key looks like", id: "format" },
-              {
-                type: "p",
-                text: "Live keys always start with `tori_live_` followed by a UUID. This prefix makes it easy to identify and helps you avoid accidentally committing keys to source control.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: "tori_live_3f9a2c71-8b4e-4d2a-9c1f-7e5d8a0b6c34",
-              },
-              { type: "h2", text: "How to use it", id: "using" },
-              {
-                type: "p",
-                text: "Add your key to every Platform API request in the `X-API-Key` header. There is no OAuth flow, no token exchange just the key in the header, and the request authenticates.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `curl ${BASE}/v1/platform/plans \\\n  -H "X-API-Key: tori_live_..." \\\n  -H "Content-Type: application/json"`,
-              },
-              { type: "h2", text: "Keeping it secret", id: "secret" },
-              {
-                type: "p",
-                text: "Your API key should only exist in two places: your secret manager, and your backend server's environment variables. It should never be in your frontend code, your mobile app, a public GitHub repository, or sent to a user's browser. Anyone who has your key can create subscriptions, access customer data, and read your financial records.",
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "The dashboard uses a separate JWT-based authentication system precisely so your secret API key never has to touch a browser. The Platform API key is for your server. The dashboard is for your team.",
-              },
-              { type: "h2", text: "Rotating your key", id: "rotating" },
-              {
-                type: "p",
-                text: "If you suspect your key has been compromised, rotate it immediately from the dashboard under API Keys. When you rotate, Tori generates a new key and the old one stops working at that exact moment. Deploy the new key to your server before rotating if you want to avoid any downtime.",
-              },
+              { type: "p", text: "Every Platform API call requires your secret API key in the X-API-Key header. It is shown exactly once at creation." },
+              { type: "callout", variant: "warn", text: "Your API key is shown only once. Tori stores only a SHA-256 hash. If you lose it, rotate it from the dashboard  the old key stops working immediately." },
+              { type: "h2", text: "Key format", id: "format" },
+              { type: "code", lang: "bash", code: "tori_live_a5eac054adef09a31a7d823d6e71b1245deffa7eb5c8a51c765e7678e9d578c0" },
+              { type: "h2", text: "Usage", id: "using" },
+              { type: "code", lang: "bash", code: `curl ${BASE}/v1/platform/plans \\
+  -H "X-API-Key: tori_live_..." \\
+  -H "Content-Type: application/json"` },
+              { type: "h2", text: "Where to store it", id: "secret" },
+              { type: "list", items: [
+                "Server environment variables (process.env.TORI_API_KEY)",
+                "Secret manager (AWS Secrets Manager, HashiCorp Vault, Railway secrets)",
+                "Never in source code, never in frontend/mobile code",
+              ]},
             ],
           },
           {
-            id: "auth",
-            label: "Authenticate",
-            icon: "ti-lock",
+            id: "auth", label: "Authentication", icon: "ti-lock",
             blocks: [
-              {
-                type: "p",
-                text: "Tori has two separate authentication systems. They exist for different purposes and you will use both one for your server code, one for your team's dashboard access.",
-              },
-              {
-                type: "h2",
-                text: "Platform API for your server",
-                id: "platform-auth",
-              },
-              {
-                type: "p",
-                text: "Your backend code uses the secret API key in the `X-API-Key` header. This is the authentication method for creating customers, starting subscriptions, and reading billing data programmatically. It is a simple, stateless header no sessions, no tokens, no expiry.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `curl ${BASE}/v1/platform/subscriptions \\\n  -H "X-API-Key: tori_live_..." \\\n  -d '{ "customer_id": "cus_...", "plan_id": "plan_..." }'`,
-              },
-              {
-                type: "h2",
-                text: "Dashboard API for your team",
-                id: "dashboard-auth",
-              },
-              {
-                type: "p",
-                text: "When you log into the Tori dashboard, you receive a short-lived JWT access token. This token is used for dashboard API calls viewing subscriptions, reading metrics, managing webhooks. It expires after 15 minutes, at which point it is exchanged for a new one using the refresh token.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `POST ${BASE}/v1/auth/login\n{ "email": "you@business.ng", "password": "your-password" }\n\n# Response\n{\n  "data": {\n    "access_token": "eyJ...",\n    "refresh_token": "eyJ...",\n    "token_type": "Bearer"\n  }\n}`,
-              },
-              {
-                type: "p",
-                text: "Pass the access token in the `Authorization: Bearer` header on dashboard API calls.",
-              },
-              {
-                type: "table",
-                headers: ["Auth method", "Header", "Where to use", "Expires"],
-                rows: [
-                  [
-                    "API key",
-                    "X-API-Key: tori_live_...",
-                    "Your server backend",
-                    "Never (until rotated)",
-                  ],
-                  [
-                    "JWT access token",
-                    "Authorization: Bearer eyJ...",
-                    "Dashboard API calls",
-                    "15 minutes",
-                  ],
-                  [
-                    "Refresh token",
-                    "POST /v1/auth/refresh",
-                    "Get a new access token",
-                    "7 days",
-                  ],
-                ],
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "Never use the JWT access token from your server code, and never put the secret API key in browser code. The separation exists deliberately your API key has full account access and must stay server-side only.",
-              },
+              { type: "p", text: "Tori has two authentication systems for two distinct purposes." },
+              { type: "table", headers: ["Method", "Header", "Use", "Expires"], rows: [
+                ["API key", "X-API-Key: tori_live_...", "Platform API  your server", "Never until rotated"],
+                ["JWT access token", "Authorization: Bearer eyJ...", "Dashboard API", "15 minutes"],
+                ["Refresh token", "POST /v1/auth/refresh body", "Get new access token", "7 days"],
+                ["Portal token", "?token=eyJ... query param", "Customer self-service portal", "1 hour"],
+              ]},
+              { type: "h2", text: "Platform API", id: "platform-auth" },
+              { type: "code", lang: "bash", code: `curl ${BASE}/v1/platform/checkout \\
+  -H "X-API-Key: tori_live_..." \\
+  -H "Content-Type: application/json" \\
+  -d '{ "email": "amaka@startup.ng", "plan_id": "plan_..." }'` },
+              { type: "h2", text: "Dashboard JWT", id: "dashboard-auth" },
+              { type: "code", lang: "bash", code: `POST ${BASE}/v1/auth/login
+{ "email": "ops@classpay.ng", "password": "yourpassword" }
+
+# Response
+{ "data": { "access_token": "eyJ...", "refresh_token": "eyJ...", "token_type": "Bearer" } }
+
+# Then use on dashboard calls:
+Authorization: Bearer eyJ...` },
+              { type: "callout", variant: "warn", text: "Never use the JWT in server code, never put the API key in browser code. Your API key has full account access  keep it server-side only." },
             ],
           },
           {
-            id: "first",
-            label: "First integration",
-            icon: "ti-rocket",
+            id: "first", label: "Quick start", icon: "ti-rocket",
             blocks: [
-              {
-                type: "p",
-                text: "This page walks through the complete happy path from nothing to a live, billing subscription with every request and response shown. Follow these steps in order and you will have working recurring billing in under an hour.",
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "All amounts in Tori are in kobo the smallest unit of the Naira. ₦15,000 is 1500000 kobo. This eliminates floating point errors in financial calculations. Always send and receive amounts in kobo.",
-              },
-              { type: "h2", text: "Step 1 Create a plan", id: "step-1" },
-              {
-                type: "p",
-                text: "A plan defines what you charge and how often. Create one plan for each pricing tier you offer. Plans are reusable one plan can have thousands of subscribers.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `curl ${BASE}/v1/platform/plans \\\n  -H "X-API-Key: tori_live_..." \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "name": "Pro",\n    "amount": 1500000,\n    "interval": "monthly",\n    "trial_period_days": 14\n  }'`,
-              },
-              {
-                type: "code",
-                lang: "json",
-                code: `{\n  "data": {\n    "id": "plan_8f3a2c71-...",\n    "name": "Pro",\n    "amount": 1500000,\n    "currency": "NGN",\n    "interval": "monthly",\n    "interval_count": 1,\n    "trial_period_days": 14,\n    "is_active": true\n  }\n}`,
-              },
-              {
-                type: "p",
-                text: "Save the `id` from the response. You will use it when creating subscriptions.",
-              },
-              { type: "h2", text: "Step 2 Create a customer", id: "step-2" },
-              {
-                type: "p",
-                text: "When a user signs up on your product, create a matching customer in Tori. The `external_id` field is your own identifier for this user typically your database user ID. Tori keeps it so you can always find the right customer without storing Tori's IDs in your database.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `curl ${BASE}/v1/platform/customers \\\n  -H "X-API-Key: tori_live_..." \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "email": "amaka@startup.ng",\n    "name": "Amaka Obi",\n    "external_id": "user_12345"\n  }'`,
-              },
-              {
-                type: "code",
-                lang: "json",
-                code: `{\n  "data": {\n    "id": "cus_9b4e7d21-...",\n    "email": "amaka@startup.ng",\n    "name": "Amaka Obi",\n    "external_id": "user_12345"\n  }\n}`,
-              },
-              { type: "h2", text: "Step 3 Start a subscription", id: "step-3" },
-              {
-                type: "p",
-                text: "Link the customer to the plan. This single call starts the billing relationship. If the plan has a trial period, the subscription starts in TRIALING state and no charge is attempted until the trial ends. If there is no trial, the subscription starts ACTIVE and the first charge happens immediately.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `curl ${BASE}/v1/platform/subscriptions \\\n  -H "X-API-Key: tori_live_..." \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "customer_id": "cus_9b4e7d21-...",\n    "plan_id": "plan_8f3a2c71-...",\n    "idempotency_key": "signup_user_12345"\n  }'`,
-              },
-              {
-                type: "code",
-                lang: "json",
-                code: `{\n  "data": {\n    "id": "sub_2b71c4e9-...",\n    "status": "TRIALING",\n    "current_period_start": "2026-06-20T00:00:00Z",\n    "current_period_end": "2026-07-04T00:00:00Z"\n  }\n}`,
-              },
-              {
-                type: "callout",
-                variant: "success",
-                text: "That is the complete setup. Tori now manages this customer's billing indefinitely. The next charge attempts automatically when the trial ends. You do not need to do anything else unless you want to cancel, pause, or change the subscription.",
-              },
-              { type: "h2", text: "Step 4 Listen for webhooks", id: "step-4" },
-              {
-                type: "p",
-                text: "Register a webhook endpoint so Tori can notify your product when billing events happen. Your product listens for these events and reacts for example, by unlocking access when a subscription activates, or restricting access when a payment fails.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `curl ${BASE}/v1/webhooks/endpoints \\\n  -H "Authorization: Bearer eyJ..." \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "url": "https://yourapp.ng/webhooks/tori",\n    "events": ["*"]\n  }'`,
-              },
-              {
-                type: "p",
-                text: "The response includes a `secret`. Save it immediately it is never shown again. You use it to verify that webhook deliveries are genuinely from Tori and not from a third party.",
-              },
-              {
-                type: "h2",
-                text: "Step 5 React to events in your product",
-                id: "step-5",
-              },
-              {
-                type: "p",
-                text: "Your webhook handler receives events and updates your product accordingly. Here is what a minimal handler looks like:",
-              },
-              {
-                type: "code",
-                lang: "js",
-                code: `app.post('/webhooks/tori', (req, res) => {\n  // Always verify the signature first\n  const sig = req.headers['tori-signature'];\n  if (!verifySignature(req.body, sig, process.env.TORI_WEBHOOK_SECRET)) {\n    return res.status(401).send('Invalid signature');\n  }\n\n  const event = req.body;\n\n  switch (event.type) {\n    case 'subscription.activated':\n      // Unlock full access for this customer\n      await db.users.update({ toriCustomerId: event.customer_id }, { access: 'full' });\n      break;\n\n    case 'payment.failed':\n      // Show payment warning, restrict some features\n      await db.users.update({ toriCustomerId: event.customer_id }, { access: 'restricted' });\n      break;\n\n    case 'dunning.recovered':\n      // Payment came through on a retry restore access\n      await db.users.update({ toriCustomerId: event.customer_id }, { access: 'full' });\n      break;\n\n    case 'subscription.cancelled':\n      // Customer cancelled offboard gracefully\n      await offboardCustomer(event.customer_id);\n      break;\n  }\n\n  // Always respond 200 quickly, do work asynchronously\n  res.status(200).send('ok');\n});`,
-              },
+              { type: "p", text: "From zero to a live recurring subscription in four steps." },
+              { type: "callout", variant: "info", text: "All amounts are in kobo  the smallest Naira unit. ₦15,000 = 1500000 kobo. No decimal amounts anywhere in the API." },
+              { type: "h2", text: "1  Create a plan", id: "step-1" },
+              { type: "code", lang: "bash", code: `curl ${BASE}/v1/platform/plans -H "X-API-Key: tori_live_..." \\
+  -d '{ "name": "Pro", "amount": 1500000, "interval": "monthly", "trial_period_days": 14 }'` },
+              { type: "h2", text: "2  Start a subscription", id: "step-2" },
+              { type: "p", text: "The checkout endpoint finds or creates the customer by email and starts the subscription in one call. Always redirect the customer to checkout_url immediately  even during a free trial  so their card is tokenised now." },
+              { type: "code", lang: "bash", code: `curl ${BASE}/v1/platform/checkout -H "X-API-Key: tori_live_..." \\
+  -d '{ "email": "amaka@startup.ng", "plan_id": "plan_...",
+        "external_id": "user_123", "idempotency_key": "signup_user_123",
+        "callback_url": "https://yourapp.ng/payment/success" }'` },
+              { type: "h2", text: "3  Register a webhook endpoint", id: "step-3" },
+              { type: "code", lang: "bash", code: `curl ${BASE}/v1/webhooks/endpoints -H "Authorization: Bearer eyJ..." \\
+  -d '{ "url": "https://yourapp.ng/webhooks/tori", "events": ["*"] }'` },
+              { type: "h2", text: "4  Handle billing events", id: "step-4" },
+              { type: "code", lang: "js", code: `app.post('/webhooks/tori', (req, res) => {
+  const sig = req.headers['x-tori-signature'];
+  const expected = 'sha256=' + crypto.createHmac('sha256', process.env.TORI_WEBHOOK_SECRET)
+    .update(req.body).digest('hex');
+  if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig)))
+    return res.status(401).send('Invalid signature');
+
+  const { event_type, data } = JSON.parse(req.body);
+  switch (event_type) {
+    case 'subscription.activated': grantAccess(data.customer_id); break;
+    case 'dunning.exhausted':      revokeAccess(data.customer_id); break;
+    case 'dunning.recovered':      grantAccess(data.customer_id); break;
+    case 'subscription.cancelled': offboard(data.customer_id); break;
+  }
+  res.status(200).send('ok'); // always 200 immediately
+});` },
+              { type: "callout", variant: "success", text: "That is the complete integration. Tori manages this customer's billing indefinitely  charging, retrying on payday windows, reconciling with Nomba, and notifying your product via webhooks." },
             ],
           },
         ],
@@ -1029,1101 +180,242 @@ router.post('/tori', express.raw({ type: 'application/json' }), async (req, res)
         group: "Core Concepts",
         items: [
           {
-            id: "plans",
-            label: "Plans & pricing",
-            icon: "ti-file-text",
+            id: "plans", label: "Plans", icon: "ti-file-text",
             blocks: [
-              {
-                type: "p",
-                text: "A plan is a pricing template. It defines three things: how much you charge, how often you charge it, and whether new subscribers get a free trial. Plans are reusable you create a plan once and any number of customers can subscribe to it.",
-              },
-              {
-                type: "p",
-                text: "Plans are separate from subscriptions deliberately. If you change the price on a plan, existing subscribers are not affected they stay on what they signed up for. New subscribers get the new price. This is the correct behaviour for subscription businesses: you honour the price your customer agreed to.",
-              },
+              { type: "p", text: "A plan is a pricing template. Create it once  any number of customers can subscribe. Changing a plan's price only affects new subscribers; existing ones keep their original price." },
               { type: "h2", text: "Billing intervals", id: "intervals" },
-              {
-                type: "p",
-                text: "Tori supports three billing intervals. Monthly and annual are self-explanatory. Custom is for anything else school fees charged every 120 days, quarterly retainers, bimonthly memberships.",
-              },
-              {
-                type: "table",
-                headers: [
-                  "Interval",
-                  "When the customer is charged",
-                  "When to use it",
-                ],
-                rows: [
-                  [
-                    "monthly",
-                    "Once per calendar month",
-                    "Most SaaS products, memberships, subscriptions",
-                  ],
-                  [
-                    "annual",
-                    "Once per year",
-                    "Annual plans with a discount vs monthly",
-                  ],
-                  [
-                    "custom",
-                    "Every N days you specify",
-                    "Termly fees, quarterly billing, non-standard cycles",
-                  ],
-                ],
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Month-end billing is handled correctly. A subscription that starts on January 31 renews on February 28 (or 29 in a leap year), then March 31. It never skips a month or drift to an earlier date over time. This is a surprisingly common bug in custom billing implementations.",
-              },
+              { type: "table", headers: ["Interval", "When charged", "Use case"], rows: [
+                ["monthly", "Once per calendar month with correct month-end handling", "SaaS, memberships"],
+                ["annual", "Once per year", "Annual plans"],
+                ["custom", "Every N days you specify", "Termly fees, quarterly billing"],
+              ]},
+              { type: "callout", variant: "info", text: "Month-end billing is handled correctly. A subscription starting January 31 renews on February 28 (or 29 in a leap year), then March 31. It never drifts or skips a month." },
               { type: "h2", text: "Trial periods", id: "trials" },
-              {
-                type: "p",
-                text: "Set `trial_period_days` to give new subscribers a free trial. During the trial, the subscription is in `TRIALING` state and no charge is attempted. When the trial ends, Tori automatically transitions the subscription to `ACTIVE` and runs the first charge.",
-              },
-              {
-                type: "p",
-                text: "Trial boundaries are recorded in the ledger as `TRIAL_START` and `TRIAL_END` entries, so your reporting clearly shows which revenue came from converted trials.",
-              },
-              { type: "h2", text: "Full plan object", id: "object" },
-              {
-                type: "code",
-                lang: "json",
-                code: `{\n  "id": "plan_8f3a2c71-...",\n  "name": "Pro",\n  "amount": 1500000,\n  "currency": "NGN",\n  "interval": "monthly",\n  "interval_count": 1,\n  "trial_period_days": 14,\n  "is_active": true,\n  "created_at": "2026-06-01T00:00:00Z"\n}`,
-              },
-              { type: "h2", text: "Deactivating a plan", id: "deactivate" },
-              {
-                type: "p",
-                text: "Deactivating a plan stops new subscriptions from using it. Existing subscribers on that plan keep billing normally deactivation does not cancel any subscriptions. Use this when you retire an old pricing tier.",
-              },
+              { type: "p", text: "Set trial_period_days to give new subscribers a free trial. When the trial ends, Tori automatically charges the stored tokenKey. If it succeeds → ACTIVE. If it fails → GRACE_PERIOD." },
+              { type: "callout", variant: "warn", text: "Always redirect to checkout_url immediately at signup  even during a free trial. This tokenises the card now so Tori can charge automatically at trial end. Without a tokenKey at trial end, the subscription moves to PAST_DUE." },
             ],
           },
           {
-            id: "subs",
-            label: "Subscriptions",
-            icon: "ti-refresh",
+            id: "subs", label: "Subscriptions", icon: "ti-refresh",
             blocks: [
-              {
-                type: "p",
-                text: "A subscription is the live billing relationship between one customer and one plan. It is the central object in Tori everything else exists to support it. A subscription has a status that changes over time based on payment outcomes and deliberate actions.",
-              },
-              {
-                type: "h2",
-                text: "The subscription lifecycle",
-                id: "lifecycle",
-              },
-              {
-                type: "p",
-                text: "When you create a subscription, it starts in one of two states depending on whether the plan has a trial: `TRIALING` if there is a trial period, `ACTIVE` immediately if not. From there, the status changes automatically based on what happens with payments, or deliberately when you or the customer takes an action.",
-              },
-              { type: "h2", text: "Reading a subscription", id: "reading" },
-              {
-                type: "code",
-                lang: "json",
-                code: `{\n  "id": "sub_2b71c4e9-...",\n  "customer_id": "cus_9b4e7d21-...",\n  "plan_id": "plan_8f3a2c71-...",\n  "status": "DUNNING",\n  "current_period_start": "2026-06-01T00:00:00Z",\n  "current_period_end": "2026-07-01T00:00:00Z",\n  "dunning_attempt": 2,\n  "next_retry_at": "2026-06-27T00:00:00Z"\n}`,
-              },
-              {
-                type: "p",
-                text: "`dunning_attempt` tells you how many retries have been made on the current failed cycle. If it is 0, the subscription is current. If it is greater than 0, a payment failed and retries are in progress. `next_retry_at` tells you when the next retry will be attempted.",
-              },
-              {
-                type: "h2",
-                text: "Taking actions on a subscription",
-                id: "actions",
-              },
-              {
-                type: "p",
-                text: "You can take three deliberate actions on a subscription: pause, resume, or cancel. Each is a simple POST request.",
-              },
-              {
-                type: "table",
-                headers: ["Action", "What it does", "Can it be undone?"],
-                rows: [
-                  [
-                    "Pause",
-                    "Stops billing temporarily. The subscription record is kept. The customer retains access if your product allows it.",
-                    "Yes resume restarts billing",
-                  ],
-                  [
-                    "Resume",
-                    "Restarts billing from a paused state. The next charge happens on the next normal billing cycle.",
-                    "N/A",
-                  ],
-                  [
-                    "Cancel",
-                    "Permanently ends the subscription. No more charges. The record remains for auditing.",
-                    "No cancellation is final",
-                  ],
-                ],
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "Cancellation is permanent and enforced at the state machine level. A cancelled subscription cannot be reactivated. If a customer wants to come back after cancelling, create a new subscription for them. This prevents accidental reactivations and keeps your billing history clean.",
-              },
-              { type: "h2", text: "Idempotent creation", id: "idempotent" },
-              {
-                type: "p",
-                text: "Always pass an `idempotency_key` when creating subscriptions. If your server retries the request due to a network timeout, the same key returns the original subscription instead of creating a duplicate. Use something unique per signup attempt for example, your own user ID combined with the plan ID.",
-              },
-              {
-                type: "code",
-                lang: "json",
-                code: `{\n  "customer_id": "cus_...",\n  "plan_id": "plan_...",\n  "idempotency_key": "sub_user_12345_pro_plan"\n}`,
-              },
+              { type: "p", text: "A subscription is the live billing relationship between one customer and one plan. It is the central object in Tori  everything else exists to support it." },
+              { type: "h2", text: "The eight states", id: "eight-states" },
+              { type: "table", headers: ["State", "Meaning", "Billing?"], rows: [
+                ["TRIALING", "Free trial. No charge attempted. Customer must complete checkout to store card.", "No"],
+                ["ACTIVE", "Healthy. Customer charged on each cycle.", "Yes"],
+                ["GRACE_PERIOD", "First charge failed. Silent 48-hour retry before dunning. No customer disruption.", "Retrying"],
+                ["PAST_DUE", "Grace retry failed or trial ended with no card. Dunning schedule begins.", "Retrying"],
+                ["DUNNING", "Retrying on payday schedule: Day 3, 7, 14, 21.", "Retrying"],
+                ["PAUSED", "Billing deliberately suspended.", "No"],
+                ["SUSPENDED", "All retries exhausted. Payment never recovered.", "No"],
+                ["CANCELLED", "Permanently ended. Terminal  no further transitions.", "No"],
+              ]},
+              { type: "h2", text: "State transitions", id: "transitions" },
+              { type: "table", headers: ["From", "Trigger", "To"], rows: [
+                ["TRIALING", "Trial ends, charge succeeds", "ACTIVE"],
+                ["TRIALING", "Trial ends, no tokenKey stored", "PAST_DUE"],
+                ["TRIALING", "Trial ends, charge fails", "GRACE_PERIOD"],
+                ["ACTIVE", "Renewal charge fails", "GRACE_PERIOD"],
+                ["GRACE_PERIOD", "48-hour retry succeeds", "ACTIVE"],
+                ["GRACE_PERIOD", "48-hour retry fails", "PAST_DUE"],
+                ["PAST_DUE", "Retry succeeds", "ACTIVE"],
+                ["PAST_DUE", "Permanent failure", "SUSPENDED"],
+                ["DUNNING", "Retry succeeds", "ACTIVE"],
+                ["DUNNING", "All 4 retries exhausted", "SUSPENDED"],
+                ["ACTIVE", "POST /pause", "PAUSED"],
+                ["PAUSED", "POST /resume", "ACTIVE"],
+                ["Any except CANCELLED", "POST /cancel", "CANCELLED"],
+              ]},
+              { type: "callout", variant: "success", text: "The state machine is validated by 28 unit tests. Every transition is checked before execution. You can never end up in an inconsistent state." },
             ],
           },
           {
-            id: "states",
-            label: "The state machine",
-            icon: "ti-arrows-shuffle",
+            id: "dunning", label: "Dunning & retries", icon: "ti-clock",
             blocks: [
-              {
-                type: "p",
-                text: "Every subscription is always in exactly one of seven states. Tori enforces this with a pure state machine before any status change happens, the machine checks whether that transition is valid. If it is not, the request returns an error and nothing changes. This makes the system predictable: you can never end up in an impossible or inconsistent state.",
-              },
-              { type: "h2", text: "The seven states", id: "seven-states" },
-              {
-                type: "table",
-                headers: ["State", "What it means", "Billing happening?"],
-                rows: [
-                  [
-                    "TRIALING",
-                    "The customer is in a free trial. No charge has been attempted yet.",
-                    "No",
-                  ],
-                  [
-                    "ACTIVE",
-                    "The subscription is healthy. The customer is being charged on each cycle.",
-                    "Yes",
-                  ],
-                  [
-                    "PAST_DUE",
-                    "A charge failed. The subscription is in a short grace period before dunning begins.",
-                    "Paused",
-                  ],
-                  [
-                    "DUNNING",
-                    "Tori is actively retrying a failed payment on a schedule.",
-                    "Retrying",
-                  ],
-                  [
-                    "PAUSED",
-                    "Billing has been deliberately suspended by you or the customer.",
-                    "No",
-                  ],
-                  [
-                    "SUSPENDED",
-                    "All dunning retries were exhausted and the payment was never recovered.",
-                    "No",
-                  ],
-                  [
-                    "CANCELLED",
-                    "The subscription has been permanently ended.",
-                    "No",
-                  ],
-                ],
-              },
-              { type: "h2", text: "How states change", id: "transitions" },
-              {
-                type: "p",
-                text: "Most state changes happen automatically based on payment outcomes. A few are triggered by deliberate actions.",
-              },
-              {
-                type: "table",
-                headers: [
-                  "From state",
-                  "What triggers the change",
-                  "New state",
-                ],
-                rows: [
-                  ["TRIALING", "Trial period ends", "ACTIVE"],
-                  ["ACTIVE", "A charge fails", "PAST_DUE"],
-                  ["PAST_DUE", "Grace period ends", "DUNNING"],
-                  ["DUNNING", "A retry succeeds", "ACTIVE"],
-                  ["DUNNING", "All retries exhausted", "SUSPENDED"],
-                  ["ACTIVE", "You or customer calls /pause", "PAUSED"],
-                  ["PAUSED", "You or customer calls /resume", "ACTIVE"],
-                  [
-                    "Any (except CANCELLED)",
-                    "You or customer calls /cancel",
-                    "CANCELLED",
-                  ],
-                ],
-              },
-              {
-                type: "callout",
-                variant: "success",
-                text: "Because the state machine validates every transition, you will never accidentally charge a cancelled subscription, resume a subscription that was never paused, or end up in a state that does not make logical sense. The 28 unit tests covering the state machine ensure this behaviour is correct.",
-              },
-              {
-                type: "h2",
-                text: "What to do in your product for each state",
-                id: "product-states",
-              },
-              {
-                type: "table",
-                headers: ["State", "Recommended product behaviour"],
-                rows: [
-                  ["TRIALING", "Full access. Show how many trial days remain."],
-                  ["ACTIVE", "Full access. Nothing special needed."],
-                  [
-                    "PAST_DUE",
-                    "Full access or soft restriction. Show a gentle payment warning.",
-                  ],
-                  [
-                    "DUNNING",
-                    "Restricted access. Show a clear payment failure message with a way to update the card.",
-                  ],
-                  [
-                    "PAUSED",
-                    "Restricted or suspended access depending on your product.",
-                  ],
-                  [
-                    "SUSPENDED",
-                    "Suspend access. Offer the customer a way to restart their subscription.",
-                  ],
-                  [
-                    "CANCELLED",
-                    "Revoke access. Offer a way to create a new subscription if they want to return.",
-                  ],
-                ],
-              },
+              { type: "p", text: "Dunning is how Tori recovers failed payments. It classifies every failure, decides whether to retry, and schedules retries at the right times for the Nigerian market." },
+              { type: "h2", text: "The GRACE_PERIOD", id: "grace" },
+              { type: "p", text: "When a renewal charge fails on an ACTIVE subscription, Tori enters a 48-hour GRACE_PERIOD. A silent retry fires at the 48-hour mark. No webhook fires. No customer disruption. This handles the most common Nigerian failure: a card with temporary insufficient funds that clears within 48 hours without any customer action." },
+              { type: "h2", text: "Failure classification", id: "classification" },
+              { type: "table", headers: ["Nomba code", "Type", "Classification", "Action"], rows: [
+                ["51", "insufficient_funds", "RETRIABLE", "Retry on payday schedule"],
+                ["91, 96", "issuer_unavailable", "RETRIABLE", "Retry after backoff"],
+                ["68", "timeout", "RETRIABLE", "Retry after short delay"],
+                ["06, 12, 34", "processing_error", "RETRIABLE", "Retry after backoff"],
+                ["54", "card_expired", "PERMANENT", "Stop immediately"],
+                ["62, 57, 36", "card_blocked", "PERMANENT", "Stop immediately"],
+                ["41, 43", "stolen_card", "PERMANENT", "Stop immediately"],
+              ]},
+              { type: "h2", text: "Payday retry schedule", id: "retry-schedule" },
+              { type: "table", headers: ["Attempt", "Timing", "Why"], rows: [
+                ["Grace retry", "48 hours after failure", "Silent window  most common failures clear here"],
+                ["Attempt 1", "Day 3", "Early retry  catches bank outages"],
+                ["Attempt 2", "Day 7", "Covers weekly salary cycles"],
+                ["Attempt 3", "Day 14", "Covers biweekly cycles"],
+                ["Attempt 4", "Day 21", "Final attempt  covers late-month salaries"],
+              ]},
             ],
           },
           {
-            id: "dunning",
-            label: "Dunning & retries",
-            icon: "ti-clock",
+            id: "ledger", label: "The ledger", icon: "ti-book",
             blocks: [
-              {
-                type: "p",
-                text: "Dunning is the process of recovering failed payments. When a subscription charge fails, Tori does not immediately give up. It classifies the failure, decides whether retrying makes sense, and schedules retries at the right times.",
-              },
-              {
-                type: "p",
-                text: "This matters enormously in Nigeria. A significant percentage of recurring payment failures are not because the customer cannot or will not pay. Cards get blocked for online transactions. Banks have outages. Salaries arrive on the 25th. A naive billing system that retries immediately and then gives up loses all of that recoverable revenue.",
-              },
-              {
-                type: "h2",
-                text: "How failure classification works",
-                id: "classification",
-              },
-              {
-                type: "p",
-                text: "When a charge fails, Tori reads the failure code returned by Nomba and classifies it as either retriable or permanent.",
-              },
-              {
-                type: "table",
-                headers: ["Failure type", "Examples", "What Tori does"],
-                rows: [
-                  [
-                    "Retriable",
-                    "insufficient_funds, issuer_unavailable, transaction_timeout",
-                    "Schedules a retry according to the dunning schedule",
-                  ],
-                  [
-                    "Permanent",
-                    "card_expired, card_blocked, do_not_honour",
-                    "Stops retrying immediately and moves to notifying the customer",
-                  ],
-                ],
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Nigerian-specific: many cards are issued with online transactions blocked by default. The bank returns a code that looks like a temporary failure but will never succeed. Tori treats these as permanent so you do not burn four retry slots and four Nomba transaction fees on a charge that has no chance of going through.",
-              },
-              { type: "h2", text: "The retry schedule", id: "retry-schedule" },
-              {
-                type: "p",
-                text: "For retriable failures, Tori spaces retries to maximise recovery. The default schedule retries on Day 3, Day 7, Day 14, and Day 21 after the first failure. This spacing is deliberate it covers multiple payday windows for customers paid weekly, biweekly, or at month-end.",
-              },
-              {
-                type: "table",
-                headers: [
-                  "Attempt",
-                  "Days after first failure",
-                  "Why this timing",
-                ],
-                rows: [
-                  [
-                    "Attempt 1",
-                    "Day 3",
-                    "Early retry catches short-term issues like temporary bank outages",
-                  ],
-                  ["Attempt 2", "Day 7", "Covers customers paid weekly"],
-                  ["Attempt 3", "Day 14", "Covers biweekly salary cycles"],
-                  [
-                    "Attempt 4",
-                    "Day 21",
-                    "Final attempt before suspension, covers late-month salaries",
-                  ],
-                ],
-              },
-              {
-                type: "p",
-                text: "After the fourth attempt, if the payment has still not succeeded, the subscription moves to `SUSPENDED`. The customer retains their data but loses access until they update their payment method and restart the subscription.",
-              },
-              {
-                type: "h2",
-                text: "What dunning recovery means in money",
-                id: "money",
-              },
-              {
-                type: "p",
-                text: "If your product has 500 active subscribers at ₦10,000/month, and 8% of charges fail in a given month, that is ₦400,000 at risk. Without intelligent dunning, much of that is lost. With Tori's payday-aware retry schedule and Nigerian failure classification, a substantial share of those failures resolve on their own often because funds simply became available after payday.",
-              },
-              { type: "h2", text: "Dunning configuration", id: "config" },
-              {
-                type: "p",
-                text: "The dunning schedule, maximum retry count, and what happens after retries are exhausted (suspend vs cancel) are all configurable per tenant in your settings. You can also configure whether Tori sends email notifications to the customer or just to you when dunning starts.",
-              },
-            ],
-          },
-          {
-            id: "ledger",
-            label: "The ledger",
-            icon: "ti-book",
-            blocks: [
-              {
-                type: "p",
-                text: "The Tori ledger is an append-only record of every financial event in your billing account. Every charge, refund, credit, proration, and adjustment writes one immutable row. Nothing is ever edited or deleted.",
-              },
-              {
-                type: "p",
-                text: "This is not an accounting approximation. It is the authoritative source of truth for every naira that has ever moved through your billing system. Your MRR, churn, and revenue numbers are computed directly from this ledger.",
-              },
-              { type: "h2", text: "Why append-only matters", id: "why" },
-              {
-                type: "p",
-                text: "Most billing systems store a balance or a summary that gets updated whenever something changes. The problem is that if a bug causes a wrong update, you have no way to know what the correct number should be the history is gone. The Tori ledger never updates existing rows. Every correction writes a new row. This means you can always reconstruct the full history of how any number was arrived at.",
-              },
-              {
-                type: "callout",
-                variant: "success",
-                text: "When an investor asks 'where does this ₦4.2M MRR number come from?', you can show them the exact 847 charge entries behind it, each with a timestamp, customer, and subscription reference. That is auditable financial history.",
-              },
+              { type: "p", text: "An append-only record of every financial event. Every charge, refund, credit, proration, and adjustment writes one immutable row. Nothing is ever edited or deleted. MRR, churn, and dunning recovery are all computed from this ledger." },
               { type: "h2", text: "Entry types", id: "entries" },
-              {
-                type: "table",
-                headers: ["Entry type", "When it's written", "Direction"],
-                rows: [
-                  [
-                    "CHARGE",
-                    "A successful subscription charge went through",
-                    "DEBIT (money in)",
-                  ],
-                  [
-                    "REFUND",
-                    "A refund was issued to a customer",
-                    "CREDIT (money out)",
-                  ],
-                  [
-                    "CREDIT",
-                    "A manual credit was applied to a customer's account",
-                    "CREDIT",
-                  ],
-                  [
-                    "PRORATION",
-                    "A mid-cycle plan change created a charge or credit",
-                    "DEBIT or CREDIT",
-                  ],
-                  [
-                    "TRIAL_START",
-                    "A customer's trial period began",
-                    "Audit marker, zero amount",
-                  ],
-                  [
-                    "TRIAL_END",
-                    "A customer's trial period ended",
-                    "Audit marker, zero amount",
-                  ],
-                  [
-                    "OVERRIDE",
-                    "An admin made a manual correction, with a required reason",
-                    "DEBIT or CREDIT",
-                  ],
-                ],
-              },
-              { type: "h2", text: "Reading the ledger", id: "reading" },
-              {
-                type: "p",
-                text: "You can query the ledger by date range, by customer, or by subscription. The summary endpoint gives you totals for any period.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `GET ${BASE}/v1/ledger/summary?from=2026-06-01&to=2026-06-30\n\n{\n  "data": {\n    "total_charged": 42000000,\n    "total_refunded": 1500000,\n    "net_revenue": 40500000,\n    "entry_count": 312,\n    "currency": "NGN"\n  }\n}`,
-              },
+              { type: "table", headers: ["Type", "When written", "Direction"], rows: [
+                ["CHARGE", "Successful subscription charge", "DEBIT"],
+                ["REFUND", "Refund issued", "CREDIT"],
+                ["CREDIT", "Manual credit", "CREDIT"],
+                ["PRORATION", "Mid-cycle plan change", "DEBIT or CREDIT"],
+                ["TRIAL_START", "Trial begins", "Audit marker"],
+                ["TRIAL_END", "Trial ends", "Audit marker"],
+                ["ADMIN_OVERRIDE", "Manual correction with reason", "DEBIT or CREDIT"],
+              ]},
+              { type: "callout", variant: "success", text: "Every ledger entry has a unique idempotency_key. If a job handler retries due to a crash, the duplicate write fails silently on the unique constraint. No customer is ever double-charged." },
             ],
           },
           {
-            id: "webhooks-concept",
-            label: "Webhooks",
-            icon: "ti-webhook",
+            id: "webhooks-concept", label: "Webhooks", icon: "ti-webhook",
             blocks: [
-              {
-                type: "p",
-                text: "Webhooks are how Tori tells your product what happened. When a subscription activates, a payment fails, a retry recovers a payment, or a customer cancels Tori sends an HTTP POST request to your server with the event details. Your server processes the event and updates your product accordingly.",
-              },
-              {
-                type: "p",
-                text: "Think of webhooks as the real-time communication channel between Tori and your product. Without webhooks, your product has no way to know when billing events happen unless it polls the API constantly. Webhooks are push-based Tori notifies you the moment something happens.",
-              },
-              { type: "h2", text: "The complete event list", id: "events" },
-              {
-                type: "table",
-                headers: [
-                  "Event",
-                  "When it fires",
-                  "What your product should do",
-                ],
-                rows: [
-                  [
-                    "subscription.activated",
-                    "Trial ends and first charge succeeds, or subscription starts with no trial",
-                    "Unlock full access",
-                  ],
-                  [
-                    "subscription.paused",
-                    "You or the customer paused the subscription",
-                    "Restrict access as appropriate",
-                  ],
-                  [
-                    "subscription.resumed",
-                    "You or the customer resumed a paused subscription",
-                    "Restore access",
-                  ],
-                  [
-                    "subscription.cancelled",
-                    "The subscription was permanently cancelled",
-                    "Offboard the customer gracefully",
-                  ],
-                  [
-                    "subscription.suspended",
-                    "All dunning retries were exhausted",
-                    "Suspend access, prompt the customer to update payment",
-                  ],
-                  [
-                    "payment.succeeded",
-                    "A charge went through successfully",
-                    "Send a receipt, log the payment",
-                  ],
-                  [
-                    "payment.failed",
-                    "A charge failed",
-                    "Show the customer a payment failure message",
-                  ],
-                  [
-                    "payment.retrying",
-                    "A retry is scheduled after a failure",
-                    "Optionally notify the customer that you are retrying",
-                  ],
-                  [
-                    "dunning.started",
-                    "The first retry has been scheduled",
-                    "Show a soft warning in your product",
-                  ],
-                  [
-                    "dunning.recovered",
-                    "A retry charge succeeded after one or more failures",
-                    "Restore full access, send confirmation",
-                  ],
-                  [
-                    "dunning.exhausted",
-                    "All retries failed, subscription moving to SUSPENDED",
-                    "Suspend access, send urgent notification",
-                  ],
-                ],
-              },
-              { type: "h2", text: "Verifying signatures", id: "verify" },
-              {
-                type: "p",
-                text: "Every webhook delivery includes a `Tori-Signature` header containing an HMAC-SHA256 signature of the request body. Always verify this signature before processing the event. This ensures the request genuinely came from Tori and was not tampered with.",
-              },
-              {
-                type: "code",
-                lang: "js",
-                code: `const crypto = require('crypto');\n\nfunction verifySignature(rawBody, signature, secret) {\n  const expected = crypto\n    .createHmac('sha256', secret)\n    .update(rawBody)  // use the raw request body bytes\n    .digest('hex');\n\n  // Use timing-safe comparison to prevent timing attacks\n  return crypto.timingSafeEqual(\n    Buffer.from(expected),\n    Buffer.from(signature)\n  );\n}`,
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "Always respond with 200 immediately and process the event asynchronously. If your handler takes too long to respond, Tori treats it as a failure and schedules a retry. Duplicate events are possible design your handler to be idempotent.",
-              },
+              { type: "p", text: "Webhooks are how Tori tells your product what happened. When a subscription activates, a payment fails, or a customer cancels  Tori sends a signed HTTP POST to your server." },
+              { type: "h2", text: "Event catalogue", id: "events" },
+              { type: "table", headers: ["Event", "When it fires", "What to do"], rows: [
+                ["subscription.created", "Subscription created", "Store subscription ID"],
+                ["subscription.activated", "Trial ends and charge succeeds", "Unlock full access"],
+                ["subscription.paused", "Paused", "Restrict access"],
+                ["subscription.resumed", "Resumed", "Restore access"],
+                ["subscription.cancelled", "Permanently cancelled", "Offboard gracefully"],
+                ["subscription.suspended", "All retries exhausted", "Suspend access"],
+                ["payment.succeeded", "Charge went through", "Send receipt"],
+                ["payment.failed", "Charge failed", "Show payment warning"],
+                ["dunning.started", "First retry scheduled", "Show soft warning"],
+                ["dunning.recovered", "Retry succeeded", "Restore full access"],
+                ["dunning.exhausted", "All retries failed", "Suspend, notify urgently"],
+                ["invoice.generated", "Invoice created", "Update billing records"],
+                ["invoice.paid", "Invoice marked paid", "Update billing records"],
+              ]},
+              { type: "h2", text: "Delivery retry schedule", id: "delivery-retries" },
+              { type: "table", headers: ["Attempt", "Timing"], rows: [
+                ["1", "Immediately"],
+                ["2", "5 minutes after failure"],
+                ["3", "30 minutes after failure"],
+                ["4", "2 hours after failure"],
+                ["5", "6 hours after failure"],
+              ]},
+              { type: "callout", variant: "warn", text: "Always respond 200 immediately and process events asynchronously. Duplicate events are possible  make your handler idempotent." },
             ],
           },
         ],
       },
       {
-        group: "Dashboard Guide",
+        group: "Integration Guides",
         items: [
           {
-            id: "dashboard-overview",
-            label: "Overview page",
-            icon: "ti-layout-dashboard",
+            id: "guide-saas", label: "SaaS: ClassPay", icon: "ti-building-store",
             blocks: [
-              {
-                type: "p",
-                text: "The Overview page is the first thing you see after logging in. It gives you the full picture of your billing operation in one screen.",
-              },
-              {
-                type: "h2",
-                text: "Getting started checklist",
-                id: "checklist",
-              },
-              {
-                type: "p",
-                text: "If you are new to Tori, the overview shows a four-step checklist: create a plan, subscribe a customer, add a webhook endpoint, and create an API key. Each step links directly to the relevant page. The checklist disappears once all four steps are complete.",
-              },
-              { type: "h2", text: "Metrics row", id: "metrics" },
-              {
-                type: "p",
-                text: "The top row shows four live metrics: MRR (monthly recurring revenue from real ledger data), active subscription count, churn rate, and total revenue recovered by the dunning engine. These update in real time from your actual data.",
-              },
-              { type: "h2", text: "Revenue summary", id: "revenue-summary" },
-              {
-                type: "p",
-                text: "Shows gross revenue, refunds, and net revenue for all time, computed directly from the immutable ledger. The entry count shows how many individual financial records exist in the system.",
-              },
-              { type: "h2", text: "Subscription states", id: "sub-states" },
-              {
-                type: "p",
-                text: "A breakdown of all subscriptions by state: ACTIVE, TRIALING, DUNNING, PAUSED, CANCELLED. The bar chart shows the proportion visually. If you see a large DUNNING bar, check the Billing Health page immediately.",
-              },
-              {
-                type: "h2",
-                text: "Billing health widget",
-                id: "health-widget",
-              },
-              {
-                type: "p",
-                text: "A score ring showing your portfolio health (0-100) alongside healthy, at-risk, and critical counts. Click View all to go to the full Billing Health page with per-subscription scores and churn predictions.",
-              },
-              { type: "h2", text: "Attention banner", id: "attention" },
-              {
-                type: "p",
-                text: "If any subscriptions are in DUNNING, PAST_DUE, or showing high churn signals, a yellow banner appears at the top of the page. It tells you how many need attention and links directly to the Billing Health page.",
-              },
-              { type: "h2", text: "Recent subscriptions", id: "recent-subs" },
-              {
-                type: "p",
-                text: "The last 8 subscriptions created, with customer email, plan, amount, status, and next billing date. If a subscription is in dunning, it shows the retry attempt number instead of the billing date.",
-              },
+              { type: "p", text: "Complete integration for ClassPay, a Nigerian edtech SaaS charging schools ₦25,000/month. Backend: Laravel. Goal: zero custom billing logic." },
+              { type: "h2", text: "Step 1: Config", id: "guide-plans" },
+              { type: "code", lang: "bash", code: `TORI_API_KEY=tori_live_...
+TORI_PLAN_BASIC=plan_abc123...
+TORI_PLAN_PRO=plan_xyz456...
+TORI_WEBHOOK_SECRET=whsec_...` },
+              { type: "h2", text: "Step 2: Signup  one call", id: "guide-signup" },
+              { type: "code", lang: "php", code: `public function complete(Request $request) {
+    $school = School::create(['name' => $request->name, 'email' => $request->email]);
+
+    $response = Http::withHeaders(['X-API-Key' => env('TORI_API_KEY')])
+        ->post('https://api.tori.ng/v1/platform/checkout', [
+            'email'           => $school->email,
+            'plan_id'         => $request->plan === 'pro' ? env('TORI_PLAN_PRO') : env('TORI_PLAN_BASIC'),
+            'name'            => $school->name,
+            'external_id'     => (string) $school->id,
+            'idempotency_key' => 'signup_' . $school->id,
+            'callback_url'    => route('payment.success'),
+        ]);
+
+    $data = $response->json()['data'];
+    $school->update(['tori_subscription_id' => $data['subscription']['id']]);
+    return redirect($data['checkout_url']); // always redirect  even during trial
+}` },
+              { type: "h2", text: "Step 3: Webhook handler", id: "guide-webhooks" },
+              { type: "code", lang: "php", code: `public function handle(Request $request) {
+    $expected = 'sha256=' . hash_hmac('sha256', $request->getContent(), env('TORI_WEBHOOK_SECRET'));
+    if (!hash_equals($expected, $request->header('X-Tori-Signature')))
+        return response('Invalid signature', 401);
+
+    $event  = $request->json()->all();
+    $school = School::where('tori_subscription_id', $event['data']['id'])->first();
+    if (!$school) return response('ok', 200);
+
+    match ($event['event_type']) {
+        'subscription.activated' => $school->update(['access' => 'full']),
+        'dunning.started'        => $school->update(['access' => 'restricted']),
+        'dunning.recovered'      => $school->update(['access' => 'full']),
+        'dunning.exhausted'      => $school->update(['access' => 'suspended']),
+        'subscription.cancelled' => $school->update(['access' => 'none']),
+        default => null,
+    };
+    return response('ok', 200);
+}` },
+              { type: "callout", variant: "success", text: "What ClassPay never had to build: no cron job for monthly charges, no retry logic, no Nigerian card failure classification, no dunning schedule, no revenue reporting, no webhook delivery system." },
             ],
           },
           {
-            id: "dashboard-subscriptions",
-            label: "Subscriptions page",
-            icon: "ti-refresh",
+            id: "guide-node", label: "Node.js integration", icon: "ti-brand-nodejs",
             blocks: [
-              {
-                type: "p",
-                text: "The Subscriptions page is where you manage all billing relationships. Every subscription that exists in Tori appears here.",
-              },
-              { type: "h2", text: "Filters", id: "sub-filters" },
-              {
-                type: "p",
-                text: "Filter by state using the tab buttons at the top: ALL, ACTIVE, TRIALING, DUNNING, PAUSED, SUSPENDED, CANCELLED. Each tab shows the count. The search box filters by customer email or plan name.",
-              },
-              { type: "h2", text: "Creating a subscription", id: "sub-create" },
-              {
-                type: "p",
-                text: "Click New subscription. Enter a customer email and select a plan. If the customer does not exist yet, Tori creates them automatically using the checkout endpoint. The External ID field is optional but useful if you want to link the Tori customer to your own database record.",
-              },
-              {
-                type: "p",
-                text: "After creation, a success banner confirms whether the customer was newly created or an existing customer was matched by email.",
-              },
-              { type: "h2", text: "Subscription actions", id: "sub-actions" },
-              {
-                type: "p",
-                text: "Each row has action buttons based on the current state. ACTIVE subscriptions can be paused or cancelled. PAUSED subscriptions can be resumed. DUNNING subscriptions can be cancelled. All actions are validated against the state machine before executing.",
-              },
-              {
-                type: "h2",
-                text: "Dunning indicator",
-                id: "dunning-indicator",
-              },
-              {
-                type: "p",
-                text: "The Dunning column shows the current retry attempt number for subscriptions in DUNNING state. Attempt 1 means one payment failure. Attempt 4 means the subscription is about to be suspended. Subscriptions with no payment issues show None.",
-              },
+              { type: "p", text: "The same integration in Node.js with Express." },
+              { type: "h2", text: "Signup", id: "node-signup" },
+              { type: "code", lang: "js", code: `router.post('/register', async (req, res) => {
+  const { name, email, plan } = req.body;
+  const user = await db.users.create({ name, email, plan });
+
+  const { data } = await fetch('https://api.tori.ng/v1/platform/checkout', {
+    method: 'POST',
+    headers: { 'X-API-Key': process.env.TORI_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email, name,
+      plan_id: plan === 'pro' ? process.env.TORI_PLAN_PRO : process.env.TORI_PLAN_BASIC,
+      external_id: String(user.id),
+      idempotency_key: \`signup_\${user.id}\`,
+      callback_url: \`\${process.env.APP_URL}/payment/success\`,
+    }),
+  }).then(r => r.json());
+
+  await db.users.update(user.id, { tori_subscription_id: data.subscription.id });
+  res.redirect(data.checkout_url); // always redirect  even during trial
+});` },
+              { type: "h2", text: "Webhook handler", id: "node-webhooks" },
+              { type: "code", lang: "js", code: `router.post('/tori', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig      = req.headers['x-tori-signature'];
+  const expected = 'sha256=' + crypto.createHmac('sha256', process.env.TORI_WEBHOOK_SECRET)
+    .update(req.body).digest('hex');
+  if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig)))
+    return res.status(401).send('Invalid signature');
+
+  const { event_type, data } = JSON.parse(req.body);
+  const user = await db.users.findBy({ tori_subscription_id: data.id });
+  if (!user) return res.status(200).send('ok');
+
+  const accessMap = {
+    'subscription.activated': 'full', 'dunning.recovered': 'full', 'subscription.resumed': 'full',
+    'dunning.started': 'restricted', 'subscription.paused': 'paused',
+    'dunning.exhausted': 'suspended', 'subscription.cancelled': 'none',
+  };
+  if (accessMap[event_type]) await db.users.update(user.id, { access: accessMap[event_type] });
+  res.status(200).send('ok');
+});` },
+              { type: "callout", variant: "warn", text: "Use express.raw() on the webhook route  not express.json(). The HMAC is computed on raw request bytes. Parsing body as JSON first causes signature verification to fail." },
             ],
           },
           {
-            id: "dashboard-health",
-            label: "Billing health page",
-            icon: "ti-heartbeat",
+            id: "guide-checklist", label: "Integration checklist", icon: "ti-checklist",
             blocks: [
-              {
-                type: "p",
-                text: "The Billing Health page gives you intelligence that no standard billing tool provides: a real-time health score for every active subscription, plus churn prediction signals before customers actually cancel.",
-              },
-              { type: "h2", text: "Portfolio score", id: "portfolio-score" },
-              {
-                type: "p",
-                text: "The large score ring shows the average health score across all active subscriptions (0-100). Below 70 means your portfolio needs attention. Below 50 is a serious signal.",
-              },
-              {
-                type: "h2",
-                text: "How the score is computed",
-                id: "score-calc",
-              },
-              {
-                type: "list",
-                items: [
-                  "Starts at 100 for every subscription",
-                  "DUNNING state: -40",
-                  "SUSPENDED state: -60",
-                  "PAST_DUE state: -20",
-                  "PAUSED state: -10",
-                  "Each dunning attempt adds additional deductions (-10, -20, -30, -40)",
-                  "Subscription under 30 days old: -5 (unproven payment relationship)",
-                  "Recovered from dunning but now active: -10 (history of failure)",
-                  "Floor is 0, ceiling is 100",
-                ],
-              },
-              { type: "h2", text: "Churn prediction", id: "churn-pred" },
-              {
-                type: "p",
-                text: "The churn prediction panel shows subscriptions with HIGH or CRITICAL churn signals. For each at-risk subscription, Tori shows the specific reasons driving the signal and a recommended action.",
-              },
-              {
-                type: "table",
-                headers: ["Signal", "Meaning", "Recommended action"],
-                rows: [
-                  ["None", "No risk indicators detected", "No action needed"],
-                  [
-                    "Low",
-                    "Minor signal, low probability of churn",
-                    "Monitor next billing cycle",
-                  ],
-                  [
-                    "Medium",
-                    "Payment issues or history of failures",
-                    "Send payment reminder",
-                  ],
-                  [
-                    "High",
-                    "Multiple risk factors active",
-                    "Proactive outreach with payment help",
-                  ],
-                  [
-                    "Critical",
-                    "Subscription likely to churn",
-                    "Contact customer immediately",
-                  ],
-                ],
-              },
-              { type: "h2", text: "Attention banner", id: "health-attention" },
-              {
-                type: "p",
-                text: "The yellow banner at the top lists every subscription needing attention with customer chips showing email and churn signal. If more than 5 need attention, the banner shows the first 5 and a count of the rest.",
-              },
-              { type: "h2", text: "Full table", id: "health-table" },
-              {
-                type: "p",
-                text: "The table shows all active subscriptions sorted by health score, lowest first. Columns: health score ring, customer email, plan name, state badge, churn risk badge, reason text, and period end date.",
-              },
-            ],
-          },
-          {
-            id: "dashboard-customers",
-            label: "Customers page",
-            icon: "ti-users",
-            blocks: [
-              {
-                type: "p",
-                text: "The Customers page lists every customer in your Tori account. Customers are created automatically when you use the checkout endpoint, or manually from this page.",
-              },
-              {
-                type: "h2",
-                text: "Adding a customer manually",
-                id: "add-customer",
-              },
-              {
-                type: "p",
-                text: "Click Add customer. Enter an email (required), name (optional), and External ID (optional). The External ID is your own database user ID. Store it so you can look up the Tori customer from your own system using GET /v1/platform/customers?external_id=your-id.",
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Adding a customer here does not start a subscription. Go to Subscriptions and click New subscription to subscribe them to a plan, or use the checkout endpoint from your backend.",
-              },
-              {
-                type: "h2",
-                text: "Customer detail page",
-                id: "customer-detail",
-              },
-              {
-                type: "p",
-                text: "Click any customer row to see their full detail page. Shows their subscriptions, plan values, active MRR, and dunning state. The Copy portal link button at the top right generates a 1-hour portal token and copies the full URL to your clipboard.",
-              },
-              { type: "h2", text: "Portal link", id: "portal-link" },
-              {
-                type: "p",
-                text: "The portal link is a URL you send to your customer. When they open it, they see their subscription details and can pause, resume, or cancel without contacting you. In production, your backend generates this link automatically and either redirects the customer or emails it to them.",
-              },
-            ],
-          },
-          {
-            id: "dashboard-plans",
-            label: "Plans page",
-            icon: "ti-file-text",
-            blocks: [
-              {
-                type: "p",
-                text: "Plans are pricing templates. You create a plan once and any number of customers can subscribe to it.",
-              },
-              { type: "h2", text: "Creating a plan", id: "create-plan" },
-              {
-                type: "p",
-                text: "Click Create plan. Set the name, amount in naira (Tori converts to kobo automatically), billing interval, and trial period in days. Set trial days to 0 for no trial.",
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Amounts are entered in naira on the dashboard but stored in kobo. ₦15,000 entered on the form is stored as 1500000 kobo. The API always works in kobo.",
-              },
-              { type: "h2", text: "Plan ID", id: "plan-id" },
-              {
-                type: "p",
-                text: "Each plan card shows the plan ID with a Copy button. This is the ID you put in your server's environment config as TORI_PLAN_PRO or similar. You reference this ID in every checkout call.",
-              },
-              { type: "h2", text: "Billing intervals", id: "plan-intervals" },
-              {
-                type: "list",
-                items: [
-                  "Monthly: charge every calendar month with correct month-end handling (Jan 31 + 1 month = Feb 28, always)",
-                  "Annual: charge every 12 months",
-                  "Custom: charge every N days — for school fees, quarterly retainers, bimonthly memberships",
-                ],
-              },
-              {
-                type: "h2",
-                text: "Deactivating a plan",
-                id: "deactivate-plan",
-              },
-              {
-                type: "p",
-                text: "Deactivating a plan prevents new subscriptions from using it. Existing subscribers on that plan keep billing normally. Use this when retiring an old pricing tier.",
-              },
-            ],
-          },
-          {
-            id: "dashboard-finance",
-            label: "Finance page",
-            icon: "ti-chart-bar",
-            blocks: [
-              {
-                type: "p",
-                text: "The Finance page shows your revenue, churn, and dunning recovery metrics across a selected time range. All numbers come from the immutable ledger.",
-              },
-              { type: "h2", text: "Date range selector", id: "date-range" },
-              {
-                type: "p",
-                text: "The 7D / 30D / 90D / 1Y buttons at the top right control the time window for all metrics. MRR uses the current period. Churn, dunning recovery, and the ledger summary use the selected from/to range.",
-              },
-              { type: "h2", text: "Revenue forecast", id: "forecast" },
-              {
-                type: "p",
-                text: "The forecast card projects next month's expected revenue in three estimates: low, mid, and high. The mid estimate is based on current active subscriptions plus expected dunning recovery. The confidence level (HIGH, MEDIUM, LOW) reflects how much historical data is available.",
-              },
-              {
-                type: "table",
-                headers: ["Estimate", "How computed"],
-                rows: [
-                  [
-                    "Low",
-                    "Base revenue minus expected losses from unresolved dunning",
-                  ],
-                  [
-                    "Mid",
-                    "Base revenue plus expected dunning recovery at historical rate",
-                  ],
-                  ["High", "Mid estimate plus 5% variance band"],
-                ],
-              },
-              { type: "h2", text: "Ledger breakdown", id: "ledger-breakdown" },
-              {
-                type: "p",
-                text: "Shows total charges, refunds, credits applied, and net revenue for the selected period. Every number traces back to individual immutable ledger entries.",
-              },
-            ],
-          },
-          {
-            id: "dashboard-webhooks",
-            label: "Webhooks page",
-            icon: "ti-webhook",
-            blocks: [
-              {
-                type: "p",
-                text: "Webhooks are how Tori tells your product what happened. Register an endpoint URL and Tori sends a signed POST request for every billing event.",
-              },
-              { type: "h2", text: "Adding an endpoint", id: "add-endpoint" },
-              {
-                type: "p",
-                text: "Click Add endpoint. Enter your server URL and give it a name. Tori returns a webhook secret — save it immediately, it is shown once. Use it to verify every delivery with HMAC-SHA256.",
-              },
-              { type: "h2", text: "Delivery logs", id: "delivery-logs" },
-              {
-                type: "p",
-                text: "Every delivery attempt is logged with the event type, payload, response status, and timestamp. If a delivery fails, Tori retries on a schedule: 5 minutes, 30 minutes, 2 hours, 6 hours.",
-              },
-              { type: "h2", text: "Circuit breaker", id: "circuit-breaker" },
-              {
-                type: "p",
-                text: "If an endpoint fails 10 or more times in 24 hours, Tori disables it automatically to prevent continued failed deliveries. The endpoint shows a DISABLED badge. Fix the issue on your server and re-enable from the dashboard.",
-              },
-              { type: "h2", text: "Replaying a delivery", id: "replay" },
-              {
-                type: "p",
-                text: "Click Retry on any failed delivery to immediately re-attempt it. Useful when your server was temporarily down and you need to reprocess missed events.",
-              },
-            ],
-          },
-          {
-            id: "dashboard-apikeys",
-            label: "API Keys page",
-            icon: "ti-key",
-            blocks: [
-              {
-                type: "p",
-                text: "API keys authenticate your server-to-server calls to the Platform API. Keep your key on your server. Never put it in browser code or mobile apps.",
-              },
-              { type: "h2", text: "Creating a key", id: "create-key" },
-              {
-                type: "p",
-                text: "Click Create key. Give it a name so you know what it is for (Production server, Staging, etc). The full key is shown exactly once. Copy it into your secret manager immediately. Tori stores only a hash and cannot show it again.",
-              },
-              { type: "h2", text: "The hint", id: "key-hint" },
-              {
-                type: "p",
-                text: "After creation, the page shows a hint in the format tori_live_xxxx...yyyy. This lets you identify which key is active without revealing the full key. The hint persists across page refreshes.",
-              },
-              { type: "h2", text: "Rotating a key", id: "rotate-key" },
-              {
-                type: "p",
-                text: "Click Rotate key to generate a new key. The old key stops working immediately. Deploy the new key to your server before rotating. After rotation, the new key is shown once.",
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "Rotating a key will break any server that is still using the old key. Make sure you update all your environments before or immediately after rotating.",
-              },
-            ],
-          },
-          {
-            id: "dashboard-settings",
-            label: "Settings page",
-            icon: "ti-settings",
-            blocks: [
-              {
-                type: "p",
-                text: "The Settings page manages your account details, dunning configuration, and Nomba integration status.",
-              },
-              { type: "h2", text: "Account details", id: "account-details" },
-              {
-                type: "p",
-                text: "Update your business name and email. Changes take effect immediately.",
-              },
-              {
-                type: "h2",
-                text: "Dunning configuration",
-                id: "dunning-config",
-              },
-              {
-                type: "p",
-                text: "Shows your current retry schedule and maximum attempts. The default configuration (4 attempts on Day 3, 7, 14, 21) is tuned for Nigerian payday cycles and is the recommended setting for most businesses.",
-              },
-              {
-                type: "h2",
-                text: "Nomba integration",
-                id: "nomba-integration",
-              },
-              {
-                type: "p",
-                text: "Shows the current status of your Nomba payment integration. When Nomba API credentials are connected, this section will allow you to configure your Nomba account ID and verify the connection.",
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "Security & Infrastructure",
-        items: [
-          {
-            id: "security-model",
-            label: "Security model",
-            icon: "ti-shield-lock",
-            blocks: [
-              {
-                type: "p",
-                text: "Tori is built for fintech. Every layer of the system is designed with the assumption that it handles real money and real customer data.",
-              },
-              { type: "h2", text: "Password security", id: "passwords" },
-              {
-                type: "p",
-                text: "Passwords are hashed with argon2id using a unique random 16-byte salt per password. The salt is stored alongside the hash in the format argon2id$salt_hex$hash_hex. Two users with the same password produce different hashes. Rainbow table attacks are computationally infeasible.",
-              },
-              { type: "h2", text: "API key security", id: "api-key-security" },
-              {
-                type: "p",
-                text: "API keys are never stored. When you create a key, Tori computes SHA-256(key) and stores only the hash. When you make an API call, Tori hashes the key from the header and compares it to the stored hash. The raw key exists only in your possession.",
-              },
-              { type: "h2", text: "JWT security", id: "jwt-security" },
-              {
-                type: "p",
-                text: "Dashboard sessions use HS256 JWTs with 15-minute access tokens and 7-day refresh tokens. The JWT secret must be at least 32 characters — Tori refuses to start if it is shorter. On logout, the access token is added to a Redis denylist and rejected on all future requests until it would have naturally expired.",
-              },
-              { type: "h2", text: "Brute force protection", id: "brute-force" },
-              {
-                type: "p",
-                text: "After 5 failed login attempts for any email address, that account is locked for 15 minutes. The counter is stored in Redis and resets on successful login. Failed attempts are recorded even for non-existent accounts to prevent email enumeration.",
-              },
-              {
-                type: "h2",
-                text: "Webhook verification",
-                id: "webhook-verify",
-              },
-              {
-                type: "p",
-                text: "Every webhook delivery is signed with HMAC-SHA256 using your endpoint secret. The signature is in the X-Tori-Signature header as sha256=hex_digest. Your server must verify this before processing any event. Timing-safe comparison is required — use hmac.Equal in Go, crypto.timingSafeEqual in Node.js, hash_equals in PHP.",
-              },
-              { type: "h2", text: "Rate limiting", id: "rate-limits" },
-              {
-                type: "p",
-                text: "Three layers of rate limiting: 100 requests per minute per IP globally, 300 requests per minute per tenant on the Dashboard API, 600 requests per minute per tenant on the Platform API. Authenticated tenants cannot starve each other even if they share an IP.",
-              },
-              { type: "h2", text: "Request size limits", id: "request-size" },
-              {
-                type: "p",
-                text: "All request bodies are limited to 1MB. Requests larger than 1MB are rejected with 413 before any processing occurs.",
-              },
-            ],
-          },
-          {
-            id: "infrastructure",
-            label: "Infrastructure",
-            icon: "ti-server",
-            blocks: [
-              {
-                type: "p",
-                text: "Tori runs as five Docker services. Each has a specific role and can be scaled independently.",
-              },
-              { type: "h2", text: "Service architecture", id: "services" },
-              {
-                type: "table",
-                headers: ["Service", "Role", "Port"],
-                rows: [
-                  [
-                    "api",
-                    "HTTP API server — handles all incoming requests",
-                    "8080",
-                  ],
-                  [
-                    "worker",
-                    "Job queue worker — processes scheduled billing jobs",
-                    "internal",
-                  ],
-                  [
-                    "postgres",
-                    "Primary database — all persistent state",
-                    "5432",
-                  ],
-                  ["redis", "Token denylist and login rate limiting", "6379"],
-                  ["frontend", "Next.js dashboard", "3000"],
-                ],
-              },
-              { type: "h2", text: "The job queue", id: "job-queue" },
-              {
-                type: "p",
-                text: "Tori uses a PostgreSQL-backed job queue with SELECT FOR UPDATE SKIP LOCKED for concurrent worker safety. When a billing cycle ends, the scheduler enqueues jobs for trial expiry, payment retry, and subscription suspension. The worker polls every 10 seconds, claims one job at a time, and processes it.",
-              },
-              {
-                type: "p",
-                text: "If a job fails, it is retried according to its max_attempts. If all attempts are exhausted, the job is marked failed and a DEAD LETTER log entry is written at ERROR level with the full payload for manual inspection.",
-              },
-              { type: "h2", text: "Stale lock recovery", id: "stale-locks" },
-              {
-                type: "p",
-                text: "If the worker crashes mid-job, the job remains claimed but unfinished. Every 5 minutes, the worker runs a stale lock recovery that finds jobs claimed more than 10 minutes ago and requeues them. This ensures no billing job is permanently lost due to a worker crash.",
-              },
-              { type: "h2", text: "Webhook dispatcher", id: "dispatcher" },
-              {
-                type: "p",
-                text: "The webhook dispatcher is called asynchronously after every subscription state change. It fetches all active endpoints for the tenant, creates a delivery record, signs the payload, and sends the HTTP request. Failures are retried on a schedule. After 10 failures in 24 hours, the endpoint is disabled automatically.",
-              },
-              { type: "h2", text: "Connection pool", id: "pool" },
-              {
-                type: "p",
-                text: "The PostgreSQL connection pool is configured with a maximum of 20 connections, a 5-second connect timeout, and a 30-minute connection lifetime. Under load, new requests fail fast rather than blocking indefinitely when the pool is exhausted.",
-              },
-              { type: "h2", text: "Scaling path", id: "scaling" },
-              {
-                type: "table",
-                headers: ["Scale", "What changes"],
-                rows: [
-                  ["1K subscribers", "Current architecture, no changes needed"],
-                  [
-                    "10K subscribers",
-                    "Add PostgreSQL read replica, cache plans and customers in Redis",
-                  ],
-                  [
-                    "100K subscribers",
-                    "Partition ledger table by month, run multiple worker instances",
-                  ],
-                  [
-                    "1M subscribers",
-                    "Migrate job queue to dedicated broker, add tenant-level database sharding",
-                  ],
-                ],
-              },
-            ],
-          },
-          {
-            id: "multi-tenancy",
-            label: "Multi-tenancy",
-            icon: "ti-building",
-            blocks: [
-              {
-                type: "p",
-                text: "Every resource in Tori belongs to exactly one tenant. Cross-tenant data access is impossible by design.",
-              },
-              { type: "h2", text: "How isolation works", id: "isolation" },
-              {
-                type: "p",
-                text: "Every database query that reads or writes tenant data includes a WHERE tenant_id = $1 clause. The tenant ID comes from the authenticated request context — either from the JWT (dashboard) or from the API key lookup (platform). It is never taken from the request body.",
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "Never pass tenant_id in a request body to the Platform API. Tori ignores it. The tenant is always resolved from the authenticated API key. If you pass a wrong tenant_id in the body, Tori uses the correct one from the key.",
-              },
-              { type: "h2", text: "What is isolated", id: "what-isolated" },
-              {
-                type: "list",
-                items: [
-                  "Plans: only visible to the tenant that created them",
-                  "Customers: scoped to tenant, cannot be looked up across tenants",
-                  "Subscriptions: scoped to tenant at creation and on every read",
-                  "Ledger entries: tenant-scoped, no cross-tenant aggregation",
-                  "Webhooks: endpoints and deliveries are tenant-scoped",
-                  "API keys: each key belongs to exactly one tenant",
-                  "Dunning jobs: jobs carry tenant context in their payload",
-                ],
-              },
-              {
-                type: "h2",
-                text: "Portal token exception",
-                id: "portal-exception",
-              },
-              {
-                type: "p",
-                text: "Portal tokens are scoped to a customer ID, not a tenant ID. This is by design — the customer does not know or care which tenant they belong to. The portal handler looks up the customer without a tenant ID, then uses the tenant ID from the customer record to scope all subsequent operations.",
-              },
+              { type: "h2", text: "Setup", id: "checklist-setup" },
+              { type: "list", items: ["API key in secret manager  not source code", "Webhook endpoint registered with correct URL", "Webhook secret in environment", "Plan IDs in environment", "Tori subscription ID stored per user in your DB"] },
+              { type: "h2", text: "Signup flow", id: "checklist-signup" },
+              { type: "list", items: ["Checkout call server-side only", "Idempotency key on every checkout call", "external_id set to your own user ID", "Customer redirected to checkout_url immediately  even during free trial", "callback_url set to your payment success page"] },
+              { type: "h2", text: "Webhook handler", id: "checklist-webhooks" },
+              { type: "list", items: ["Raw request body for HMAC  not parsed JSON", "Signature verified before processing", "Returns 200 immediately, processes async", "Idempotent handler", "All 13 event types handled", "Local access state updated per event"] },
+              { type: "h2", text: "Before go-live", id: "checklist-golive" },
+              { type: "list", items: ["Tested full checkout with Nomba card 5434621074252808, OTP 9999", "Verified tokenKey stored after payment_success webhook", "Verified signature rejection on tampered payloads", "Verified idempotency: same key twice returns same subscription", "Verified access suspended on dunning.exhausted", "Verified access restored on dunning.recovered"] },
             ],
           },
         ],
@@ -2132,802 +424,896 @@ router.post('/tori', express.raw({ type: 'application/json' }), async (req, res)
         group: "Nigerian Context",
         items: [
           {
-            id: "nigerian-cards",
-            label: "Nigerian card behaviour",
-            icon: "ti-credit-card",
+            id: "nigerian-cards", label: "Nigerian card behaviour", icon: "ti-credit-card",
             blocks: [
-              {
-                type: "p",
-                text: "Nigerian card failures are different from card failures in Europe or the US. Most billing tools treat all failures the same. Tori does not.",
-              },
-              {
-                type: "h2",
-                text: "Why Nigerian cards fail differently",
-                id: "why-different",
-              },
-              {
-                type: "list",
-                items: [
-                  "Many Nigerian cards are issued with online transactions blocked by default. The bank returns a decline code that looks temporary but will never succeed.",
-                  "Insufficient funds is the most common retriable failure. Nigerian salaries often arrive on specific dates, making payday-aligned retries effective.",
-                  "Bank system outages are more frequent than in other markets. A failed transaction during an outage should be retried, not treated as a card problem.",
-                  "International transaction limits are common. Cards with online transactions enabled may still have limits that prevent certain charges.",
-                ],
-              },
-              {
-                type: "h2",
-                text: "How Tori classifies failures",
-                id: "classification-detail",
-              },
-              {
-                type: "p",
-                text: "When a charge fails, Tori reads the failure code from Nomba and looks it up in config/failure_codes.yaml. Each code is classified as RETRIABLE or NON_RETRIABLE.",
-              },
-              {
-                type: "table",
-                headers: ["Failure type", "Classification", "Reason"],
-                rows: [
-                  [
-                    "card_blocked_international",
-                    "NON_RETRIABLE",
-                    "Card will never succeed for online transactions",
-                  ],
-                  [
-                    "card_blocked",
-                    "NON_RETRIABLE",
-                    "Card is blocked, retry is pointless",
-                  ],
-                  [
-                    "card_expired",
-                    "NON_RETRIABLE",
-                    "Card is past its expiry date",
-                  ],
-                  [
-                    "fraud_suspected",
-                    "NON_RETRIABLE",
-                    "Issuer flagged the transaction",
-                  ],
-                  ["insufficient_funds", "RETRIABLE", "May clear after payday"],
-                  [
-                    "issuer_unavailable",
-                    "RETRIABLE",
-                    "Bank outage, retry when available",
-                  ],
-                  [
-                    "transaction_timeout",
-                    "RETRIABLE",
-                    "Network issue, retry after delay",
-                  ],
-                  [
-                    "do_not_honour_temporary",
-                    "RETRIABLE",
-                    "Soft decline, may approve on retry",
-                  ],
-                ],
-              },
-              {
-                type: "h2",
-                text: "The payday retry schedule",
-                id: "payday-schedule",
-              },
-              {
-                type: "p",
-                text: "For retriable failures, Tori schedules retries on Day 3, Day 7, Day 14, and Day 21 after the first failure. This spacing covers multiple payday windows for customers paid weekly, biweekly, or at month-end.",
-              },
-              {
-                type: "p",
-                text: "The result: a card with insufficient funds on the 5th of the month gets retried on the 8th (before typical mid-month salaries), the 12th, the 19th, and the 26th (after typical month-end salaries). This maximises recovery without annoying the customer with daily attempts.",
-              },
-              {
-                type: "h2",
-                text: "What this means for revenue",
-                id: "revenue-impact",
-              },
-              {
-                type: "p",
-                text: "If you have 500 active subscribers at ₦10,000/month and 8% of charges fail each month, that is ₦400,000 at risk per cycle. Without intelligent dunning, most of it is lost. With Tori's Nigerian-tuned classification and retry schedule, a substantial portion recovers automatically.",
-              },
+              { type: "p", text: "Nigerian card failures are different from those in Europe or the US. Tori is designed specifically for how Nigerian card infrastructure behaves." },
+              { type: "h2", text: "Why Nigerian cards fail differently", id: "why-different" },
+              { type: "list", items: [
+                "Many cards are issued with online transactions blocked by default. The bank returns a decline that looks temporary but will never succeed.",
+                "Insufficient funds is the most common retriable failure. Nigerian salaries arrive on specific dates  payday-aligned retries recover most of these.",
+                "Bank system outages are more frequent than other markets. A failed transaction during an outage should be retried.",
+                "International transaction limits are common. Cards may have online transactions enabled but with charge limits.",
+              ]},
+              { type: "h2", text: "Nomba failure code mapping", id: "failure-mapping" },
+              { type: "table", headers: ["Code", "Meaning", "Classification", "Retried?"], rows: [
+                ["51", "Insufficient funds", "RETRIABLE", "Yes  payday schedule"],
+                ["54", "Card expired", "PERMANENT", "No"],
+                ["62, 57", "Card blocked", "PERMANENT", "No"],
+                ["41, 43", "Stolen/lost card", "PERMANENT", "No"],
+                ["91, 96", "Issuer unavailable", "RETRIABLE", "Yes  backoff"],
+                ["06, 12, 34", "Processing error", "RETRIABLE", "Yes  backoff"],
+                ["68", "Timeout", "RETRIABLE", "Yes  short retry"],
+              ]},
             ],
           },
           {
-            id: "nigerian-use-cases",
-            label: "Nigerian use cases",
-            icon: "ti-building-store",
+            id: "nigerian-use-cases", label: "Nigerian use cases", icon: "ti-building-store",
             blocks: [
-              {
-                type: "p",
-                text: "Tori is built specifically for Nigerian recurring revenue businesses. Here are three concrete use cases.",
-              },
-              {
-                type: "h2",
-                text: "SaaS: school management platform",
-                id: "saas-use-case",
-              },
-              {
-                type: "p",
-                text: "A school management SaaS charges ₦25,000/month per school. They have 200 schools on the platform. Every month, roughly 16 schools fail their charge. Without Tori, each failure requires manual follow-up. With Tori, failures are classified immediately, retriable ones are retried on payday windows, and the platform receives a webhook for each outcome. The team does not touch billing.",
-              },
-              {
-                type: "h2",
-                text: "Creator: membership platform",
-                id: "creator-use-case",
-              },
-              {
-                type: "p",
-                text: "A Nigerian creator sells ₦2,500/month memberships to 2,000 subscribers. At 8% failure rate, 160 charges fail every month. At ₦2,500 each, that is ₦400,000 at risk. Tori's dunning engine recovers a significant share automatically. The creator also uses the portal token feature to give each subscriber a self-service link for pausing or cancelling, eliminating support tickets.",
-              },
-              {
-                type: "h2",
-                text: "Edtech: termly billing",
-                id: "edtech-use-case",
-              },
-              {
-                type: "p",
-                text: "An edtech platform charges school fees every 120 days. Monthly billing does not fit. Annual billing requires ₦150,000 upfront. Tori's custom interval handles exactly this: set interval to custom and interval_days to 120. Every 120 days, Tori charges automatically. Failures around school resumption are retried across payday windows for the next few weeks.",
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "Nigerian Use Cases",
-        items: [
-          {
-            id: "saas",
-            label: "SaaS billing",
-            icon: "ti-building-store",
-            blocks: [
-              {
-                type: "p",
-                text: "A Lagos SaaS startup charges ₦15,000/month for its Pro tier and ₦5,000/month for Starter. They have 300 customers and their engineering team has better things to do than maintain a billing system.",
-              },
-              { type: "h2", text: "The setup", id: "saas-setup" },
-              {
-                type: "p",
-                text: "They create two plans once. Every new user who completes signup gets a customer created in Tori and a subscription started automatically by their backend. New customers start on a 14-day trial. Tori handles the rest.",
-              },
-              {
-                type: "code",
-                lang: "json",
-                code: `// Create the Pro plan\n{ "name": "Pro", "amount": 1500000, "interval": "monthly", "trial_period_days": 14 }\n\n// Create the Starter plan\n{ "name": "Starter", "amount": 500000, "interval": "monthly", "trial_period_days": 7 }`,
-              },
-              {
-                type: "h2",
-                text: "The webhook integration",
-                id: "saas-webhooks",
-              },
-              {
-                type: "p",
-                text: "Their product listens for three events. `subscription.activated` unlocks the full product after the trial. `payment.failed` shows a banner and restricts certain features. `subscription.suspended` locks the account with a prompt to update their payment method.",
-              },
-              {
-                type: "p",
-                text: "That is the entire billing integration. Their engineering team spent two days on it and have not touched it since.",
-              },
-            ],
-          },
-          {
-            id: "edtech",
-            label: "Edtech termly fees",
-            icon: "ti-school",
-            blocks: [
-              {
-                type: "p",
-                text: "An edtech platform charges school fees once per term roughly every 120 days. Monthly billing does not match their business model. Annual billing would require parents to pay ₦150,000 upfront. They need termly billing.",
-              },
-              {
-                type: "h2",
-                text: "The custom interval",
-                id: "edtech-interval",
-              },
-              {
-                type: "p",
-                text: "Tori's `custom` interval handles this exactly. They create a plan with `interval: custom` and `interval_days: 120`. Every 120 days, Tori attempts the charge. If it fails as it often does around school resumption the dunning schedule gives them multiple retry windows aligned to when parents typically have funds.",
-              },
-              {
-                type: "code",
-                lang: "json",
-                code: `{\n  "name": "Term fees SS2",\n  "amount": 5000000,\n  "interval": "custom",\n  "interval_days": 120\n}`,
-              },
-              {
-                type: "p",
-                text: "The ledger gives the platform a clean record of every term's payment for every student, which they use for their own finance reconciliation at the end of each academic year.",
-              },
-            ],
-          },
-          {
-            id: "creator",
-            label: "Creator subscriptions",
-            icon: "ti-microphone",
-            blocks: [
-              {
-                type: "p",
-                text: "A creator sells a ₦2,500/month membership to 2,000 subscribers exclusive content, early access, a private community. At this volume, the numbers are relentless: 160 failed charges every month if 8% fail, which at ₦2,500 each is ₦400,000 at risk.",
-              },
-              {
-                type: "h2",
-                text: "Why dunning recovery matters here",
-                id: "creator-dunning",
-              },
-              {
-                type: "p",
-                text: "At ₦2,500/charge, no creator is going to manually chase down 160 failed payments. They need the system to do it automatically. Tori's dunning engine retries each failed charge four times across a three-week window. For a creator audience, a significant portion of those failures clear after payday.",
-              },
-              {
-                type: "code",
-                lang: "json",
-                code: `{ "name": "Membership", "amount": 250000, "interval": "monthly" }`,
-              },
-              {
-                type: "p",
-                text: "The customer portal is also important here. Creators handle a lot of billing support questions 'I want to pause', 'I want to cancel', 'can I change my card'. Tori's portal token lets the creator's platform generate a self-service link for each member so they can manage their own subscription without contacting support.",
-              },
+              { type: "h2", text: "SaaS  school management", id: "saas" },
+              { type: "p", text: "₦25,000/month per school, 200 schools. Every month ~16 fail. Tori classifies failures, retries retriable ones on payday windows, fires webhooks per outcome. Zero manual billing work." },
+              { type: "h2", text: "Creator  memberships", id: "creator" },
+              { type: "p", text: "₦2,500/month, 2,000 subscribers. At 8% failure: 160 failed charges per month, ₦400,000 at risk. Tori's GRACE_PERIOD and dunning engine recover the majority automatically. Portal tokens let members self-serve." },
+              { type: "h2", text: "Edtech  termly billing", id: "edtech" },
+              { type: "code", lang: "json", code: `{ "name": "Term fees SS2", "amount": 5000000, "interval": "custom", "interval_days": 120 }` },
+              { type: "p", text: "School fees every 120 days. Monthly doesn't fit. Annual requires ₦150,000 upfront. Custom interval handles this exactly  Tori charges every 120 days automatically." },
             ],
           },
         ],
       },
     ],
   },
+  // ═══════════════════════════════════════════════════════════
+  // TAB 2  API REFERENCE
+  // ═══════════════════════════════════════════════════════════
   {
     id: "api-reference",
     label: "API Reference",
     groups: [
       {
-        group: "Reference",
+        group: "Basics",
         items: [
           {
-            id: "ref-conventions",
-            label: "Conventions",
-            icon: "ti-adjustments",
+            id: "ref-conventions", label: "Conventions", icon: "ti-adjustments",
             blocks: [
-              {
-                type: "p",
-                text: "Tori's API follows consistent patterns across every endpoint. Learn them once and they apply everywhere.",
-              },
               { type: "h2", text: "Base URL", id: "base-url" },
-              { type: "code", lang: "bash", code: `${BASE}` },
+              { type: "code", lang: "bash", code: `Production:  https://api.tori.ng
+Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox` },
               { type: "h2", text: "Response envelope", id: "envelope" },
-              {
-                type: "p",
-                text: "Every response is wrapped in the same envelope structure. Success responses have a `data` field. List responses add `pagination`. Every response has a `meta` field with a request ID and the API version.",
-              },
-              {
-                type: "code",
-                lang: "json",
-                code: `// Single object\n{\n  "data": { "id": "...", "...": "..." },\n  "meta": { "request_id": "01J...", "api_version": "2026-06-01" }\n}\n\n// List\n{\n  "data": [ { "id": "..." }, { "id": "..." } ],\n  "pagination": { "has_more": false, "total": 18 },\n  "meta": { "request_id": "01J...", "api_version": "2026-06-01" }\n}\n\n// Error\n{\n  "error": { "code": "not_found", "message": "the requested resource does not exist" },\n  "meta": { "request_id": "01J...", "api_version": "2026-06-01" }\n}`,
-              },
-              { type: "h2", text: "Money is always in kobo", id: "money" },
-              {
-                type: "p",
-                text: "Every amount field in the API is an integer representing kobo the smallest unit of the Nigerian Naira. ₦15,000 is `1500000`. ₦2,500 is `250000`. There are no decimal amounts anywhere. This eliminates floating point rounding errors in financial calculations.",
-              },
-              { type: "h2", text: "Dates are ISO 8601", id: "dates" },
-              {
-                type: "p",
-                text: "All timestamps are in ISO 8601 format in UTC. `2026-06-20T00:00:00Z`. When filtering by date range, pass dates in `YYYY-MM-DD` format: `?from=2026-06-01&to=2026-06-30`.",
-              },
+              { type: "code", lang: "json", code: `// Single object
+{ "data": { "id": "...", "...": "..." }, "meta": { "request_id": "uuid", "api_version": "2026-06-01" } }
+
+// List
+{ "data": [...], "pagination": { "has_more": false, "total": 20 }, "meta": { ... } }
+
+// Error
+{ "error": { "code": "not_found", "message": "resource does not exist" }, "meta": { ... } }` },
+              { type: "h2", text: "Amounts are always in kobo", id: "money" },
+              { type: "p", text: "Every amount field is an integer in kobo. ₦15,000 = 1500000. ₦2,500 = 250000. No decimal amounts anywhere." },
+              { type: "h2", text: "Dates", id: "dates" },
+              { type: "p", text: "All timestamps are ISO 8601 UTC. Filter dates use YYYY-MM-DD: ?from=2026-06-01&to=2026-06-30." },
               { type: "h2", text: "Pagination", id: "pagination" },
-              {
-                type: "p",
-                text: "List endpoints accept `limit` (max results per page, default 20) and `offset` (number of results to skip). The response includes `pagination.has_more` to tell you whether another page exists.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `GET /v1/customers?limit=50&offset=100`,
-              },
-              { type: "h2", text: "Request ID", id: "request-id" },
-              {
-                type: "p",
-                text: "Every response includes `meta.request_id` a unique identifier for that specific API call. Log this alongside your own application logs. When something goes wrong, quote the request ID in a support ticket and Tori can trace the exact call in the system logs.",
-              },
+              { type: "code", lang: "bash", code: "GET /v1/customers?limit=50&offset=100" },
             ],
           },
           {
-            id: "ref-auth",
-            label: "Authentication",
-            icon: "ti-lock",
+            id: "ref-errors", label: "Error codes", icon: "ti-alert-triangle",
             blocks: [
-              {
-                type: "p",
-                text: "Tori has two authentication systems. The Dashboard API uses short-lived JWT tokens. The Platform API uses a long-lived secret API key.",
-              },
-              { type: "h2", text: "Register", id: "register" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `POST /v1/auth/register\n\n{\n  "name": "ClassPay",\n  "email": "ops@classpay.ng",\n  "password": "minimum8chars"\n}\n\n// Response\n{\n  "data": {\n    "access_token": "eyJ...",\n    "refresh_token": "eyJ...",\n    "token_type": "Bearer"\n  }\n}`,
-              },
-              { type: "h2", text: "Login", id: "login" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `POST /v1/auth/login\n\n{\n  "email": "ops@classpay.ng",\n  "password": "yourpassword"\n}\n\n// Response\n{\n  "data": {\n    "access_token": "eyJ...",\n    "refresh_token": "eyJ...",\n    "token_type": "Bearer"\n  }\n}`,
-              },
-              { type: "h2", text: "Refresh", id: "refresh" },
-              {
-                type: "p",
-                text: "Access tokens expire after 15 minutes. Use the refresh token to get a new access token without re-entering credentials.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `POST /v1/auth/refresh\n\n{\n  "refresh_token": "eyJ..."\n}\n\n// Response: new access_token and refresh_token`,
-              },
-              { type: "h2", text: "Logout", id: "logout" },
-              {
-                type: "p",
-                text: "Revokes the access token in Redis immediately. Any subsequent request using the revoked token returns 401.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `POST /v1/auth/logout\nAuthorization: Bearer eyJ...\n\n// Response\n{ "data": { "message": "logged out successfully" } }`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "The Platform API uses X-API-Key header authentication, not JWT. Create an API key from the dashboard and pass it on every server-to-server request.",
-              },
+              { type: "p", text: "Always branch on error.code  never on error.message. Codes are stable; messages may change." },
+              { type: "table", headers: ["HTTP", "Code", "Meaning", "Fix"], rows: [
+                ["400", "invalid_body", "Request body not valid JSON", "Check body format"],
+                ["400", "missing_field", "Required field missing", "Add the field"],
+                ["400", "invalid_amount", "Amount zero or negative", "Send positive kobo integer"],
+                ["400", "invalid_field", "Field wrong type or format", "Check field format"],
+                ["401", "unauthorised", "Invalid or missing credentials", "Check X-API-Key or JWT"],
+                ["404", "not_found", "Resource does not exist", "Check the ID"],
+                ["409", "email_taken", "Customer email already exists", "Look up existing customer"],
+                ["422", "invalid_transition", "State machine rejected action", "Check current state"],
+                ["422", "plan_inactive", "Plan not accepting new subscribers", "Use active plan"],
+                ["429", "rate_limited", "Too many requests", "Back off until reset"],
+                ["500", "internal_error", "Unexpected server error", "Retry with backoff"],
+              ]},
+            ],
+          },
+        ],
+      },
+      {
+        group: "Authenticate",
+        items: [
+          {
+            id: "ref-register", label: "Register", icon: "ti-user-plus",
+            method: "POST", endpoint: "/v1/auth/register",
+            blocks: [
+              { type: "p", text: "Create a new Tori tenant account. Returns JWT tokens immediately  no separate login needed." },
+              { type: "h2", text: "Headers", id: "register-headers" },
+              { type: "param", name: "Content-Type", paramType: "string", required: true, description: "Must be application/json" },
+              { type: "h2", text: "Body", id: "register-body" },
+              { type: "param", name: "name", paramType: "string", required: true, description: "Your business name e.g. ClassPay" },
+              { type: "param", name: "email", paramType: "string", required: true, description: "Your business email address" },
+              { type: "param", name: "password", paramType: "string", required: true, description: "Minimum 8 characters" },
+              { type: "h2", text: "Response", id: "register-response" },
+              { type: "response", status: 200, description: "Account created successfully", body: `{
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "token_type": "Bearer"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+              { type: "response", status: 400, description: "Validation failed", body: `{ "error": { "code": "missing_field", "message": "email is required" }, "meta": { ... } }` },
+              { type: "response", status: 409, description: "Email already registered", body: `{ "error": { "code": "email_taken", "message": "an account with this email already exists" }, "meta": { ... } }` },
             ],
           },
           {
-            id: "ref-apikeys",
-            label: "API Keys",
-            icon: "ti-key",
+            id: "ref-login", label: "Login", icon: "ti-login",
+            method: "POST", endpoint: "/v1/auth/login",
             blocks: [
-              {
-                type: "p",
-                text: "API keys authenticate server-to-server Platform API calls. Each tenant has one active key at a time. Keys are shown once at creation and stored only as a SHA-256 hash.",
-              },
-              { type: "h2", text: "Create a key", id: "create" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `POST /v1/api-keys\nAuthorization: Bearer eyJ...\n\n{ "name": "Production server" }\n\n// Response — key shown ONCE\n{\n  "data": {\n    "key": "tori_live_a1b2c3...",\n    "name": "Production server",\n    "hint": "tori_live_a1b2...d3e4"\n  }\n}`,
-              },
-              { type: "h2", text: "Get active key hint", id: "hint" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `GET /v1/api-keys\nAuthorization: Bearer eyJ...\n\n// Response\n{\n  "data": { "hint": "tori_live_a1b2...d3e4" }\n}`,
-              },
-              { type: "h2", text: "Rotate key", id: "rotate" },
-              {
-                type: "p",
-                text: "Generates a new key and immediately invalidates the current one. Deploy the new key before rotating.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `POST /v1/api-keys/rotate\nAuthorization: Bearer eyJ...\n\n// Response — new key shown ONCE\n{\n  "data": {\n    "key": "tori_live_x9y8z7...",\n    "hint": "tori_live_x9y8...a1b2"\n  }\n}`,
-              },
+              { type: "p", text: "Authenticate and receive JWT tokens for Dashboard API calls. Access tokens expire after 15 minutes." },
+              { type: "h2", text: "Headers", id: "login-headers" },
+              { type: "param", name: "Content-Type", paramType: "string", required: true, description: "Must be application/json" },
+              { type: "h2", text: "Body", id: "login-body" },
+              { type: "param", name: "email", paramType: "string", required: true, description: "Your account email" },
+              { type: "param", name: "password", paramType: "string", required: true, description: "Your account password" },
+              { type: "h2", text: "Response", id: "login-response" },
+              { type: "response", status: 200, description: "Login successful", body: `{
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "token_type": "Bearer"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+              { type: "response", status: 401, description: "Invalid credentials", body: `{ "error": { "code": "unauthorised", "message": "invalid credentials" }, "meta": { ... } }` },
+              { type: "callout", variant: "warn", text: "After 5 failed login attempts, the account is locked for 15 minutes. The counter resets on successful login." },
             ],
           },
           {
-            id: "ref-plans",
-            label: "Plans",
-            icon: "ti-file-text",
+            id: "ref-refresh", label: "Refresh token", icon: "ti-refresh",
+            method: "POST", endpoint: "/v1/auth/refresh",
             blocks: [
-              { type: "h2", text: "Create a plan", id: "create" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `POST /v1/platform/plans\n\n{\n  "name": "Pro",               // required\n  "amount": 1500000,           // required, in kobo\n  "currency": "NGN",           // optional, defaults to NGN\n  "interval": "monthly",       // optional: monthly, annual, custom. default monthly\n  "interval_count": 1,         // optional, for custom intervals\n  "trial_period_days": 14      // optional, 0 means no trial\n}`,
-              },
-              { type: "h2", text: "List plans", id: "list" },
-              { type: "code", lang: "bash", code: `GET /v1/plans` },
-              { type: "h2", text: "Get a single plan", id: "get" },
-              { type: "code", lang: "bash", code: `GET /v1/plans/{id}` },
-              { type: "h2", text: "Update a plan", id: "update" },
-              {
-                type: "p",
-                text: "You can update a plan's name, description, and amount. Updating the amount does not change what existing subscribers pay it only affects new subscribers.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `PATCH /v1/plans/{id}\n\n{\n  "name": "Pro (updated)",\n  "amount": 1800000\n}`,
-              },
-              { type: "h2", text: "Deactivate a plan", id: "deactivate" },
-              {
-                type: "p",
-                text: "Deactivating stops new subscriptions from using the plan. Existing subscriptions are unaffected.",
-              },
-              { type: "code", lang: "bash", code: `DELETE /v1/plans/{id}` },
+              { type: "p", text: "Exchange a refresh token for a new access token. Refresh tokens expire after 7 days." },
+              { type: "h2", text: "Body", id: "refresh-body" },
+              { type: "param", name: "refresh_token", paramType: "string", required: true, description: "The refresh token from login or previous refresh" },
+              { type: "h2", text: "Response", id: "refresh-response" },
+              { type: "response", status: 200, description: "Token refreshed", body: `{
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "token_type": "Bearer"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+              { type: "response", status: 401, description: "Refresh token invalid or expired", body: `{ "error": { "code": "unauthorised", "message": "invalid or expired refresh token" }, "meta": { ... } }` },
             ],
           },
           {
-            id: "ref-customers",
-            label: "Customers",
-            icon: "ti-users",
+            id: "ref-logout", label: "Logout", icon: "ti-logout",
+            method: "POST", endpoint: "/v1/auth/logout",
             blocks: [
-              { type: "h2", text: "Create a customer", id: "create" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `POST /v1/platform/customers\n\n{\n  "email": "amaka@startup.ng",  // required\n  "name": "Amaka Obi",          // optional\n  "external_id": "user_12345"   // optional but recommended\n}`,
-              },
-              {
-                type: "p",
-                text: "Pass `external_id` as your own identifier for this user. It lets you look up Tori customers by your own ID without storing Tori IDs in your database.",
-              },
-              { type: "h2", text: "Look up by your own ID", id: "by-external" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `GET /v1/customers?external_id=user_12345`,
-              },
-              { type: "h2", text: "List customers", id: "list" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `GET /v1/customers?limit=20&offset=0`,
-              },
-              { type: "h2", text: "Update a customer", id: "update" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `PATCH /v1/customers/{id}\n\n{ "name": "Amaka Obi-Johnson", "email": "new@startup.ng" }`,
-              },
-              { type: "h2", text: "Archive a customer", id: "archive" },
-              {
-                type: "p",
-                text: "Customers are never hard-deleted. Archiving soft-deletes them while preserving their full billing history in the ledger.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `POST /v1/customers/{id}/archive`,
-              },
-              { type: "h2", text: "Generate a portal token", id: "portal" },
-              {
-                type: "p",
-                text: "Mint a short-lived token that lets the customer manage their own subscription in the self-service portal. Embed this link in your product so customers can cancel, pause, and view their invoices without contacting you.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `GET /v1/platform/customers/{id}/portal-token\n\n{\n  "data": { "token": "eyJ...", "expires_in": "3600" }\n}`,
-              },
+              { type: "p", text: "Revokes the access token in Redis immediately. Any subsequent request using the revoked token returns 401." },
+              { type: "h2", text: "Headers", id: "logout-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Response", id: "logout-response" },
+              { type: "response", status: 200, description: "Logged out", body: `{ "data": { "message": "logged out successfully" }, "meta": { ... } }` },
+            ],
+          },
+        ],
+      },
+      {
+        group: "API Keys",
+        items: [
+          {
+            id: "ref-apikeys-create", label: "Create API key", icon: "ti-plus",
+            method: "POST", endpoint: "/v1/api-keys",
+            blocks: [
+              { type: "p", text: "Generate a new API key for Platform API authentication. The full key is shown exactly once." },
+              { type: "h2", text: "Headers", id: "apikey-create-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "param", name: "Content-Type", paramType: "string", required: true, description: "application/json" },
+              { type: "h2", text: "Body", id: "apikey-create-body" },
+              { type: "param", name: "name", paramType: "string", required: false, description: "A label for this key e.g. Production server, Staging" },
+              { type: "h2", text: "Response", id: "apikey-create-response" },
+              { type: "response", status: 201, description: "Key created  shown once", body: `{
+  "data": {
+    "key":  "tori_live_a5eac054adef09a31a7d823d6e71b1245deffa7eb5c8a51c765e7678e9d578c0",
+    "hint": "tori_live_a5ea...78c0",
+    "name": "Production server"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+              { type: "callout", variant: "warn", text: "This is the only time the full key is shown. Tori stores only a SHA-256 hash. Copy it to your secret manager immediately." },
             ],
           },
           {
-            id: "ref-subs",
-            label: "Subscriptions",
-            icon: "ti-refresh",
+            id: "ref-apikeys-get", label: "Get key hint", icon: "ti-eye",
+            method: "GET", endpoint: "/v1/api-keys",
             blocks: [
-              { type: "h2", text: "Create a subscription", id: "create" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `POST /v1/platform/subscriptions\n\n{\n  "customer_id": "cus_...",             // required\n  "plan_id": "plan_...",               // required\n  "idempotency_key": "sub_user_12345"  // strongly recommended\n}`,
-              },
-              { type: "h2", text: "List subscriptions", id: "list" },
-              {
-                type: "p",
-                text: "Filter by status to see all subscriptions in a particular state useful for finding everything in dunning or everything that needs attention.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `GET /v1/subscriptions\nGET /v1/subscriptions?status=DUNNING\nGET /v1/subscriptions?status=ACTIVE&limit=50`,
-              },
-              { type: "h2", text: "Get a single subscription", id: "get" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `GET /v1/platform/subscriptions/{id}`,
-              },
-              { type: "h2", text: "Cancel a subscription", id: "cancel" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `POST /v1/platform/subscriptions/{id}/cancel`,
-              },
-              { type: "h2", text: "Pause a subscription", id: "pause" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `POST /v1/platform/subscriptions/{id}/pause`,
-              },
-              { type: "h2", text: "Resume a subscription", id: "resume" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `POST /v1/platform/subscriptions/{id}/resume`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Every lifecycle action is validated against the state machine. If the action is not valid from the current state for example, trying to pause a cancelled subscription you receive 422 invalid_transition and nothing changes.",
-              },
+              { type: "p", text: "Returns the hint (first 12 + last 4 characters) of the active API key. The full key is never retrievable after creation." },
+              { type: "h2", text: "Headers", id: "apikey-get-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Response", id: "apikey-get-response" },
+              { type: "response", status: 200, description: "Key hint returned", body: `{ "data": { "hint": "tori_live_a5ea...78c0" }, "meta": { ... } }` },
+              { type: "response", status: 404, description: "No key exists for this account", body: `{ "error": { "code": "not_found", "message": "no api key found for this account" }, "meta": { ... } }` },
             ],
           },
           {
-            id: "ref-checkout",
-            label: "Checkout",
-            icon: "ti-shopping-cart",
+            id: "ref-apikeys-rotate", label: "Rotate API key", icon: "ti-rotate",
+            method: "POST", endpoint: "/v1/api-keys/rotate",
             blocks: [
-              {
-                type: "p",
-                text: "The checkout endpoint is the recommended way to start a subscription. It finds or creates the customer by email and starts the subscription in one call. No separate customer creation needed.",
-              },
-              { type: "h2", text: "Start a subscription", id: "start" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `# Dashboard API\nPOST /v1/checkout\nAuthorization: Bearer eyJ...\n\n# Platform API (server-to-server)\nPOST /v1/platform/checkout\nX-API-Key: tori_live_...\n\n{\n  "email": "amaka@startup.ng",\n  "plan_id": "plan_...",\n  "name": "Amaka Obi",\n  "external_id": "your-user-123",\n  "idempotency_key": "signup_user_123"\n}\n\n// Response\n{\n  "data": {\n    "customer": {\n      "id": "cus_...",\n      "email": "amaka@startup.ng",\n      "name": "Amaka Obi"\n    },\n    "subscription": {\n      "id": "sub_...",\n      "status": "TRIALING",\n      "current_period_end": "2026-07-07T00:00:00Z"\n    },\n    "customer_created": true\n  }\n}`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "customer_created is true if Tori created a new customer, false if an existing customer was matched by email. Use this to decide whether to send a welcome email.",
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "Always pass an idempotency_key. If your server retries due to a network timeout, the same key returns the original subscription instead of creating a duplicate.",
-              },
+              { type: "p", text: "Generates a new key and immediately invalidates the current one. Deploy the new key to all your servers before rotating." },
+              { type: "h2", text: "Headers", id: "apikey-rotate-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Response", id: "apikey-rotate-response" },
+              { type: "response", status: 200, description: "Key rotated  new key shown once", body: `{
+  "data": {
+    "key":  "tori_live_x9y8z7...",
+    "hint": "tori_live_x9y8...a1b2"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+              { type: "callout", variant: "warn", text: "The old key stops working the instant you rotate. Any server still using the old key will receive 401 immediately." },
+            ],
+          },
+        ],
+      },
+      {
+        group: "Plans",
+        items: [
+          {
+            id: "ref-plans-create", label: "Create plan", icon: "ti-plus",
+            method: "POST", endpoint: "/v1/platform/plans",
+            blocks: [
+              { type: "p", text: "Create a pricing plan. Plans are reusable  create once, any number of customers can subscribe." },
+              { type: "h2", text: "Headers", id: "plans-create-headers" },
+              { type: "param", name: "X-API-Key", paramType: "string", required: true, description: "Your secret API key" },
+              { type: "param", name: "Content-Type", paramType: "string", required: true, description: "application/json" },
+              { type: "h2", text: "Body", id: "plans-create-body" },
+              { type: "param", name: "name", paramType: "string", required: true, description: "Plan display name e.g. Pro, Business" },
+              { type: "param", name: "amount", paramType: "integer", required: true, description: "Amount in kobo. ₦15,000 = 1500000" },
+              { type: "param", name: "currency", paramType: "string", required: false, description: "Always NGN. Defaults to NGN" },
+              { type: "param", name: "interval", paramType: "string", required: false, description: "monthly | annual | custom. Defaults to monthly" },
+              { type: "param", name: "interval_count", paramType: "integer", required: false, description: "For custom interval: number of days between charges" },
+              { type: "param", name: "trial_period_days", paramType: "integer", required: false, description: "Free trial length in days. 0 = no trial" },
+              { type: "h2", text: "Response", id: "plans-create-response" },
+              { type: "response", status: 201, description: "Plan created", body: `{
+  "data": {
+    "id": "afecaf33-ca8d-4e1c-86ef-c232bbf11bed",
+    "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
+    "name": "Pro",
+    "amount": 1500000,
+    "currency": "NGN",
+    "interval": "monthly",
+    "interval_count": 1,
+    "trial_period_days": 14,
+    "is_active": true,
+    "created_at": "2026-06-26T00:00:00Z"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+              { type: "response", status: 400, description: "Validation failed", body: `{ "error": { "code": "invalid_amount", "message": "amount must be a positive integer in kobo" }, "meta": { ... } }` },
             ],
           },
           {
-            id: "ref-plan-change",
-            label: "Plan changes",
-            icon: "ti-arrows-exchange",
+            id: "ref-plans-list", label: "List plans", icon: "ti-list",
+            method: "GET", endpoint: "/v1/plans",
             blocks: [
-              {
-                type: "p",
-                text: "Change a subscription's plan mid-cycle. Tori computes the exact proration, records it to the ledger, and updates the subscription in one atomic operation.",
-              },
-              { type: "h2", text: "Change plan", id: "change" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `# Dashboard API\nPATCH /v1/subscriptions/{id}/plan\nAuthorization: Bearer eyJ...\n\n# Platform API\nPATCH /v1/platform/subscriptions/{id}/plan\nX-API-Key: tori_live_...\n\n{ "plan_id": "plan_new_..." }\n\n// Response\n{\n  "data": {\n    "subscription": { "id": "sub_...", "plan_id": "plan_new_...", "status": "ACTIVE" },\n    "proration": {\n      "credit_kobo": 750000,\n      "charge_kobo": 1125000,\n      "net_adjustment_kobo": 375000\n    },\n    "net_adjustment_kobo": 375000,\n    "description": "Upgraded plan — proration charge applied"\n  }\n}`,
-              },
-              {
-                type: "p",
-                text: "The proration is computed as: credit = (unused days / total days) x old plan amount. Charge = (remaining days / total days) x new plan amount. Net adjustment = charge minus credit. Both entries are written to the immutable ledger.",
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Plan changes are only allowed on ACTIVE subscriptions. Attempting to change a plan on a DUNNING, PAUSED, or SUSPENDED subscription returns 422 invalid_status.",
-              },
+              { type: "p", text: "Returns all plans for your account, sorted by creation date descending." },
+              { type: "h2", text: "Headers", id: "plans-list-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Response", id: "plans-list-response" },
+              { type: "response", status: 200, description: "Plans returned", body: `{
+  "data": [
+    { "id": "fd0dccfd-...", "name": "Basic", "amount": 250000, "interval": "monthly", "trial_period_days": 0, "is_active": true },
+    { "id": "afecaf33-...", "name": "Pro", "amount": 1500000, "interval": "monthly", "trial_period_days": 14, "is_active": true }
+  ],
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
             ],
           },
           {
-            id: "ref-ledger",
-            label: "Ledger",
-            icon: "ti-book",
+            id: "ref-plans-get", label: "Get plan", icon: "ti-file-text",
+            method: "GET", endpoint: "/v1/plans/{plan_id}",
             blocks: [
-              { type: "h2", text: "List ledger entries", id: "list" },
-              {
-                type: "p",
-                text: "Returns all entries for your tenant in a date range, newest first.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `GET /v1/ledger?from=2026-06-01&to=2026-06-30&limit=50`,
-              },
-              { type: "h2", text: "Ledger summary", id: "summary" },
-              {
-                type: "p",
-                text: "Returns aggregated totals for a period. This is the source of your revenue dashboard numbers.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `GET /v1/ledger/summary?from=2026-06-01&to=2026-06-30`,
-              },
-              {
-                type: "code",
-                lang: "json",
-                code: `{\n  "data": {\n    "total_charged": 91500000,\n    "total_refunded": 500000,\n    "net_revenue": 91000000,\n    "entry_count": 44,\n    "currency": "NGN"\n  }\n}`,
-              },
+              { type: "p", text: "Fetch a single plan by ID." },
+              { type: "h2", text: "Headers", id: "plans-get-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Path parameters", id: "plans-get-path" },
+              { type: "param", name: "plan_id", paramType: "uuid", required: true, description: "The plan ID" },
+              { type: "h2", text: "Response", id: "plans-get-response" },
+              { type: "response", status: 200, description: "Plan returned", body: `{
+  "data": { "id": "afecaf33-...", "name": "Pro", "amount": 1500000, "currency": "NGN", "interval": "monthly", "trial_period_days": 14, "is_active": true },
+  "meta": { ... }
+}` },
+              { type: "response", status: 404, description: "Plan not found", body: `{ "error": { "code": "not_found", "message": "the requested resource does not exist" }, "meta": { ... } }` },
             ],
           },
           {
-            id: "ref-finance",
-            label: "Finance & metrics",
-            icon: "ti-chart-bar",
+            id: "ref-plans-deactivate", label: "Deactivate plan", icon: "ti-ban",
+            method: "DELETE", endpoint: "/v1/plans/{plan_id}",
             blocks: [
-              {
-                type: "p",
-                text: "Finance endpoints compute business metrics from the ledger. They are read-only and always derived from immutable historical data.",
-              },
-              {
-                type: "table",
-                headers: ["Endpoint", "What it returns", "Key field"],
-                rows: [
-                  [
-                    "GET /v1/finance/mrr",
-                    "Monthly recurring revenue for a given period",
-                    "mrr_kobo",
-                  ],
-                  [
-                    "GET /v1/finance/arr",
-                    "Annualised recurring revenue (MRR × 12)",
-                    "arr_kobo",
-                  ],
-                  [
-                    "GET /v1/finance/churn",
-                    "Churn rate and cancelled subscription count",
-                    "churn_rate_pct",
-                  ],
-                  [
-                    "GET /v1/finance/dunning-recovery",
-                    "Revenue recovered through dunning retries",
-                    "recovered_kobo",
-                  ],
-                  [
-                    "GET /v1/finance/revenue-report",
-                    "Gross, refunds, and net revenue for a period",
-                    "net_revenue",
-                  ],
-                ],
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `GET /v1/finance/mrr?period=2026-06\n\n{\n  "data": {\n    "mrr_kobo": 4200000,\n    "currency": "NGN",\n    "period": "2026-06"\n  }\n}`,
-              },
+              { type: "p", text: "Deactivate a plan. New subscriptions cannot use it. Existing subscribers are unaffected." },
+              { type: "h2", text: "Headers", id: "plans-deactivate-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Path parameters", id: "plans-deactivate-path" },
+              { type: "param", name: "plan_id", paramType: "uuid", required: true, description: "The plan ID to deactivate" },
+              { type: "h2", text: "Response", id: "plans-deactivate-response" },
+              { type: "response", status: 200, description: "Plan deactivated", body: `{ "data": { "id": "afecaf33-...", "is_active": false }, "meta": { ... } }` },
+            ],
+          },
+        ],
+      },
+      {
+        group: "Customers",
+        items: [
+          {
+            id: "ref-customers-create", label: "Create customer", icon: "ti-user-plus",
+            method: "POST", endpoint: "/v1/platform/customers",
+            blocks: [
+              { type: "p", text: "Create a customer. The checkout endpoint creates customers automatically  use this only for pre-creating customers before subscription." },
+              { type: "h2", text: "Headers", id: "customers-create-headers" },
+              { type: "param", name: "X-API-Key", paramType: "string", required: true, description: "Your secret API key" },
+              { type: "param", name: "Content-Type", paramType: "string", required: true, description: "application/json" },
+              { type: "h2", text: "Body", id: "customers-create-body" },
+              { type: "param", name: "email", paramType: "string", required: true, description: "Customer email address" },
+              { type: "param", name: "name", paramType: "string", required: false, description: "Customer display name" },
+              { type: "param", name: "external_id", paramType: "string", required: false, description: "Your own user ID  allows lookup by your ID without storing Tori IDs" },
+              { type: "h2", text: "Response", id: "customers-create-response" },
+              { type: "response", status: 201, description: "Customer created", body: `{
+  "data": {
+    "id": "2c8e91c2-e848-43d2-888c-b680c6909453",
+    "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
+    "email": "amaka@startup.ng",
+    "name": "Amaka Obi",
+    "external_id": "user_12345",
+    "created_at": "2026-06-26T00:00:00Z"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+              { type: "response", status: 409, description: "Email already exists", body: `{ "error": { "code": "email_taken", "message": "a customer with this email already exists" }, "meta": { ... } }` },
             ],
           },
           {
-            id: "ref-health",
-            label: "Billing health",
-            icon: "ti-heartbeat",
+            id: "ref-customers-list", label: "List customers", icon: "ti-users",
+            method: "GET", endpoint: "/v1/customers",
             blocks: [
-              {
-                type: "p",
-                text: "Real-time health scores and churn predictions across your subscriber base.",
-              },
-              { type: "h2", text: "Portfolio health", id: "portfolio" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `GET /v1/health\nAuthorization: Bearer eyJ...\n\n// Response\n{\n  "data": {\n    "average_score": 74,\n    "healthy_count": 9,\n    "at_risk_count": 2,\n    "critical_count": 1,\n    "churn_risk_count": 2,\n    "subscriptions": [\n      {\n        "id": "sub_...",\n        "status": "DUNNING",\n        "health": {\n          "score": 28,\n          "label": "At risk",\n          "color": "#EA580C",\n          "reason": "Payment failing. Retries in progress."\n        },\n        "churn": {\n          "signal": "high",\n          "score": 65,\n          "reasons": ["Two failed payment attempts", "Billing period ends soon"],\n          "recommended_action": "Contact the customer immediately."\n        }\n      }\n    ]\n  }\n}`,
-              },
-              { type: "h2", text: "Revenue forecast", id: "forecast" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `GET /v1/health/forecast\nAuthorization: Bearer eyJ...\n\n// Response\n{\n  "data": {\n    "period_label": "July 2026",\n    "expected_low": 18740000,\n    "expected_mid": 23420000,\n    "expected_high": 24600000,\n    "active_subscriptions": 12,\n    "at_risk_revenue": 10040000,\n    "recovery_rate_pct": 65,\n    "confidence": "medium",\n    "note": "Forecast includes dunning recovery estimate based on your historical retry success rate."\n  }\n}`,
-              },
-              {
-                type: "h2",
-                text: "Health score calculation",
-                id: "score-calc",
-              },
-              {
-                type: "table",
-                headers: ["Factor", "Deduction"],
-                rows: [
-                  ["DUNNING state", "-40"],
-                  ["SUSPENDED state", "-60"],
-                  ["PAST_DUE state", "-20"],
-                  ["GRACE_PERIOD state", "-10"],
-                  ["PAUSED state", "-10"],
-                  ["Each dunning attempt", "-10 to -40"],
-                  ["Subscription under 30 days", "-5"],
-                  ["Recovered from dunning", "-10"],
-                ],
-              },
+              { type: "p", text: "Returns all customers for your account, newest first." },
+              { type: "h2", text: "Headers", id: "customers-list-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Query parameters", id: "customers-list-query" },
+              { type: "param", name: "limit", paramType: "integer", required: false, description: "Max results per page. Default 50, max 100" },
+              { type: "param", name: "offset", paramType: "integer", required: false, description: "Number of results to skip. Default 0" },
+              { type: "param", name: "external_id", paramType: "string", required: false, description: "Filter by your own user ID" },
+              { type: "h2", text: "Response", id: "customers-list-response" },
+              { type: "response", status: 200, description: "Customers returned", body: `{
+  "data": [
+    { "id": "2c8e91c2-...", "email": "amaka@startup.ng", "name": "Amaka Obi", "external_id": "user_12345", "created_at": "2026-06-26T00:00:00Z" }
+  ],
+  "pagination": { "has_more": false, "total": 20 },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
             ],
           },
           {
-            id: "ref-webhooks",
-            label: "Webhooks",
-            icon: "ti-webhook",
+            id: "ref-customers-get", label: "Get customer", icon: "ti-user",
+            method: "GET", endpoint: "/v1/platform/customers/{customer_id}",
             blocks: [
-              { type: "h2", text: "Register an endpoint", id: "register" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `POST /v1/webhooks/endpoints\n\n{\n  "url": "https://yourapp.ng/webhooks/tori",\n  "events": ["*"]  // "*" subscribes to all events\n}`,
-              },
-              {
-                type: "p",
-                text: "The response includes a one-time `secret`. Save it it is used to verify every delivery and is never shown again.",
-              },
-              { type: "h2", text: "List endpoints", id: "list" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `GET /v1/webhooks/endpoints`,
-              },
-              { type: "h2", text: "View delivery logs", id: "logs" },
-              { type: "code", lang: "bash", code: `GET /v1/webhooks/logs` },
-              { type: "h2", text: "Retry a delivery", id: "retry" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `POST /v1/webhooks/logs/{id}/retry`,
-              },
-              { type: "h2", text: "Signature verification", id: "verify" },
-              {
-                type: "code",
-                lang: "js",
-                code: `const crypto = require('crypto');\n\nconst sig = crypto\n  .createHmac('sha256', process.env.TORI_WEBHOOK_SECRET)\n  .update(rawBody)\n  .digest('hex');\n\nconst trusted = crypto.timingSafeEqual(\n  Buffer.from(sig),\n  Buffer.from(req.headers['tori-signature'])\n);`,
-              },
-              {
-                type: "h2",
-                text: "Retry schedule for failed deliveries",
-                id: "retries",
-              },
-              { type: "h2", text: "Delete an endpoint", id: "delete" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `DELETE /v1/webhooks/endpoints/{id}\nAuthorization: Bearer eyJ...\n\n// Response\n{ "data": { "status": "deleted" } }\n\n// Note: deleting an endpoint also deletes all associated delivery logs`,
-              },
-              {
-                type: "p",
-                text: "If your server does not return 2xx, Tori retries delivery at 5 minutes, 30 minutes, 2 hours, then 6 hours. Every attempt is logged and replayable from the dashboard.",
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "Respond 200 immediately and process asynchronously. If processing takes more than a few seconds, Tori may time out and schedule an unnecessary retry. Duplicate events are possible make your webhook handler idempotent by checking whether you have already processed an event ID before acting on it.",
-              },
+              { type: "p", text: "Fetch a single customer by Tori ID." },
+              { type: "h2", text: "Headers", id: "customers-get-headers" },
+              { type: "param", name: "X-API-Key", paramType: "string", required: true, description: "Your secret API key" },
+              { type: "h2", text: "Path parameters", id: "customers-get-path" },
+              { type: "param", name: "customer_id", paramType: "uuid", required: true, description: "The customer ID" },
+              { type: "h2", text: "Response", id: "customers-get-response" },
+              { type: "response", status: 200, description: "Customer returned", body: `{
+  "data": {
+    "id": "2c8e91c2-e848-43d2-888c-b680c6909453",
+    "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
+    "email": "amaka@startup.ng",
+    "name": "Amaka Obi",
+    "external_id": "user_12345",
+    "created_at": "2026-06-26T00:00:00Z"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+              { type: "response", status: 404, description: "Customer not found", body: `{ "error": { "code": "not_found", "message": "the requested resource does not exist" }, "meta": { ... } }` },
             ],
           },
           {
-            id: "ref-portal",
-            label: "Customer portal",
-            icon: "ti-user-circle",
+            id: "ref-customers-portal", label: "Generate portal token", icon: "ti-user-circle",
+            method: "GET", endpoint: "/v1/platform/customers/{customer_id}/portal-token",
             blocks: [
-              {
-                type: "p",
-                text: "The customer portal lets your subscribers manage their own billing without contacting support. You generate a short-lived token and redirect the customer to the portal URL.",
-              },
-              { type: "h2", text: "Generate portal token", id: "token" },
-              {
-                type: "p",
-                text: "Available on both Dashboard API and Platform API.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `# Platform API\nGET /v1/platform/customers/{id}/portal-token\nX-API-Key: tori_live_...\n\n// Response\n{\n  "data": {\n    "token": "eyJ...",\n    "expires_in": "3600"\n  }\n}`,
-              },
-              { type: "p", text: "Redirect the customer to the portal URL:" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `https://portal.tori.ng?token=eyJ...\n\n// Or your own domain if you embed the portal:\nhttps://app.classpay.ng/billing?token=eyJ...`,
-              },
-              { type: "h2", text: "Portal data", id: "data" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `GET /v1/portal?token=eyJ...\n\n// Response\n{\n  "data": {\n    "customer": { "id": "cus_...", "email": "amaka@startup.ng", "name": "Amaka Obi" },\n    "subscriptions": [\n      {\n        "id": "sub_...",\n        "status": "ACTIVE",\n        "current_period_end": "2026-07-07T00:00:00Z",\n        "plan": { "name": "Pro", "amount": 1500000, "interval": "monthly" }\n      }\n    ]\n  }\n}`,
-              },
-              { type: "h2", text: "Portal actions", id: "actions" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `# All portal routes use ?token=eyJ... query param, no other auth needed\n\nPOST /v1/portal/subscriptions/{id}/pause?token=eyJ...\nPOST /v1/portal/subscriptions/{id}/resume?token=eyJ...\nPOST /v1/portal/subscriptions/{id}/cancel?token=eyJ...\n\n// Each returns the updated subscription object`,
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "Portal tokens expire after 1 hour. Generate a fresh token each time the customer visits the billing page. Never store or reuse portal tokens.",
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Portal actions fire the same webhooks as direct API calls. subscription.paused, subscription.resumed, and subscription.cancelled will be delivered to your registered endpoints.",
-              },
+              { type: "p", text: "Generate a short-lived portal token. Redirect the customer to /portal?token=... so they can manage their own subscription." },
+              { type: "h2", text: "Headers", id: "portal-headers" },
+              { type: "param", name: "X-API-Key", paramType: "string", required: true, description: "Your secret API key" },
+              { type: "h2", text: "Path parameters", id: "portal-path" },
+              { type: "param", name: "customer_id", paramType: "uuid", required: true, description: "The customer ID" },
+              { type: "h2", text: "Response", id: "portal-response" },
+              { type: "response", status: 200, description: "Portal token generated", body: `{
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expires_in": "3600"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+              { type: "callout", variant: "warn", text: "Portal tokens expire after 1 hour. Generate a fresh token each time the customer visits your billing page. Never store or reuse portal tokens." },
+            ],
+          },
+        ],
+      },
+      {
+        group: "Checkout",
+        items: [
+          {
+            id: "ref-checkout", label: "Create checkout", icon: "ti-shopping-cart",
+            method: "POST", endpoint: "/v1/platform/checkout",
+            blocks: [
+              { type: "p", text: "The primary integration endpoint. Finds or creates the customer, starts the subscription, creates a Nomba checkout session, and returns the checkout URL  all in one call." },
+              { type: "h2", text: "Headers", id: "checkout-headers" },
+              { type: "param", name: "X-API-Key", paramType: "string", required: true, description: "Your secret API key (Platform API)  OR  Authorization: Bearer {token} (Dashboard API)" },
+              { type: "param", name: "Content-Type", paramType: "string", required: true, description: "application/json" },
+              { type: "h2", text: "Body", id: "checkout-body" },
+              { type: "param", name: "email", paramType: "string", required: true, description: "Customer email. Tori finds an existing customer or creates a new one." },
+              { type: "param", name: "plan_id", paramType: "uuid", required: true, description: "ID of the plan to subscribe to" },
+              { type: "param", name: "name", paramType: "string", required: false, description: "Customer name  used if creating a new customer" },
+              { type: "param", name: "external_id", paramType: "string", required: false, description: "Your own user ID  stored on the customer record for lookups" },
+              { type: "param", name: "idempotency_key", paramType: "string", required: false, description: "Prevents duplicate subscriptions on network retries. Strongly recommended." },
+              { type: "param", name: "callback_url", paramType: "string", required: false, description: "Where Nomba redirects the customer after payment. Defaults to Tori success page." },
+              { type: "h2", text: "Response", id: "checkout-response" },
+              { type: "response", status: 201, description: "Subscription started, checkout URL ready", body: `{
+  "data": {
+    "customer": {
+      "id": "2c8e91c2-e848-43d2-888c-b680c6909453",
+      "email": "amaka@startup.ng",
+      "name": "Amaka Obi",
+      "external_id": "user_12345",
+      "created_at": "2026-06-26T00:00:00Z"
+    },
+    "subscription": {
+      "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+      "status": "TRIALING",
+      "current_period_start": "2026-06-26T00:00:00Z",
+      "current_period_end": "2026-07-10T00:00:00Z",
+      "trial_end": "2026-07-10T00:00:00Z",
+      "dunning_attempt": 0
+    },
+    "customer_created": true,
+    "checkout_url": "https://pay.nomba.com/sandbox/QMoj...",
+    "requires_payment_method": true
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+              { type: "response", status: 400, description: "Missing required field", body: `{ "error": { "code": "missing_field", "message": "plan_id is required" }, "meta": { ... } }` },
+              { type: "response", status: 422, description: "Plan is inactive", body: `{ "error": { "code": "plan_inactive", "message": "this plan is no longer accepting new subscriptions" }, "meta": { ... } }` },
+              { type: "callout", variant: "warn", text: "Always redirect the customer to checkout_url immediately  even during a free trial. This tokenises the card now so Tori can charge automatically at trial end. Without a tokenKey at trial end, the subscription moves to PAST_DUE." },
+              { type: "callout", variant: "info", text: "customer_created is true if a new customer was just created, false if an existing customer was matched by email. Use this to decide whether to send a welcome email." },
+            ],
+          },
+        ],
+      },
+      {
+        group: "Subscriptions",
+        items: [
+          {
+            id: "ref-subs-list", label: "List subscriptions", icon: "ti-list",
+            method: "GET", endpoint: "/v1/subscriptions",
+            blocks: [
+              { type: "p", text: "Returns all subscriptions for your account. Filter by status to find everything in a specific billing state." },
+              { type: "h2", text: "Headers", id: "subs-list-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Query parameters", id: "subs-list-query" },
+              { type: "param", name: "status", paramType: "string", required: false, description: "Filter by state: TRIALING | ACTIVE | GRACE_PERIOD | PAST_DUE | DUNNING | PAUSED | SUSPENDED | CANCELLED" },
+              { type: "param", name: "limit", paramType: "integer", required: false, description: "Max results. Default 20" },
+              { type: "param", name: "offset", paramType: "integer", required: false, description: "Results to skip. Default 0" },
+              { type: "h2", text: "Response", id: "subs-list-response" },
+              { type: "response", status: 200, description: "Subscriptions returned", body: `{
+  "data": [
+    {
+      "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+      "customer_id": "2c8e91c2-...",
+      "plan_id": "afecaf33-...",
+      "status": "ACTIVE",
+      "current_period_start": "2026-06-26T00:00:00Z",
+      "current_period_end": "2026-07-26T00:00:00Z",
+      "cancel_at_period_end": false,
+      "dunning_attempt": 0
+    }
+  ],
+  "pagination": { "has_more": false, "total": 20 },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+            ],
+          },
+          {
+            id: "ref-subs-get", label: "Get subscription", icon: "ti-refresh",
+            method: "GET", endpoint: "/v1/platform/subscriptions/{subscription_id}",
+            blocks: [
+              { type: "p", text: "Fetch a single subscription by ID." },
+              { type: "h2", text: "Headers", id: "subs-get-headers" },
+              { type: "param", name: "X-API-Key", paramType: "string", required: true, description: "Your secret API key" },
+              { type: "h2", text: "Path parameters", id: "subs-get-path" },
+              { type: "param", name: "subscription_id", paramType: "uuid", required: true, description: "The subscription ID" },
+              { type: "h2", text: "Response", id: "subs-get-response" },
+              { type: "response", status: 200, description: "Subscription returned", body: `{
+  "data": {
+    "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+    "tenant_id": "2d9ff9ec-...",
+    "customer_id": "2c8e91c2-...",
+    "plan_id": "afecaf33-...",
+    "status": "DUNNING",
+    "current_period_start": "2026-06-26T00:00:00Z",
+    "current_period_end": "2026-07-26T00:00:00Z",
+    "trial_end": null,
+    "dunning_attempt": 2,
+    "next_retry_at": "2026-07-03T00:00:00Z",
+    "cancel_at_period_end": false,
+    "created_at": "2026-06-26T00:00:00Z",
+    "updated_at": "2026-07-03T00:00:00Z"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+              { type: "table", headers: ["Field", "Description"], rows: [
+                ["status", "Current state  one of 8 values"],
+                ["dunning_attempt", "Number of failed payment attempts. 0 = healthy"],
+                ["next_retry_at", "When next retry fires. null if not in dunning"],
+                ["trial_end", "When trial ends. null if no trial"],
+              ]},
+              { type: "response", status: 404, description: "Subscription not found", body: `{ "error": { "code": "not_found", "message": "the requested resource does not exist" }, "meta": { ... } }` },
+            ],
+          },
+          {
+            id: "ref-subs-cancel", label: "Cancel subscription", icon: "ti-x",
+            method: "POST", endpoint: "/v1/platform/subscriptions/{subscription_id}/cancel",
+            blocks: [
+              { type: "p", text: "Permanently cancel a subscription. This is terminal  cancelled subscriptions cannot be reactivated. If a customer wants to return, create a new subscription." },
+              { type: "h2", text: "Headers", id: "subs-cancel-headers" },
+              { type: "param", name: "X-API-Key", paramType: "string", required: true, description: "Your secret API key" },
+              { type: "h2", text: "Path parameters", id: "subs-cancel-path" },
+              { type: "param", name: "subscription_id", paramType: "uuid", required: true, description: "The subscription ID" },
+              { type: "h2", text: "Response", id: "subs-cancel-response" },
+              { type: "response", status: 200, description: "Subscription cancelled", body: `{ "data": { "id": "f6ffcc85-...", "status": "CANCELLED", "cancelled_at": "2026-06-26T00:00:00Z" }, "meta": { ... } }` },
+              { type: "response", status: 422, description: "Already cancelled", body: `{ "error": { "code": "invalid_transition", "message": "subscription is already cancelled" }, "meta": { ... } }` },
+            ],
+          },
+          {
+            id: "ref-subs-pause", label: "Pause subscription", icon: "ti-player-pause",
+            method: "POST", endpoint: "/v1/platform/subscriptions/{subscription_id}/pause",
+            blocks: [
+              { type: "p", text: "Pause billing. No charges fire until resumed. The subscription record is kept." },
+              { type: "h2", text: "Headers", id: "subs-pause-headers" },
+              { type: "param", name: "X-API-Key", paramType: "string", required: true, description: "Your secret API key" },
+              { type: "h2", text: "Response", id: "subs-pause-response" },
+              { type: "response", status: 200, description: "Subscription paused", body: `{ "data": { "id": "f6ffcc85-...", "status": "PAUSED" }, "meta": { ... } }` },
+              { type: "response", status: 422, description: "Invalid transition", body: `{ "error": { "code": "invalid_transition", "message": "only active subscriptions can be paused" }, "meta": { ... } }` },
+            ],
+          },
+          {
+            id: "ref-subs-resume", label: "Resume subscription", icon: "ti-player-play",
+            method: "POST", endpoint: "/v1/platform/subscriptions/{subscription_id}/resume",
+            blocks: [
+              { type: "p", text: "Resume a paused subscription. Billing restarts on the next normal cycle." },
+              { type: "h2", text: "Headers", id: "subs-resume-headers" },
+              { type: "param", name: "X-API-Key", paramType: "string", required: true, description: "Your secret API key" },
+              { type: "h2", text: "Response", id: "subs-resume-response" },
+              { type: "response", status: 200, description: "Subscription resumed", body: `{ "data": { "id": "f6ffcc85-...", "status": "ACTIVE" }, "meta": { ... } }` },
+              { type: "response", status: 422, description: "Not paused", body: `{ "error": { "code": "invalid_transition", "message": "only paused subscriptions can be resumed" }, "meta": { ... } }` },
+            ],
+          },
+          {
+            id: "ref-plan-change", label: "Change plan", icon: "ti-arrows-exchange",
+            method: "PATCH", endpoint: "/v1/platform/subscriptions/{subscription_id}/plan",
+            blocks: [
+              { type: "p", text: "Change the subscription's plan mid-cycle with exact proration. Both credit and charge are written to the immutable ledger." },
+              { type: "h2", text: "Headers", id: "plan-change-headers" },
+              { type: "param", name: "X-API-Key", paramType: "string", required: true, description: "Your secret API key" },
+              { type: "param", name: "Content-Type", paramType: "string", required: true, description: "application/json" },
+              { type: "h2", text: "Body", id: "plan-change-body" },
+              { type: "param", name: "plan_id", paramType: "uuid", required: true, description: "ID of the new plan to switch to" },
+              { type: "h2", text: "Response", id: "plan-change-response" },
+              { type: "response", status: 200, description: "Plan changed with proration", body: `{
+  "data": {
+    "subscription": { "id": "f6ffcc85-...", "plan_id": "5c9a4529-...", "status": "ACTIVE" },
+    "proration": { "credit_kobo": 750000, "charge_kobo": 1125000, "net_adjustment_kobo": 375000 },
+    "description": "Upgraded plan  proration charge applied"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+              { type: "response", status: 422, description: "Plan change not allowed", body: `{ "error": { "code": "invalid_status", "message": "plan changes are only allowed on active subscriptions" }, "meta": { ... } }` },
+            ],
+          },
+        ],
+      },
+      {
+        group: "Invoices",
+        items: [
+          {
+            id: "ref-invoices-list", label: "List invoices", icon: "ti-receipt",
+            method: "GET", endpoint: "/v1/invoices",
+            blocks: [
+              { type: "p", text: "Returns all invoices for your account. Filter by status to find open, paid, or voided invoices." },
+              { type: "h2", text: "Headers", id: "invoices-list-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Query parameters", id: "invoices-list-query" },
+              { type: "param", name: "status", paramType: "string", required: false, description: "draft | open | paid | void | uncollectible" },
+              { type: "param", name: "limit", paramType: "integer", required: false, description: "Max results. Default 50" },
+              { type: "h2", text: "Response", id: "invoices-list-response" },
+              { type: "response", status: 200, description: "Invoices returned", body: `{
+  "data": [
+    {
+      "id": "bb7a9109-5b64-40b1-afe6-7b8197163ad9",
+      "subscription_id": "f938d703-...",
+      "customer_id": "7eeeec64-...",
+      "amount": 250000,
+      "currency": "NGN",
+      "status": "paid",
+      "due_date": "2026-06-23T00:00:00Z",
+      "paid_at": "2026-06-24T00:00:00Z",
+      "nomba_charge_ref": "WEB-ONLINE_C-abc123",
+      "line_items": [{ "description": "Basic  monthly billing", "amount": 250000, "currency": "NGN" }],
+      "created_at": "2026-06-23T00:00:00Z"
+    }
+  ],
+  "pagination": { "has_more": false, "total": 20 },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+              { type: "table", headers: ["Status", "Meaning"], rows: [
+                ["draft", "Created but not yet finalised"],
+                ["open", "Issued, payment pending"],
+                ["paid", "Payment received  paid_at and nomba_charge_ref populated"],
+                ["void", "Voided  subscription cancelled before payment"],
+                ["uncollectible", "Dunning exhausted, payment unrecoverable"],
+              ]},
+            ],
+          },
+          {
+            id: "ref-invoices-get", label: "Get invoice", icon: "ti-file-invoice",
+            method: "GET", endpoint: "/v1/invoices/{invoice_id}",
+            blocks: [
+              { type: "p", text: "Fetch a single invoice by ID." },
+              { type: "h2", text: "Headers", id: "invoices-get-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Path parameters", id: "invoices-get-path" },
+              { type: "param", name: "invoice_id", paramType: "uuid", required: true, description: "The invoice ID" },
+              { type: "h2", text: "Response", id: "invoices-get-response" },
+              { type: "response", status: 200, description: "Invoice returned", body: `{
+  "data": {
+    "id": "bb7a9109-...", "subscription_id": "f938d703-...", "customer_id": "7eeeec64-...",
+    "amount": 250000, "currency": "NGN", "status": "paid",
+    "due_date": "2026-06-23T00:00:00Z", "paid_at": "2026-06-24T00:00:00Z",
+    "line_items": [{ "description": "Basic  monthly billing", "amount": 250000, "currency": "NGN" }]
+  },
+  "meta": { ... }
+}` },
+            ],
+          },
+        ],
+      },
+      {
+        group: "Ledger",
+        items: [
+          {
+            id: "ref-ledger-list", label: "List entries", icon: "ti-book",
+            method: "GET", endpoint: "/v1/ledger",
+            blocks: [
+              { type: "p", text: "Returns all ledger entries for your account in a date range, newest first. The ledger is append-only  no entries are ever edited or deleted." },
+              { type: "h2", text: "Headers", id: "ledger-list-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Query parameters", id: "ledger-list-query" },
+              { type: "param", name: "from", paramType: "string", required: false, description: "Start date in YYYY-MM-DD format" },
+              { type: "param", name: "to", paramType: "string", required: false, description: "End date in YYYY-MM-DD format" },
+              { type: "param", name: "limit", paramType: "integer", required: false, description: "Max results. Default 50" },
+              { type: "h2", text: "Response", id: "ledger-list-response" },
+              { type: "response", status: 200, description: "Ledger entries returned", body: `{
+  "data": [
+    {
+      "id": "a1b2c3d4-...", "entry_type": "CHARGE", "direction": "DEBIT",
+      "amount": 1500000, "currency": "NGN",
+      "description": "Subscription renewal  month 1",
+      "subscription_id": "f6ffcc85-...", "customer_id": "2c8e91c2-...",
+      "created_at": "2026-06-26T00:00:00Z"
+    }
+  ],
+  "pagination": { "has_more": false, "total": 44 },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+            ],
+          },
+          {
+            id: "ref-ledger-summary", label: "Ledger summary", icon: "ti-chart-pie",
+            method: "GET", endpoint: "/v1/ledger/summary",
+            blocks: [
+              { type: "p", text: "Returns aggregated totals for a period. This is the source of all revenue dashboard numbers." },
+              { type: "h2", text: "Headers", id: "ledger-summary-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Query parameters", id: "ledger-summary-query" },
+              { type: "param", name: "from", paramType: "string", required: true, description: "Start date YYYY-MM-DD" },
+              { type: "param", name: "to", paramType: "string", required: true, description: "End date YYYY-MM-DD" },
+              { type: "h2", text: "Response", id: "ledger-summary-response" },
+              { type: "response", status: 200, description: "Summary returned", body: `{
+  "data": {
+    "total_charged": 91500000,
+    "total_refunded": 750000,
+    "total_credits_applied": 0,
+    "net_revenue": 90750000,
+    "entry_count": 44,
+    "currency": "NGN"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+            ],
+          },
+        ],
+      },
+      {
+        group: "Webhooks",
+        items: [
+          {
+            id: "ref-webhooks-create", label: "Register endpoint", icon: "ti-plus",
+            method: "POST", endpoint: "/v1/webhooks/endpoints",
+            blocks: [
+              { type: "p", text: "Register a URL to receive webhook deliveries. The response includes a signing secret  save it immediately, it is shown once." },
+              { type: "h2", text: "Headers", id: "webhooks-create-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "param", name: "Content-Type", paramType: "string", required: true, description: "application/json" },
+              { type: "h2", text: "Body", id: "webhooks-create-body" },
+              { type: "param", name: "url", paramType: "string", required: true, description: "Your HTTPS endpoint URL" },
+              { type: "param", name: "events", paramType: "array", required: false, description: `List of event types to subscribe to. ["*"] subscribes to all events.` },
+              { type: "h2", text: "Response", id: "webhooks-create-response" },
+              { type: "response", status: 201, description: "Endpoint registered  secret shown once", body: `{
+  "data": {
+    "endpoint": {
+      "id": "ep_abc123-...", "url": "https://yourapp.ng/webhooks/tori",
+      "is_active": true, "api_version": "2026-06-01", "created_at": "2026-06-26T00:00:00Z"
+    },
+    "secret": "whsec_a1b2c3d4e5f6789012345678901234567890abcd"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+              { type: "callout", variant: "warn", text: "The webhook secret is shown exactly once. If you lose it, delete the endpoint and create a new one." },
+            ],
+          },
+          {
+            id: "ref-webhooks-list", label: "List endpoints", icon: "ti-list",
+            method: "GET", endpoint: "/v1/webhooks/endpoints",
+            blocks: [
+              { type: "p", text: "Returns all registered webhook endpoints for your account." },
+              { type: "h2", text: "Headers", id: "webhooks-list-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Response", id: "webhooks-list-response" },
+              { type: "response", status: 200, description: "Endpoints returned", body: `{
+  "data": [{ "id": "ep_abc123-...", "url": "https://yourapp.ng/webhooks/tori", "is_active": true, "api_version": "2026-06-01" }],
+  "meta": { ... }
+}` },
+            ],
+          },
+          {
+            id: "ref-webhooks-logs", label: "Delivery logs", icon: "ti-clipboard-list",
+            method: "GET", endpoint: "/v1/webhooks/logs",
+            blocks: [
+              { type: "p", text: "Returns all webhook delivery attempts, newest first. Each shows event type, delivery status, attempt count, and response from your server." },
+              { type: "h2", text: "Headers", id: "webhooks-logs-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Response", id: "webhooks-logs-response" },
+              { type: "response", status: 200, description: "Delivery logs returned", body: `{
+  "data": [
+    { "id": "del_xyz789-...", "endpoint_id": "ep_abc123-...", "event_type": "payment.succeeded", "status": "delivered", "attempt_count": 1, "response_status": 200, "created_at": "2026-06-26T00:00:00Z" },
+    { "id": "del_xyz790-...", "event_type": "payment.failed", "status": "failed", "attempt_count": 3, "response_status": 500, "created_at": "2026-06-26T00:00:00Z" }
+  ],
+  "meta": { ... }
+}` },
+            ],
+          },
+          {
+            id: "ref-webhooks-retry", label: "Retry delivery", icon: "ti-refresh",
+            method: "POST", endpoint: "/v1/webhooks/logs/{delivery_id}/retry",
+            blocks: [
+              { type: "p", text: "Immediately re-attempt a failed webhook delivery. Useful when your server was temporarily down." },
+              { type: "h2", text: "Headers", id: "webhooks-retry-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Path parameters", id: "webhooks-retry-path" },
+              { type: "param", name: "delivery_id", paramType: "uuid", required: true, description: "The delivery log ID" },
+              { type: "h2", text: "Response", id: "webhooks-retry-response" },
+              { type: "response", status: 200, description: "Retry queued", body: `{ "data": { "status": "queued" }, "meta": { ... } }` },
+            ],
+          },
+          {
+            id: "ref-webhooks-delete", label: "Delete endpoint", icon: "ti-trash",
+            method: "DELETE", endpoint: "/v1/webhooks/endpoints/{endpoint_id}",
+            blocks: [
+              { type: "p", text: "Delete a webhook endpoint and all associated delivery logs." },
+              { type: "h2", text: "Headers", id: "webhooks-delete-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Response", id: "webhooks-delete-response" },
+              { type: "response", status: 200, description: "Endpoint deleted", body: `{ "data": { "status": "deleted" }, "meta": { ... } }` },
+            ],
+          },
+        ],
+      },
+      {
+        group: "Billing Health",
+        items: [
+          {
+            id: "ref-health", label: "Portfolio health", icon: "ti-heartbeat",
+            method: "GET", endpoint: "/v1/health",
+            blocks: [
+              { type: "p", text: "Returns real-time health scores and churn predictions for all active subscriptions." },
+              { type: "h2", text: "Headers", id: "health-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Response", id: "health-response" },
+              { type: "response", status: 200, description: "Health data returned", body: `{
+  "data": {
+    "average_score": 74,
+    "healthy_count": 9, "at_risk_count": 2, "critical_count": 1, "churn_risk_count": 2,
+    "subscriptions": [
+      {
+        "id": "f6ffcc85-...", "status": "DUNNING",
+        "health": { "score": 28, "label": "At risk", "color": "#EA580C", "reason": "Payment failing. Retries in progress." },
+        "churn": { "signal": "high", "score": 65, "reasons": ["Two failed attempts", "Period ends in 4 days"], "recommended_action": "Contact the customer immediately." }
+      }
+    ]
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+              { type: "table", headers: ["Factor", "Deduction"], rows: [
+                ["DUNNING state", "-40"],
+                ["SUSPENDED state", "-60"],
+                ["PAST_DUE state", "-20"],
+                ["GRACE_PERIOD state", "-10"],
+                ["PAUSED state", "-10"],
+                ["Each dunning attempt", "-10 (capped at -40)"],
+                ["Subscription under 30 days", "-5"],
+                ["Previously recovered from dunning", "-10"],
+              ]},
+            ],
+          },
+          {
+            id: "ref-health-forecast", label: "Revenue forecast", icon: "ti-chart-arrows-vertical",
+            method: "GET", endpoint: "/v1/health/forecast",
+            blocks: [
+              { type: "p", text: "Next month's expected revenue in three estimates with confidence level." },
+              { type: "h2", text: "Headers", id: "forecast-headers" },
+              { type: "param", name: "Authorization", paramType: "string", required: true, description: "Bearer {access_token}" },
+              { type: "h2", text: "Response", id: "forecast-response" },
+              { type: "response", status: 200, description: "Forecast returned", body: `{
+  "data": {
+    "period_label": "July 2026",
+    "expected_low": 18740000, "expected_mid": 23420000, "expected_high": 24600000,
+    "active_subscriptions": 12, "at_risk_revenue": 10040000,
+    "recovery_rate_pct": 65, "confidence": "medium",
+    "note": "Forecast includes dunning recovery estimate based on historical retry success rate."
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+            ],
+          },
+        ],
+      },
+      {
+        group: "System",
+        items: [
+          {
+            id: "ref-health-check", label: "Health check", icon: "ti-activity",
+            method: "GET", endpoint: "/v1/status",
+            blocks: [
+              { type: "p", text: "Returns the current status of the Tori API. No authentication required. Use this to verify the API is reachable from your server." },
+              { type: "h2", text: "Response", id: "healthcheck-response" },
+              { type: "response", status: 200, description: "API is healthy", body: `{
+  "data": {
+    "status": "ok",
+    "service": "tori-api",
+    "version": "1.0.0",
+    "timestamp": "2026-06-26T21:00:00Z",
+    "checks": { "api": "ok", "nomba": "connected" }
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}` },
+              { type: "callout", variant: "info", text: "Also available at GET /health (no version prefix). Both return identical responses." },
             ],
           },
         ],
       },
     ],
   },
+  // ═══════════════════════════════════════════════════════════
+  // TAB 3  DEVELOPER RESOURCES
+  // ═══════════════════════════════════════════════════════════
   {
     id: "developer-resources",
     label: "Developer Resources",
@@ -2936,243 +1322,80 @@ router.post('/tori', express.raw({ type: 'application/json' }), async (req, res)
         group: "Resources",
         items: [
           {
-            id: "test-cards",
-            label: "Test cards",
-            icon: "ti-credit-card",
+            id: "test-cards", label: "Nomba test cards", icon: "ti-credit-card",
             blocks: [
-              {
-                type: "p",
-                text: "Use these card outcomes in the sandbox to exercise every billing scenario without real money. Each maps to a real failure classification so you can verify your webhook handling and product logic end to end before going live.",
-              },
-              {
-                type: "table",
-                headers: [
-                  "Scenario",
-                  "Failure code",
-                  "Classification",
-                  "Resulting state",
-                ],
-                rows: [
-                  ["Successful charge", "approved", "—", "ACTIVE"],
-                  [
-                    "Not enough money",
-                    "insufficient_funds",
-                    "Retriable",
-                    "DUNNING",
-                  ],
-                  [
-                    "Bank system down",
-                    "issuer_unavailable",
-                    "Retriable",
-                    "DUNNING",
-                  ],
-                  [
-                    "Request timed out",
-                    "transaction_timeout",
-                    "Retriable",
-                    "DUNNING",
-                  ],
-                  [
-                    "Card expired",
-                    "card_expired",
-                    "Permanent",
-                    "SUSPENDED (immediate)",
-                  ],
-                  [
-                    "Card blocked for online",
-                    "card_blocked",
-                    "Permanent",
-                    "SUSPENDED (immediate)",
-                  ],
-                  [
-                    "Bank declined definitively",
-                    "do_not_honour",
-                    "Permanent",
-                    "SUSPENDED (immediate)",
-                  ],
-                ],
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Try this sequence: start a subscription with an insufficient_funds card so it enters DUNNING. Then switch the card to approved and trigger a manual retry. Watch dunning.recovered fire and the subscription return to ACTIVE. This is the full dunning lifecycle in one test.",
-              },
+              { type: "p", text: "Use these Nomba sandbox test cards to exercise every billing scenario without real money." },
+              { type: "h2", text: "Test card numbers", id: "card-numbers" },
+              { type: "table", headers: ["Card number", "Network", "Outcome", "OTP"], rows: [
+                ["5434621074252808", "Mastercard", "OTP required  success path", "9999 = approve, 1234 = timeout, 5464 = invalid"],
+                ["4000000000002503", "Visa", "3DS authentication required", "Handle 3DS redirect"],
+                ["5484497218317651", "Mastercard", "Declined  do not honour", "None  immediate decline"],
+              ]},
+              { type: "callout", variant: "info", text: "Card expiry, CVV, and PIN are not validated in the sandbox. Any values are accepted. Use PIN 1234 on the Nomba sandbox payment page." },
+              { type: "h2", text: "Testing the full dunning flow", id: "dunning-test" },
+              { type: "list", items: [
+                "Create a checkout  subscription starts in TRIALING or ACTIVE",
+                "Complete checkout with card 5484497218317651  charge declines",
+                "Subscription enters GRACE_PERIOD (48-hour silent retry)",
+                "After 48 hours: grace retry fails → PAST_DUE → DUNNING",
+                "Worker schedules retries at Day 3, 7, 14, 21",
+                "To simulate recovery: next retry fires → use card 5434621074252808, OTP 9999",
+                "Watch dunning.recovered webhook fire → subscription returns to ACTIVE",
+              ]},
             ],
           },
           {
-            id: "errors",
-            label: "Error codes",
-            icon: "ti-alert-triangle",
+            id: "errors", label: "Error reference", icon: "ti-alert-triangle",
             blocks: [
-              {
-                type: "p",
-                text: "Errors always follow the same envelope with a stable machine-readable `code` and a human-readable `message`. Always branch your error handling on `code`, never on `message` messages may change in wording, codes will not.",
-              },
-              {
-                type: "table",
-                headers: [
-                  "HTTP status",
-                  "Error code",
-                  "What it means",
-                  "What to do",
-                ],
-                rows: [
-                  [
-                    "400",
-                    "invalid_body",
-                    "The request body was not valid JSON",
-                    "Check your request body format",
-                  ],
-                  [
-                    "400",
-                    "missing_field",
-                    "A required field was not included",
-                    "Add the missing field",
-                  ],
-                  [
-                    "400",
-                    "invalid_amount",
-                    "The amount is zero or negative",
-                    "Send a positive integer in kobo",
-                  ],
-                  [
-                    "401",
-                    "unauthorised",
-                    "Missing or invalid API key or JWT",
-                    "Check your credentials",
-                  ],
-                  [
-                    "404",
-                    "not_found",
-                    "The resource does not exist for this tenant",
-                    "Check the ID is correct",
-                  ],
-                  [
-                    "409",
-                    "email_taken",
-                    "A customer with that email already exists",
-                    "Look up the existing customer instead",
-                  ],
-                  [
-                    "422",
-                    "invalid_transition",
-                    "The state machine rejected the action",
-                    "Check the current state allows this action",
-                  ],
-                  [
-                    "429",
-                    "rate_limited",
-                    "Too many requests per minute",
-                    "Back off until X-Ratelimit-Reset",
-                  ],
-                  [
-                    "500",
-                    "internal_error",
-                    "Something went wrong on Tori's side",
-                    "Retry with exponential backoff, contact support if persistent",
-                  ],
-                ],
-              },
+              { type: "table", headers: ["HTTP", "Code", "Meaning", "Fix"], rows: [
+                ["400", "invalid_body", "Not valid JSON", "Check body format"],
+                ["400", "missing_field", "Required field missing", "Add the field"],
+                ["400", "invalid_amount", "Zero or negative", "Positive kobo integer"],
+                ["401", "unauthorised", "Invalid credentials", "Check API key or JWT"],
+                ["404", "not_found", "Resource doesn't exist", "Check the ID"],
+                ["409", "email_taken", "Customer already exists", "Look up existing customer"],
+                ["422", "invalid_transition", "State machine rejected", "Check current state"],
+                ["422", "plan_inactive", "Plan not accepting subs", "Use active plan"],
+                ["429", "rate_limited", "Too many requests", "Back off until reset"],
+                ["500", "internal_error", "Server error", "Retry with backoff"],
+              ]},
             ],
           },
           {
-            id: "ratelimits",
-            label: "Rate limits",
-            icon: "ti-gauge",
+            id: "idempotency", label: "Idempotency", icon: "ti-copy-check",
             blocks: [
-              {
-                type: "p",
-                text: "The API allows 100 requests per minute per IP address. Every response includes rate limit headers so you can track your usage and throttle proactively.",
-              },
-              {
-                type: "code",
-                lang: "bash",
-                code: `X-Ratelimit-Limit: 100        # max requests per window\nX-Ratelimit-Remaining: 73     # how many you have left\nX-Ratelimit-Reset: 1781870000 # Unix timestamp when the window resets`,
-              },
-              {
-                type: "p",
-                text: "When you exceed the limit, you receive a 429 response. Do not retry immediately wait until the reset timestamp before making another request.",
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "If you are bulk-creating customers or subscriptions, stagger your requests to stay under the limit. For large batch operations importing thousands of customers at once contact us for an elevated rate limit.",
-              },
+              { type: "p", text: "Always pass an idempotency_key when creating subscriptions. If your server retries due to a network timeout, the same key returns the original subscription instead of creating a duplicate." },
+              { type: "h2", text: "Good key patterns", id: "key-patterns" },
+              { type: "list", items: [
+                "`signup_{user_id}`  user 12345 signing up",
+                "`signup_{user_id}_{plan_id}`  same user, specific plan",
+                "`upgrade_{subscription_id}_{new_plan_id}`  plan upgrade",
+              ]},
+              { type: "callout", variant: "success", text: "Nigerian mobile networks drop connections regularly. Idempotency keys on subscription creation ensure a timeout followed by a retry never results in double billing." },
             ],
           },
           {
-            id: "idempotency",
-            label: "Idempotency",
-            icon: "ti-copy-check",
+            id: "ratelimits", label: "Rate limits", icon: "ti-gauge",
             blocks: [
-              {
-                type: "p",
-                text: "Idempotency means that making the same request multiple times produces the same result as making it once. This is critical for billing you never want to accidentally charge a customer twice or create duplicate subscriptions because a network request timed out and your server retried.",
-              },
-              { type: "h2", text: "How it works", id: "how" },
-              {
-                type: "p",
-                text: "Pass an `idempotency_key` in the request body when creating a subscription. If Tori has already processed a request with that key, it returns the original result without creating anything new. The key is tied to your tenant, so keys from different accounts never collide.",
-              },
-              {
-                type: "code",
-                lang: "json",
-                code: `{\n  "customer_id": "cus_...",\n  "plan_id": "plan_...",\n  "idempotency_key": "sub_user_12345_pro_2026"\n}`,
-              },
-              { type: "h2", text: "Choosing a good key", id: "choosing" },
-              {
-                type: "p",
-                text: "A good idempotency key is stable for the specific operation but unique across different operations. A common pattern is to combine your user ID with the operation type:",
-              },
-              {
-                type: "list",
-                items: [
-                  "`sub_user_12345_pro` user 12345 subscribing to the Pro plan",
-                  "`sub_user_12345_pro_upgrade_2026-06` same user upgrading in June",
-                  "A UUID you generate when the user clicks Subscribe, stored in your session",
-                ],
-              },
-              {
-                type: "callout",
-                variant: "success",
-                text: "Nigerian mobile networks drop connections regularly. Always use idempotency keys on subscription creation so a timeout followed by a retry never results in double billing.",
-              },
-            ],
-          },
-          {
-            id: "postman",
-            label: "Postman collection",
-            icon: "ti-package",
-            blocks: [
-              {
-                type: "p",
-                text: "The Tori Postman collection covers every endpoint with example request bodies, environment variables for your API key, and chained requests that pass IDs between steps automatically.",
-              },
-              { type: "h2", text: "Getting started", id: "getting-started" },
-              {
-                type: "list",
-                items: [
-                  "Import the collection into Postman",
-                  "Create a Tori environment with `api_key` set to your `tori_live_...` key",
-                  "Set `base_url` to `https://api.tori.ng`",
-                  "Run the Getting Started folder top to bottom it creates a plan, customer, and subscription in sequence",
-                ],
-              },
-              {
-                type: "p",
-                text: "The collection uses Postman's test scripts to extract IDs from responses and store them as environment variables. When you create a plan, its ID is automatically saved and used in the subscription creation request. No manual copying required.",
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "The collection includes pre-request scripts that verify your API key is set and your environment is configured correctly before each request runs.",
-              },
+              { type: "table", headers: ["Auth type", "Limit"], rows: [
+                ["No auth (global IP)", "100 requests/minute per IP"],
+                ["JWT (Dashboard API)", "300 requests/minute per tenant"],
+                ["API key (Platform API)", "600 requests/minute per tenant"],
+              ]},
+              { type: "h2", text: "Rate limit headers", id: "headers" },
+              { type: "code", lang: "bash", code: `X-Ratelimit-Limit: 300
+X-Ratelimit-Remaining: 247
+X-Ratelimit-Reset: 1782428400` },
+              { type: "p", text: "When you exceed the limit you receive 429 rate_limited. Wait until X-Ratelimit-Reset before retrying." },
             ],
           },
         ],
       },
     ],
   },
+  // ═══════════════════════════════════════════════════════════
+  // TAB 4  CHANGELOG
+  // ═══════════════════════════════════════════════════════════
   {
     id: "changelog",
     label: "Changelog",
@@ -3181,50 +1404,43 @@ router.post('/tori', express.raw({ type: 'application/json' }), async (req, res)
         group: "Releases",
         items: [
           {
-            id: "changelog",
-            label: "All releases",
-            icon: "ti-history",
+            id: "changelog", label: "All releases", icon: "ti-history",
             blocks: [
-              { type: "h2", text: "2026-06-20 Public beta launch", id: "v1" },
-              {
-                type: "p",
-                text: "The first public release of Tori, available to all businesses building on Nomba.",
-              },
-              {
-                type: "list",
-                items: [
-                  "Plans with monthly, annual, and custom intervals termly billing, quarterly retainers, any cadence",
-                  "Subscriptions with a fully validated seven-state lifecycle enforced by a pure state machine",
-                  "Nigerian-aware dunning with card failure classification retriable vs permanent and payday-tuned retry schedule",
-                  "Append-only financial ledger every charge, refund, credit, and adjustment recorded immutably",
-                  "MRR, ARR, churn rate, and dunning recovery metrics computed from real ledger history",
-                  "HMAC-SHA256 signed, replayable webhooks covering the full billing event surface",
-                  "Self-service customer portal tokens for pause, resume, and cancellation without support tickets",
-                  "Per-IP rate limiting with budget headers on every response",
-                  "Idempotent subscription creation for safe retries over unreliable networks",
-                  "Full dashboard: subscription management, customer directory, plan builder, finance charts, webhook logs, API key management",
-                ],
-              },
-              { type: "h2", text: "2026-05-15 Private preview", id: "v0" },
-              {
-                type: "p",
-                text: "Internal testing with a small group of Nigerian SaaS founders.",
-              },
-              {
-                type: "list",
-                items: [
-                  "Core billing engine with correct month-end date clamping January 31 + 1 month = February 28, always",
-                  "Proration engine for mid-cycle plan changes",
-                  "Initial Platform API surface plans, customers, subscriptions",
-                  "Idempotency key support on subscription creation",
-                  "PostgreSQL-backed job queue for scheduling retry events",
-                ],
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Tori is in public beta. The API surface is stable and will not have breaking changes within the 2026-06-01 version. Feedback from early integrators directly shapes the roadmap.",
-              },
+              { type: "h2", text: "2026-07-03  Nomba integration complete", id: "v1-1" },
+              { type: "list", items: [
+                "Real Nomba checkout API  POST /v1/checkout/order with tokenizeCard: true",
+                "Real Nomba tokenised card charging on every renewal and dunning retry",
+                "Direct debit mandate client  create, debit, status",
+                "Inbound payment_success webhook  extracts and stores tokenKey on subscription",
+                "Nomba webhook HMAC-SHA256 verification with base64 encoding",
+                "Webhook idempotency  requestId dedup via Redis, 24-hour TTL",
+                "Sandbox environment switching  NOMBA_ENV=sandbox routes to sandbox.nomba.com",
+                "Nightly reconciliation  Nomba transactions vs ledger, discrepancy detection",
+                "Invoice generation on every successful charge and dunning recovery",
+                "Invoice API  list and get with status filtering",
+                "Trial flow charge  tokenKey charged automatically when trial ends",
+                "requires_payment_method flag in checkout response",
+                "callback_url support  redirect to developer's own success page after payment",
+                "Payment success page at /payment/success",
+                "System health endpoint at /v1/status  no auth required",
+              ]},
+              { type: "h2", text: "2026-06-29  Public beta launch", id: "v1" },
+              { type: "list", items: [
+                "Eight-state subscription lifecycle with pure state machine and 28 unit tests",
+                "GRACE_PERIOD state  48-hour silent retry before dunning begins",
+                "Nigerian dunning engine with payday-aligned retry schedule: Day 3, 7, 14, 21",
+                "Nomba failure code classification  permanent vs retriable",
+                "Append-only double-entry ledger with 7 entry types",
+                "MRR, ARR, churn, dunning recovery from real ledger data",
+                "HMAC-SHA256 signed outbound webhooks with retry schedule and circuit breaker",
+                "Customer self-service portal  pause, resume, cancel",
+                "Per-tenant rate limiting: 300 req/min JWT, 600 req/min API key",
+                "Argon2id passwords, SHA-256 hashed API keys, Redis token revocation",
+                "Brute force protection: 5 attempts, 15-minute lockout",
+                "PostgreSQL SKIP LOCKED job queue with stale lock recovery",
+                "Proration on mid-cycle plan changes",
+                "Full responsive dashboard: overview, subscriptions, billing health, customers, plans, invoices, finance, webhooks, API keys, settings, docs",
+              ]},
             ],
           },
         ],
