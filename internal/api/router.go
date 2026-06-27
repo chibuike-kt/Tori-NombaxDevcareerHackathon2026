@@ -10,6 +10,7 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/finops"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/ledger"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/webhook"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/payment"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
@@ -25,6 +26,7 @@ type Deps struct {
 	Jobs          domain.JobRepository
 	Webhooks      domain.WebhookRepository
 	Tokens        domain.TokenRevoker
+	Payment       payment.NombaClient
 }
 
 // maxBodySize limits request bodies to 1MB to prevent OOM attacks.
@@ -71,6 +73,9 @@ func NewRouter(deps Deps) http.Handler {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
+systemHealthH := handlers.NewSystemHealthHandler()
+r.Get("/health", systemHealthH.Check)
+r.Get("/v1/status", systemHealthH.Check)
 
 	// Handlers
 	authH := handlers.NewAuthHandler(deps.Tenants, deps.Tokens)
@@ -84,7 +89,7 @@ func NewRouter(deps Deps) http.Handler {
 	finopsH := handlers.NewFinOpsHandler(finopsSvc)
 	webhookH := handlers.NewWebhookHandler(deps.Webhooks)
 	healthH := handlers.NewHealthHandler(deps.Subscriptions, deps.Plans)
-	checkoutH := handlers.NewCheckoutHandler(deps.Customers, deps.Plans, deps.Subscriptions, deps.Jobs)
+	checkoutH := handlers.NewCheckoutHandler(deps.Customers, deps.Plans, deps.Subscriptions, deps.Jobs, deps.Payment)
 	apiKeyH := handlers.NewAPIKeyHandler(deps.Tenants)
 
 	// Public routes — no auth
@@ -123,6 +128,11 @@ r.Group(func(r chi.Router) {
 		r.Get("/v1/plans/{id}", planH.Get)
 		r.Patch("/v1/plans/{id}", planH.Update)
 		r.Delete("/v1/plans/{id}", planH.Deactivate)
+
+		invoiceH := handlers.NewInvoiceHandler(deps.Invoices)
+		r.Get("/v1/invoices", invoiceH.List)
+		r.Get("/v1/invoices/{id}", invoiceH.Get)
+		r.Get("/v1/subscriptions/{id}/invoices", invoiceH.ListBySubscription)
 
 		r.Post("/v1/customers", customerH.Create)
 		r.Get("/v1/customers", customerH.List)
@@ -183,19 +193,43 @@ r.Group(func(r chi.Router) {
 		r.Post("/v1/platform/subscriptions/{id}/pause", subH.Pause)
 		r.Post("/v1/platform/subscriptions/{id}/resume", subH.Resume)
 	})
+		nombaWebhookH := handlers.NewNombaWebhookHandler(deps.Subscriptions, deps.Tokens)
+		r.Post("/v1/nomba/webhook", nombaWebhookH.Handle)
 
 	return r
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
+	allowed := map[string]bool{
+		"http://localhost:3000":                            true,
+		"http://localhost:3001":                            true,
+		"https://frontend-production-e3be.up.railway.app": true,
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Request-ID")
+		origin := r.Header.Get("Origin")
+
+		// Security headers on every response
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
+
+		// CORS — only allow known origins
+		if allowed[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Request-ID")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+		}
+
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+
 		next.ServeHTTP(w, r)
 	})
 }
