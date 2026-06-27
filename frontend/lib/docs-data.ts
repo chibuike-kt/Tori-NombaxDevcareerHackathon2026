@@ -432,7 +432,7 @@ Authorization: Bearer eyJ...`,
                   [
                     "PENDING_PAYMENT",
                     "Subscription created. Customer redirected to Nomba checkout. Moves to ACTIVE only after payment_success webhook confirms payment.",
-                    "No — awaiting payment",
+                    "No awaiting payment",
                   ],
                   [
                     "TRIALING",
@@ -463,7 +463,7 @@ Authorization: Bearer eyJ...`,
                   ],
                   [
                     "CANCELLED",
-                    "Permanently ended. Terminal — no further transitions.",
+                    "Permanently ended. Terminal no further transitions.",
                     "No",
                   ],
                 ],
