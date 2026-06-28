@@ -30,10 +30,10 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-      "font-src 'self' https://cdn.jsdelivr.net",
+      "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://api.fontshare.com https://cdn.fontshare.com",
+      "font-src 'self' https://cdn.jsdelivr.net https://api.fontshare.com https://cdn.fontshare.com",
       "img-src 'self' data: blob:",
-      "connect-src 'self' https://api.tori.ng https://*.up.railway.app http://localhost:8080",
+      "connect-src 'self' https://api.tori.ng https://*.up.railway.app http://localhost:8080 https://cdn.jsdelivr.net",
       "frame-ancestors 'none'",
     ].join("; "),
   },
