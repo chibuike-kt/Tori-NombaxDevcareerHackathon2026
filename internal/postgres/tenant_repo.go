@@ -3,21 +3,21 @@ package postgres
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"fmt"
 
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/db/generated"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type TenantRepo struct {
-	q *db.Queries
+	q    *db.Queries
+	pool *pgxpool.Pool
 }
 
 func NewTenantRepo(pool *pgxpool.Pool) *TenantRepo {
-	return &TenantRepo{q: db.New(pool)}
+	return &TenantRepo{q: db.New(pool), pool: pool}
 }
 
 func (r *TenantRepo) Create(ctx context.Context, name, email, apiKeyHash, webhookSecret string, config domain.DunningConfig) (*domain.Tenant, error) {
@@ -39,36 +39,97 @@ func (r *TenantRepo) Create(ctx context.Context, name, email, apiKeyHash, webhoo
 }
 
 func (r *TenantRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Tenant, error) {
-	row, err := r.q.GetTenantByID(ctx, id)
+	var (
+		t             db.Tenant
+		emailVerified bool
+	)
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, name, email, api_key_hash, webhook_secret, dunning_config,
+		        is_active, created_at, password_hash, api_key_hint, email_verified
+		 FROM tenants WHERE id = $1`,
+		id,
+	).Scan(
+		&t.ID, &t.Name, &t.Email, &t.ApiKeyHash, &t.WebhookSecret,
+		&t.DunningConfig, &t.IsActive, &t.CreatedAt, &t.PasswordHash,
+		&t.ApiKeyHint, &emailVerified,
+	)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, domain.ErrNotFound
-		}
-		return nil, err
+		return nil, domain.ErrNotFound
 	}
-	return tenantFromRow(row), nil
+	tenant := tenantFromRow(t)
+	tenant.EmailVerified = emailVerified
+	return tenant, nil
 }
 
 func (r *TenantRepo) GetByEmail(ctx context.Context, email string) (*domain.Tenant, error) {
-	row, err := r.q.GetTenantByEmail(ctx, email)
+	var (
+		t             db.Tenant
+		emailVerified bool
+	)
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, name, email, api_key_hash, webhook_secret, dunning_config,
+		        is_active, created_at, password_hash, api_key_hint, email_verified
+		 FROM tenants WHERE email = $1`,
+		email,
+	).Scan(
+		&t.ID, &t.Name, &t.Email, &t.ApiKeyHash, &t.WebhookSecret,
+		&t.DunningConfig, &t.IsActive, &t.CreatedAt, &t.PasswordHash,
+		&t.ApiKeyHint, &emailVerified,
+	)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, domain.ErrNotFound
-		}
-		return nil, err
+		return nil, domain.ErrNotFound
 	}
-	return tenantFromRow(row), nil
+	tenant := tenantFromRow(t)
+	tenant.EmailVerified = emailVerified
+	return tenant, nil
 }
 
 func (r *TenantRepo) GetByAPIKeyHash(ctx context.Context, hash string) (*domain.Tenant, error) {
-	row, err := r.q.GetTenantByAPIKeyHash(ctx, hash)
+	var (
+		t             db.Tenant
+		emailVerified bool
+	)
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, name, email, api_key_hash, webhook_secret, dunning_config,
+		        is_active, created_at, password_hash, api_key_hint, email_verified
+		 FROM tenants WHERE api_key_hash = $1 AND is_active = TRUE`,
+		hash,
+	).Scan(
+		&t.ID, &t.Name, &t.Email, &t.ApiKeyHash, &t.WebhookSecret,
+		&t.DunningConfig, &t.IsActive, &t.CreatedAt, &t.PasswordHash,
+		&t.ApiKeyHint, &emailVerified,
+	)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, domain.ErrNotFound
-		}
-		return nil, err
+		return nil, domain.ErrNotFound
 	}
-	return tenantFromRow(row), nil
+	tenant := tenantFromRow(t)
+	tenant.EmailVerified = emailVerified
+	return tenant, nil
+}
+
+func (r *TenantRepo) MarkEmailVerified(ctx context.Context, id uuid.UUID) (*domain.Tenant, error) {
+	var (
+		t             db.Tenant
+		emailVerified bool
+	)
+	err := r.pool.QueryRow(ctx,
+		`UPDATE tenants
+		 SET email_verified = true, verified_at = NOW()
+		 WHERE id = $1
+		 RETURNING id, name, email, api_key_hash, webhook_secret, dunning_config,
+		           is_active, created_at, password_hash, api_key_hint, email_verified`,
+		id,
+	).Scan(
+		&t.ID, &t.Name, &t.Email, &t.ApiKeyHash, &t.WebhookSecret,
+		&t.DunningConfig, &t.IsActive, &t.CreatedAt, &t.PasswordHash,
+		&t.ApiKeyHint, &emailVerified,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("mark email verified: %w", err)
+	}
+	tenant := tenantFromRow(t)
+	tenant.EmailVerified = emailVerified
+	return tenant, nil
 }
 
 func (r *TenantRepo) UpdateDunningConfig(ctx context.Context, id uuid.UUID, config domain.DunningConfig) (*domain.Tenant, error) {
