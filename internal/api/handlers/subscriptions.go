@@ -52,7 +52,7 @@ func (h *SubscriptionHandler) cancelPendingJobs(subID string) {
 func (h *SubscriptionHandler) fireEvent(tenantID uuid.UUID, eventType domain.WebhookEventType, data interface{}) {
 	go func() {
 		ctx := context.Background()
-		if err := h.dispatcher.Dispatch(ctx, tenantID, eventType, data); err != nil {
+		if err := h.dispatcher.DispatchAsync(ctx, tenantID, eventType, data); err != nil {
 			log.Error().Err(err).Str("event_type", string(eventType)).Msg("webhook dispatch failed")
 		}
 	}()
