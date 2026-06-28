@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
 	"strings"
 	"time"
@@ -13,19 +14,47 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/email"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/crypto/argon2"
 )
 
 const maxLoginAttempts = 5
 
 type AuthHandler struct {
-	tenants domain.TenantRepository
-	tokens  domain.TokenRevoker
+	tenants            domain.TenantRepository
+	tokens             domain.TokenRevoker
+	emailVerifications domain.EmailVerificationRepository
+	emailClient        *email.ResendClient
 }
 
-func NewAuthHandler(tenants domain.TenantRepository, tokens domain.TokenRevoker) *AuthHandler {
-	return &AuthHandler{tenants: tenants, tokens: tokens}
+func NewAuthHandler(
+	tenants domain.TenantRepository,
+	tokens domain.TokenRevoker,
+	emailVerifications domain.EmailVerificationRepository,
+	emailClient *email.ResendClient,
+) *AuthHandler {
+	return &AuthHandler{
+		tenants:            tenants,
+		tokens:             tokens,
+		emailVerifications: emailVerifications,
+		emailClient:        emailClient,
+	}
+}
+
+// generateVerificationCode generates a cryptographically random 6-digit code.
+func generateVerificationCode() (string, error) {
+	const digits = "0123456789"
+	code := make([]byte, 6)
+	for i := range code {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(digits))))
+		if err != nil {
+			return "", err
+		}
+		code[i] = digits[n.Int64()]
+	}
+	return string(code), nil
 }
 
 // HashPassword produces an argon2id hash with a unique random salt.
@@ -40,7 +69,6 @@ func HashPassword(password string) string {
 }
 
 // verifyPassword checks a plaintext password against a stored hash.
-// Supports the new random-salt format and the legacy static-salt format.
 func verifyPassword(password, stored string) bool {
 	if strings.HasPrefix(stored, "argon2id$") {
 		parts := strings.Split(stored, "$")
@@ -116,6 +144,22 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Generate and send email verification code
+	code, err := generateVerificationCode()
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+	expiresAt := time.Now().UTC().Add(15 * time.Minute)
+	if _, err := h.emailVerifications.Create(r.Context(), tenant.ID, code, expiresAt); err != nil {
+		log.Error().Err(err).Str("tenant_id", tenant.ID.String()).Msg("auth: failed to create verification code")
+	} else {
+		subject, html := email.VerificationEmail(tenant.Name, code)
+		if err := h.emailClient.Send(r.Context(), tenant.Email, subject, html); err != nil {
+			log.Error().Err(err).Str("tenant_id", tenant.ID.String()).Msg("auth: failed to send verification email")
+		}
+	}
+
 	accessToken, err := middleware.GenerateJWT(tenant.ID)
 	if err != nil {
 		respond.InternalError(w, r, err)
@@ -127,10 +171,17 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Info().
+		Str("tenant_id", tenant.ID.String()).
+		Str("email", middleware.MaskEmail(tenant.Email)).
+		Msg("auth: new tenant registered — verification email sent")
+
 	respond.JSON(w, r, http.StatusCreated, map[string]interface{}{
-		"access_token":  accessToken,
-		"refresh_token": refreshToken,
-		"token_type":    "Bearer",
+		"access_token":   accessToken,
+		"refresh_token":  refreshToken,
+		"token_type":     "Bearer",
+		"email_verified": false,
+		"message":        "Account created. Check your email for a verification code.",
 	})
 }
 
@@ -190,10 +241,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respond.JSON(w, r, http.StatusOK, map[string]string{
-		"access_token":  accessToken,
-		"refresh_token": refreshToken,
-		"token_type":    "Bearer",
+	respond.JSON(w, r, http.StatusOK, map[string]interface{}{
+		"access_token":   accessToken,
+		"refresh_token":  refreshToken,
+		"token_type":     "Bearer",
+		"email_verified": tenant.EmailVerified,
 	})
 }
 
@@ -292,4 +344,115 @@ func (h *AuthHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respond.JSON(w, r, http.StatusOK, updated)
+}
+
+// VerifyEmail handles POST /v1/auth/verify-email
+func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	if tenantID == uuid.Nil {
+		respond.Unauthorised(w, r, "missing tenant")
+		return
+	}
+
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Code == "" {
+		respond.BadRequest(w, r, "missing_field", "code is required")
+		return
+	}
+
+	v, err := h.emailVerifications.GetByCode(r.Context(), body.Code)
+	if err != nil {
+		respond.BadRequest(w, r, "invalid_code", "verification code is invalid or expired")
+		return
+	}
+
+	if v.TenantID != tenantID {
+		respond.BadRequest(w, r, "invalid_code", "verification code is invalid or expired")
+		return
+	}
+
+	if v.UsedAt != nil {
+		respond.BadRequest(w, r, "code_already_used", "this verification code has already been used")
+		return
+	}
+
+	if time.Now().UTC().After(v.ExpiresAt) {
+		respond.BadRequest(w, r, "code_expired", "verification code has expired — request a new one")
+		return
+	}
+
+	if err := h.emailVerifications.MarkUsed(r.Context(), v.ID); err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	tenant, err := h.tenants.MarkEmailVerified(r.Context(), tenantID)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	// Send welcome email
+	subject, html := email.WelcomeEmail(tenant.Name)
+	if err := h.emailClient.Send(r.Context(), tenant.Email, subject, html); err != nil {
+		log.Error().Err(err).Str("tenant_id", tenantID.String()).Msg("auth: failed to send welcome email")
+	}
+
+	log.Info().
+		Str("tenant_id", tenantID.String()).
+		Msg("auth: email verified successfully")
+
+	respond.JSON(w, r, http.StatusOK, map[string]interface{}{
+		"email_verified": true,
+		"message":        "Email verified successfully. Welcome to Tori.",
+	})
+}
+
+// ResendVerification handles POST /v1/auth/resend-verification
+func (h *AuthHandler) ResendVerification(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	if tenantID == uuid.Nil {
+		respond.Unauthorised(w, r, "missing tenant")
+		return
+	}
+
+	tenant, err := h.tenants.GetByID(r.Context(), tenantID)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	if tenant.EmailVerified {
+		respond.UnprocessableEntity(w, r, "already_verified", "email address is already verified")
+		return
+	}
+
+	code, err := generateVerificationCode()
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+	expiresAt := time.Now().UTC().Add(15 * time.Minute)
+
+	if _, err := h.emailVerifications.Create(r.Context(), tenantID, code, expiresAt); err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	subject, html := email.VerificationEmail(tenant.Name, code)
+	if err := h.emailClient.Send(r.Context(), tenant.Email, subject, html); err != nil {
+		log.Error().Err(err).Str("tenant_id", tenantID.String()).Msg("auth: failed to resend verification email")
+		respond.InternalError(w, r, fmt.Errorf("failed to send verification email"))
+		return
+	}
+
+	log.Info().
+		Str("tenant_id", tenantID.String()).
+		Msg("auth: verification email resent")
+
+	respond.JSON(w, r, http.StatusOK, map[string]interface{}{
+		"message": "Verification email sent. Check your inbox.",
+	})
 }
