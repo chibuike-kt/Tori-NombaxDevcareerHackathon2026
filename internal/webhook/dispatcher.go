@@ -29,12 +29,14 @@ type Event struct {
 
 type Dispatcher struct {
 	repo   domain.WebhookRepository
+	jobs   domain.JobRepository
 	client *http.Client
 }
 
-func NewDispatcher(repo domain.WebhookRepository) *Dispatcher {
+func NewDispatcher(repo domain.WebhookRepository, jobs domain.JobRepository) *Dispatcher {
 	return &Dispatcher{
-		repo: repo,
+		repo:   repo,
+		jobs:   jobs,
 		client: &http.Client{Timeout: 30 * time.Second},
 	}
 }
@@ -124,6 +126,46 @@ func (d *Dispatcher) checkCircuitBreaker(ctx context.Context, endpointID uuid.UU
 			Int64("failure_count", count).
 			Msg("webhook endpoint disabled after 10 consecutive failures in 24 hours")
 	}
+}
+
+// DispatchAsync enqueues a webhook delivery job instead of delivering inline.
+// The worker picks it up and calls Deliver, keeping the request path fast.
+func (d *Dispatcher) DispatchAsync(ctx context.Context, tenantID uuid.UUID, eventType domain.WebhookEventType, data interface{}) error {
+	payload, err := json.Marshal(map[string]interface{}{
+		"tenant_id":  tenantID.String(),
+		"event_type": string(eventType),
+		"data":       data,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal webhook job payload: %w", err)
+	}
+
+	_, err = d.jobs.Enqueue(ctx, &tenantID, domain.JobWebhookDeliver, payload, time.Now(), 5)
+	if err != nil {
+		// Fall back to synchronous delivery rather than losing the event
+		log.Warn().Err(err).Msg("webhook: failed to enqueue async delivery — falling back to sync")
+		return d.Dispatch(ctx, tenantID, eventType, data)
+	}
+	return nil
+}
+
+// HandleWebhookDeliver is the job handler called by the worker to deliver a queued webhook.
+func (d *Dispatcher) HandleWebhookDeliver(ctx context.Context, payload json.RawMessage) error {
+	var p struct {
+		TenantID  string      `json:"tenant_id"`
+		EventType string      `json:"event_type"`
+		Data      interface{} `json:"data"`
+	}
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return fmt.Errorf("unmarshal webhook deliver payload: %w", err)
+	}
+
+	tenantID, err := uuid.Parse(p.TenantID)
+	if err != nil {
+		return fmt.Errorf("invalid tenant_id: %w", err)
+	}
+
+	return d.Dispatch(ctx, tenantID, domain.WebhookEventType(p.EventType), p.Data)
 }
 
 // sign produces HMAC-SHA256 signature of the payload using the endpoint secret.
