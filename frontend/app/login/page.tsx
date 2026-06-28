@@ -23,9 +23,11 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await login(email, password);
-      localStorage.setItem("access_token", res.data.access_token);
-      localStorage.setItem("refresh_token", res.data.refresh_token);
-      router.push("/dashboard");
+      if (!res.data.email_verified) {
+        router.push("/verify-email");
+      } else {
+        router.push("/dashboard");
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Invalid credentials");
     } finally {
