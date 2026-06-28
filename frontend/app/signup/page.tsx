@@ -24,14 +24,37 @@ export default function SignupPage() {
 
   const handleSignup = async () => {
     setError("");
+    if (!name.trim()) {
+      setError("Business name is required");
+      return;
+    }
+    if (!email.includes("@")) {
+      setError("Enter a valid email address");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await api.post<{
-        data: { access_token: string; refresh_token: string };
+        data: {
+          access_token: string;
+          refresh_token: string;
+          email_verified: boolean;
+          message: string;
+        };
       }>("/v1/auth/register", { name, email, password });
+
       localStorage.setItem("access_token", res.data.access_token);
       localStorage.setItem("refresh_token", res.data.refresh_token);
-      router.push("/dashboard");
+      localStorage.setItem("email_verified", String(res.data.email_verified));
+      localStorage.setItem("pending_email", email);
+
+      // Always go to OTP page first — even if somehow already verified
+      router.push("/verify-email");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Signup failed");
     } finally {
@@ -44,28 +67,37 @@ export default function SignupPage() {
       <AuthNav showClose />
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-md">
+          {/* Step indicator */}
           <div className="flex justify-center mb-6">
-            <div
-              className="w-16 h-16 rounded-full border-4 flex items-center justify-center"
-              style={{
-                borderColor: "#00B37E",
-                borderRightColor: "#E5E7EB",
-                borderBottomColor: "#E5E7EB",
-              }}
-            >
-              <div className="text-center">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <div
-                  className="text-[9px] font-medium"
-                  style={{ color: "#9CA3AF" }}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                  style={{ background: "#00B37E" }}
                 >
-                  STEP
+                  1
                 </div>
-                <div
-                  className="text-sm font-extrabold"
+                <span
+                  className="text-xs font-semibold"
                   style={{ color: "#0F1728" }}
                 >
-                  1/1
+                  Account details
+                </span>
+              </div>
+              <div className="w-8 h-px" style={{ background: "#E5E7EB" }} />
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                  style={{ background: "#F3F4F6", color: "#9CA3AF" }}
+                >
+                  2
                 </div>
+                <span
+                  className="text-xs font-semibold"
+                  style={{ color: "#9CA3AF" }}
+                >
+                  Verify email
+                </span>
               </div>
             </div>
           </div>
@@ -107,7 +139,7 @@ export default function SignupPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSignup()}
-                placeholder="Password"
+                placeholder="Password (min. 8 characters)"
                 className="w-full rounded-lg px-4 py-3.5 text-sm outline-none font-medium pr-16"
                 style={{ background: "#F8F9FA", color: "#0F1728" }}
               />
@@ -135,8 +167,12 @@ export default function SignupPage() {
                 color: loading ? "#9CA3AF" : "white",
               }}
             >
-              {loading ? "Creating account..." : "Create account"}
+              {loading ? "Creating account..." : "Continue →"}
             </button>
+
+            <p className="text-xs text-center" style={{ color: "#9CA3AF" }}>
+              A verification code will be sent to your email address.
+            </p>
           </div>
 
           <p
