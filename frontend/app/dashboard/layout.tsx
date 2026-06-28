@@ -1,7 +1,13 @@
 "use client";
-
-import { useState } from "react";
+import { useState, Suspense, lazy } from "react";
 import { Sidebar } from "@/components/sidebar";
+
+// Lazy load the banner so it only renders on the client after hydration
+const EmailVerificationBanner = lazy(() =>
+  import("@/components/email-verification-banner").then((m) => ({
+    default: m.EmailVerificationBanner,
+  })),
+);
 
 export default function DashboardLayout({
   children,
@@ -12,7 +18,6 @@ export default function DashboardLayout({
 
   return (
     <div className="flex min-h-screen" style={{ background: "#F8F9FB" }}>
-      {/* Mobile overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-20 lg:hidden"
@@ -20,8 +25,6 @@ export default function DashboardLayout({
           onClick={() => setSidebarOpen(false)}
         />
       )}
-
-      {/* Sidebar — hidden on mobile, visible on lg+ */}
       <div
         className={`
         fixed inset-y-0 left-0 z-30 lg:static lg:z-auto
@@ -31,8 +34,12 @@ export default function DashboardLayout({
       >
         <Sidebar onClose={() => setSidebarOpen(false)} />
       </div>
-
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Banner rendered client-side only via Suspense — no SSR, no hydration mismatch */}
+        <Suspense fallback={null}>
+          <EmailVerificationBanner />
+        </Suspense>
+
         {/* Mobile top bar */}
         <div
           className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b"
@@ -65,7 +72,6 @@ export default function DashboardLayout({
             </span>
           </div>
         </div>
-
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>
