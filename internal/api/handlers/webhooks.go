@@ -39,7 +39,19 @@ func (h *WebhookHandler) CreateEndpoint(w http.ResponseWriter, r *http.Request) 
 		body.Events = []string{"*"}
 	}
 	if body.APIVersion == "" {
-		body.APIVersion = "2026-06-01"
+		body.APIVersion = "2026-06-17"
+	}
+
+	// Enforce max 5 webhook endpoints per tenant
+	existing, err := h.webhooks.ListEndpoints(r.Context(), tenantID)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+	if len(existing) >= 5 {
+		respond.UnprocessableEntity(w, r, "endpoint_limit_reached",
+			"maximum of 5 webhook endpoints allowed per account — delete an existing endpoint to add a new one")
+		return
 	}
 
 	secret := uuid.New().String()
