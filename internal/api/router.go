@@ -11,22 +11,27 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/ledger"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/webhook"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/payment"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/email"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
 )
 
 type Deps struct {
-	Tenants       domain.TenantRepository
-	Customers     domain.CustomerRepository
-	Plans         domain.PlanRepository
-	Subscriptions domain.SubscriptionRepository
-	Invoices      domain.InvoiceRepository
-	Ledger        domain.LedgerRepository
-	Jobs          domain.JobRepository
-	Webhooks      domain.WebhookRepository
-	Tokens        domain.TokenRevoker
-	Payment       payment.NombaClient
+	Tenants            domain.TenantRepository
+	Customers          domain.CustomerRepository
+	Plans              domain.PlanRepository
+	Subscriptions      domain.SubscriptionRepository
+	Invoices           domain.InvoiceRepository
+	Ledger             domain.LedgerRepository
+	Jobs               domain.JobRepository
+	Webhooks           domain.WebhookRepository
+	Tokens             domain.TokenRevoker
+	Payment            payment.NombaClient
+	EmailVerifications domain.EmailVerificationRepository
+	EmailClient        *email.ResendClient
+	Pool *pgxpool.Pool
 }
 
 // maxBodySize limits request bodies to 1MB to prevent OOM attacks.
@@ -61,6 +66,7 @@ func NewRouter(deps Deps) http.Handler {
 	// Global middleware
 	r.Use(chimiddleware.Recoverer)
 	r.Use(middleware.RequestID)
+	r.Use(middleware.RequestLogger)
 	r.Use(corsMiddleware)
 	r.Use(maxBodySize)
 	r.Use(httprate.LimitByIP(100, 60)) // global IP-based limit
@@ -73,15 +79,15 @@ func NewRouter(deps Deps) http.Handler {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
-systemHealthH := handlers.NewSystemHealthHandler()
+systemHealthH := handlers.NewSystemHealthHandler(deps.Pool, deps.Jobs)
 r.Get("/health", systemHealthH.Check)
 r.Get("/v1/status", systemHealthH.Check)
 
 	// Handlers
-	authH := handlers.NewAuthHandler(deps.Tenants, deps.Tokens)
+	authH := handlers.NewAuthHandler(deps.Tenants, deps.Tokens, deps.EmailVerifications, deps.EmailClient)
 	planH := handlers.NewPlanHandler(deps.Plans)
 	customerH := handlers.NewCustomerHandler(deps.Customers)
-	dispatcher := webhook.NewDispatcher(deps.Webhooks)
+	dispatcher := webhook.NewDispatcher(deps.Webhooks, deps.Jobs)
 	subH := handlers.NewSubscriptionHandler(deps.Subscriptions, deps.Plans, deps.Customers, dispatcher, deps.Jobs)
 	ledgerSvc := ledger.NewService(deps.Ledger)
 	ledgerH := handlers.NewLedgerHandler(ledgerSvc)
@@ -113,9 +119,14 @@ r.Group(func(r chi.Router) {
 		r.Patch("/v1/me", authH.UpdateMe)
 		r.Post("/v1/auth/logout", authH.Logout)
 
+		r.Post("/v1/auth/verify-email", authH.VerifyEmail)
+		r.Post("/v1/auth/resend-verification", authH.ResendVerification)
+
 		r.Post("/v1/checkout", checkoutH.CreateCheckout)
 
 		r.Get("/v1/health", healthH.GetPortfolioHealth)
+		metricsH := handlers.NewMetricsHandler(deps.Subscriptions, deps.Jobs, ledgerSvc, finopsSvc)
+		r.Get("/v1/metrics", metricsH.GetMetrics)
 		r.Get("/v1/health/forecast", healthH.GetRevenueForecast)
 		r.Get("/v1/ledger/monthly", ledgerH.MonthlyRevenue)
 
@@ -150,9 +161,14 @@ r.Group(func(r chi.Router) {
 		ledgerSvcForPlanChange := ledger.NewService(deps.Ledger)
 		planChangeH := handlers.NewPlanChangeHandler(deps.Subscriptions, deps.Plans, ledgerSvcForPlanChange)
 		r.Patch("/v1/subscriptions/{id}/plan", planChangeH.ChangePlan)
+		r.Post("/v1/subscriptions/{id}/checkout", checkoutH.RegenerateCheckout)
+		refundH := handlers.NewRefundHandler(deps.Subscriptions, deps.Invoices, ledgerSvc, deps.Payment)
+		r.Post("/v1/subscriptions/{id}/refund", refundH.IssueRefund)
 
 		// In Platform API group — add after platform subscription routes
 		r.Patch("/v1/platform/subscriptions/{id}/plan", planChangeH.ChangePlan)
+		r.Post("/v1/platform/subscriptions/{id}/checkout", checkoutH.RegenerateCheckout)
+		r.Post("/v1/platform/subscriptions/{id}/refund", refundH.IssueRefund)
 
 		r.Get("/v1/ledger", ledgerH.List)
 		r.Get("/v1/ledger/summary", ledgerH.Summary)
@@ -193,8 +209,12 @@ r.Group(func(r chi.Router) {
 		r.Post("/v1/platform/subscriptions/{id}/pause", subH.Pause)
 		r.Post("/v1/platform/subscriptions/{id}/resume", subH.Resume)
 	})
-		nombaWebhookH := handlers.NewNombaWebhookHandler(deps.Subscriptions, deps.Tokens)
+		nombaWebhookH := handlers.NewNombaWebhookHandler(
+    deps.Subscriptions, deps.Tokens, deps.Plans, deps.Invoices,
+    ledger.NewService(deps.Ledger), deps.Payment, dispatcher,
+)
 		r.Post("/v1/nomba/webhook", nombaWebhookH.Handle)
+
 
 	return r
 }

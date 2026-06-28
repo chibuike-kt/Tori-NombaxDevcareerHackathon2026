@@ -10,7 +10,9 @@ import (
 
 	api "github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/cache"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/payment"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/postgres"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/email"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -40,21 +42,44 @@ func main() {
 	}
 	log.Info().Msg("Redis connection established")
 
-	deps := api.Deps{
-		Tenants:       postgres.NewTenantRepo(pool),
-		Customers:     postgres.NewCustomerRepo(pool),
-		Plans:         postgres.NewPlanRepo(pool),
-		Subscriptions: postgres.NewSubscriptionRepo(pool),
-		Invoices:      postgres.NewInvoiceRepo(pool),
-		Ledger:        postgres.NewLedgerRepo(pool),
-		Jobs:          postgres.NewJobRepo(pool),
-		Webhooks:      postgres.NewWebhookRepo(pool),
-		Tokens:        tokenStore,
+	// Nomba payment client — real if credentials present, mock otherwise
+	var paymentClient payment.NombaClient
+	nombaClientID := os.Getenv("NOMBA_CLIENT_ID")
+	if nombaClientID != "" {
+		paymentClient = payment.NewNombaHTTPClient(
+			nombaClientID,
+			os.Getenv("NOMBA_CLIENT_SECRET"),
+			os.Getenv("NOMBA_ACCOUNT_ID"),
+			os.Getenv("NOMBA_SUB_ACCOUNT_ID"),
+		)
+		log.Info().Msg("Nomba HTTP client initialised")
+	} else {
+		paymentClient = payment.NewMockNombaClient()
+		log.Warn().Msg("NOMBA_CLIENT_ID not set — using mock payment client")
 	}
+
+deps := api.Deps{
+    Tenants:            postgres.NewTenantRepo(pool),
+    Customers:          postgres.NewCustomerRepo(pool),
+    Plans:              postgres.NewPlanRepo(pool),
+    Subscriptions:      postgres.NewSubscriptionRepo(pool),
+    Invoices:           postgres.NewInvoiceRepo(pool),
+    Ledger:             postgres.NewLedgerRepo(pool),
+    Jobs:               postgres.NewJobRepo(pool),
+    Webhooks:           postgres.NewWebhookRepo(pool),
+    Tokens:             tokenStore,
+    Payment:            paymentClient,
+    EmailVerifications: postgres.NewEmailVerificationRepo(pool),
+    EmailClient:        email.NewResendClient(),
+		Pool: pool,
+}
 
 	router := api.NewRouter(deps)
 
-	port := os.Getenv("API_PORT")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = os.Getenv("API_PORT")
+	}
 	if port == "" {
 		port = "8080"
 	}
