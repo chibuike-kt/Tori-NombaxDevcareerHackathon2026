@@ -1,10 +1,12 @@
 package webhook_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/webhook"
@@ -53,7 +55,7 @@ func TestDispatcher_DeliversToSubscribedEndpoint(t *testing.T) {
 	defer server.Close()
 
 	repo := &mockWebhookRepo{endpointURL: server.URL}
-	d := webhook.NewDispatcher(repo)
+	d := webhook.NewDispatcher(repo, &mockJobRepo{})
 
 	err := d.Dispatch(t.Context(), testTenantID, domain.EventPaymentFailed, map[string]string{"test": "data"})
 	if err != nil {
@@ -75,3 +77,26 @@ func TestDispatcher_DeliversToSubscribedEndpoint(t *testing.T) {
 }
 
 var testTenantID = uuid.New()
+
+// ─── Mock job repository ──────────────────────────────────────────────────────
+
+type mockJobRepo struct{}
+
+func (m *mockJobRepo) Enqueue(_ context.Context, _ *uuid.UUID, _ domain.JobType, _ []byte, _ time.Time, _ int) (*domain.ScheduledJob, error) {
+	return nil, nil
+}
+func (m *mockJobRepo) ClaimNext(_ context.Context, _ string) (*domain.ScheduledJob, error) {
+	return nil, nil
+}
+func (m *mockJobRepo) MarkDone(_ context.Context, _ uuid.UUID) error  { return nil }
+func (m *mockJobRepo) MarkFailed(_ context.Context, _ uuid.UUID, _ string) error { return nil }
+func (m *mockJobRepo) Requeue(_ context.Context, _ uuid.UUID, _ time.Time) error { return nil }
+func (m *mockJobRepo) RecoverStaleLocks(_ context.Context) error { return nil }
+func (m *mockJobRepo) GetQueueDepth(_ context.Context) (int64, error) { return 0, nil }
+func (m *mockJobRepo) ListFailed(_ context.Context, _, _ int) ([]*domain.ScheduledJob, error) {
+	return nil, nil
+}
+func (m *mockJobRepo) Retry(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockJobRepo) CancelPendingJobsForSubscription(_ context.Context, _ string) error {
+	return nil
+}
