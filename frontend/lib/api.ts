@@ -131,11 +131,25 @@ export const api = {
 };
 
 // Auth
-export const login = (email: string, password: string) =>
-  api.post<{ data: { access_token: string; refresh_token: string } }>(
-    "/v1/auth/login",
-    { email, password },
-  );
+export const login = async (email: string, password: string) => {
+  const res = await api.post<{
+    data: {
+      access_token: string;
+      refresh_token: string;
+      email_verified: boolean;
+    };
+  }>("/v1/auth/login", { email, password });
+
+  localStorage.setItem("access_token", res.data.access_token);
+  localStorage.setItem("refresh_token", res.data.refresh_token);
+  localStorage.setItem("email_verified", String(res.data.email_verified));
+
+  if (!res.data.email_verified) {
+    localStorage.setItem("pending_email", email);
+  }
+
+  return res;
+};
 
 export const logout = async (): Promise<void> => {
   try {
@@ -148,6 +162,8 @@ export const logout = async (): Promise<void> => {
   } finally {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
+    localStorage.removeItem("email_verified");
+    localStorage.removeItem("pending_email");
   }
 };
 
