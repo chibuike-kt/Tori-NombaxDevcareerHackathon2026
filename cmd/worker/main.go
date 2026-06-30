@@ -13,7 +13,9 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/ledger"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/payment"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/postgres"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/reconciliation"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/scheduler"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/webhook"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -30,7 +32,6 @@ func main() {
 		log.Fatal().Err(err).Msg("failed to connect to database")
 	}
 	defer pool.Close()
-
 	log.Info().Msg("database connection established")
 
 	subsRepo := postgres.NewSubscriptionRepo(pool)
@@ -40,9 +41,25 @@ func main() {
 	ledgerRepo := postgres.NewLedgerRepo(pool)
 	jobRepo := postgres.NewJobRepo(pool)
 	webhookRepo := postgres.NewWebhookRepo(pool)
+	invoicesRepo := postgres.NewInvoiceRepo(pool)
 
 	ledgerSvc := ledger.NewService(ledgerRepo)
-	paymentClient := payment.NewMockNombaClient()
+
+	// Nomba payment client — real if credentials present, mock otherwise
+	var paymentClient payment.NombaClient
+	nombaClientID := os.Getenv("NOMBA_CLIENT_ID")
+	if nombaClientID != "" {
+		paymentClient = payment.NewNombaHTTPClient(
+			nombaClientID,
+			os.Getenv("NOMBA_CLIENT_SECRET"),
+			os.Getenv("NOMBA_ACCOUNT_ID"),
+			os.Getenv("NOMBA_SUB_ACCOUNT_ID"),
+		)
+		log.Info().Msg("Nomba HTTP client initialised")
+	} else {
+		paymentClient = payment.NewMockNombaClient()
+		log.Warn().Msg("NOMBA_CLIENT_ID not set — using mock payment client")
+	}
 
 	classifier, err := payment.LoadClassifier("config/failure_codes.yaml")
 	if err != nil {
@@ -52,26 +69,49 @@ func main() {
 
 	handlers := billing.NewHandlers(
 		subsRepo, tenantRepo, customerRepo, planRepo,
-		ledgerSvc, dunningEngine, paymentClient, webhookRepo,
+		ledgerSvc, dunningEngine, paymentClient, webhookRepo, invoicesRepo,
 	)
-
+	// Register all job handlers on a single worker instance
+	// RunPool will clone it into 5 concurrent goroutines
 	worker := scheduler.NewWorker(jobRepo, 10*time.Second)
 	worker.Register(domain.JobExpireTrial, handlers.ExpireTrial)
 	worker.Register(domain.JobRetryFailedPayment, handlers.RetryFailedPayment)
 	worker.Register(domain.JobSuspendSubscription, handlers.SuspendSubscription)
 	worker.Register(domain.JobTypeGraceRetry, handlers.GraceRetry)
+	worker.Register(domain.JobCheckoutAbandoned, handlers.CheckAbandonedCheckouts)
+	webhookDispatcher := webhook.NewDispatcher(webhookRepo, jobRepo)
+	worker.Register(domain.JobWebhookDeliver, webhookDispatcher.HandleWebhookDeliver)
+
+	// Reconciliation service
+	reconSvc := reconciliation.NewService(pool, paymentClient, ledgerRepo)
 
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
 
-	go worker.Run(runCtx)
-
+	// Launch 5 concurrent worker goroutines
+	// PostgreSQL SKIP LOCKED ensures each goroutine claims a different job
+	// At 1000 subscribers with monthly billing, up to ~100 jobs fire on the same day
+	// 5 goroutines processes these in parallel rather than sequentially
+	worker.RunPool(runCtx, 5)
 	log.Info().Msg("worker process started — handlers registered")
+
+	// Schedule nightly reconciliation on startup
+	go func() {
+		if err := reconSvc.ScheduleNightly(runCtx, tenantRepo, jobRepo); err != nil {
+			log.Error().Err(err).Msg("failed to schedule nightly reconciliation")
+		}
+	}()
+
+	// Schedule abandoned checkout check on startup
+	go func() {
+		if err := handlers.ScheduleAbandonedCheckoutCheck(runCtx, tenantRepo, jobRepo); err != nil {
+			log.Error().Err(err).Msg("failed to schedule abandoned checkout check")
+		}
+	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-
 	log.Info().Msg("worker shutting down")
 	runCancel()
 }
