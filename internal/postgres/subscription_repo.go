@@ -236,6 +236,12 @@ func subFromRow(row db.Subscription) *domain.Subscription {
 		DunningAttempt:     int(row.DunningAttempt),
 		NextRetryAt:        fromPgTimestamptz(row.NextRetryAt),
 		IdempotencyKey:     fromPgText(row.IdempotencyKey),
+		TokenKey: func() string {
+				if row.TokenKey.Valid {
+						return row.TokenKey.String
+				}
+				return ""
+		}(),
 		Metadata:           row.Metadata,
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
@@ -286,4 +292,16 @@ func (r *SubscriptionRepo) ListByCustomerNoTenant(ctx context.Context, customerI
 		return nil, err
 	}
 	return subsFromRows(rows), nil
+}
+
+func (r *SubscriptionRepo) UpdateTokenKey(ctx context.Context, id, tenantID uuid.UUID, tokenKey string) (*domain.Subscription, error) {
+	row, err := r.q.UpdateSubscriptionTokenKey(ctx, db.UpdateSubscriptionTokenKeyParams{
+		ID:       id,
+		TenantID: tenantID,
+		TokenKey: pgtype.Text{String: tokenKey, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return subFromRow(row), nil
 }
