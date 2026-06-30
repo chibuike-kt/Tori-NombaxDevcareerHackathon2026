@@ -18,6 +18,7 @@ const (
 	StatusPaused      SubscriptionStatus = "PAUSED"
 	StatusSuspended   SubscriptionStatus = "SUSPENDED"
 	StatusCancelled   SubscriptionStatus = "CANCELLED"
+	StatusPendingPayment SubscriptionStatus = "PENDING_PAYMENT"
 )
 
 type PlanInterval string
@@ -69,6 +70,9 @@ const (
 	JobSuspendSubscription      JobType = "suspend_subscription"
 	JobReactivateSubscription   JobType = "reactivate_subscription"
 	JobTypeGraceRetry JobType = "grace_retry"
+	JobReconciliation JobType = "reconciliation"
+	JobCheckoutAbandoned JobType = "checkout_abandoned"
+	JobWebhookDeliver JobType = "webhook_deliver"
 )
 
 type FailureCategory string
@@ -111,6 +115,7 @@ type Tenant struct {
 	IsActive      bool          `json:"is_active"`
 	CreatedAt     time.Time     `json:"created_at"`
 	APIKeyHint string `json:"api_key_hint"`
+	EmailVerified  bool          `json:"email_verified"`
 }
 
 type DunningConfig struct {
@@ -166,6 +171,7 @@ type Subscription struct {
 	CustomerID         uuid.UUID          `json:"customer_id"`
 	PlanID             uuid.UUID          `json:"plan_id"`
 	Status             SubscriptionStatus `json:"status"`
+	TokenKey string `json:"token_key,omitempty"`
 	CurrentPeriodStart time.Time          `json:"current_period_start"`
 	CurrentPeriodEnd   time.Time          `json:"current_period_end"`
 	TrialEnd           *time.Time         `json:"trial_end,omitempty"`
@@ -288,4 +294,13 @@ type MonthlyRevenueRow struct {
 	Month    time.Time
 	Charged  int64
 	Refunded int64
+}
+
+type EmailVerification struct {
+	ID       uuid.UUID  `json:"id"`
+	TenantID uuid.UUID  `json:"tenant_id"`
+	Code     string     `json:"-"` // never expose in API responses
+	ExpiresAt time.Time `json:"expires_at"`
+	UsedAt   *time.Time `json:"used_at,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
