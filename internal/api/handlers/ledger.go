@@ -72,15 +72,15 @@ func (h *LedgerHandler) Summary(w http.ResponseWriter, r *http.Request) {
 func parseDateRange(r *http.Request) (time.Time, time.Time) {
 	from := time.Now().AddDate(0, -1, 0)
 	to := time.Now()
-
 	if f := r.URL.Query().Get("from"); f != "" {
 		if t, err := time.Parse("2006-01-02", f); err == nil {
-			from = t
+			from = t.UTC()
 		}
 	}
 	if t := r.URL.Query().Get("to"); t != "" {
 		if parsed, err := time.Parse("2006-01-02", t); err == nil {
-			to = parsed
+			// Set to end of day so today's entries are included
+			to = parsed.UTC().Add(24*time.Hour - time.Second)
 		}
 	}
 	return from, to
