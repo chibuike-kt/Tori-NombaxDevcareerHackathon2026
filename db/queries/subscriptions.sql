@@ -119,3 +119,9 @@ SELECT * FROM subscriptions
 WHERE customer_id = $1
   AND status != 'CANCELLED'
 ORDER BY created_at DESC;
+
+-- name: UpdateSubscriptionTokenKey :one
+UPDATE subscriptions
+SET token_key = $3, updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING *;
