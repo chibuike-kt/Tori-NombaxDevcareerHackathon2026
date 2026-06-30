@@ -24,6 +24,7 @@ type Handlers struct {
 	dunning   *dunning.Engine
 	payment   payment.NombaClient
 	webhooks  domain.WebhookRepository
+	invoices  domain.InvoiceRepository
 }
 
 func NewHandlers(
@@ -35,6 +36,7 @@ func NewHandlers(
 	dunningEngine *dunning.Engine,
 	paymentClient payment.NombaClient,
 	webhooks domain.WebhookRepository,
+	invoices domain.InvoiceRepository,
 ) *Handlers {
 	return &Handlers{
 		subs:      subs,
@@ -45,6 +47,7 @@ func NewHandlers(
 		dunning:   dunningEngine,
 		payment:   paymentClient,
 		webhooks:  webhooks,
+		invoices:  invoices,
 	}
 }
 
@@ -80,15 +83,59 @@ func (h *Handlers) ExpireTrial(ctx context.Context, payload json.RawMessage) err
 		return nil
 	}
 
-	_, err = h.subs.UpdateStatus(ctx, subID, tenantID, domain.StatusActive)
+	plan, err := h.plans.GetByID(ctx, sub.PlanID, tenantID)
 	if err != nil {
-		return fmt.Errorf("activate subscription: %w", err)
+		return fmt.Errorf("get plan: %w", err)
 	}
+
+	// If no token key — customer never completed checkout
+	// Move to PAST_DUE and let dunning handle it
+	if sub.TokenKey == "" {
+		log.Warn().Str("sub_id", subID.String()).
+			Msg("trial expired but no token key — customer never completed checkout, moving to PAST_DUE")
+		_, _ = h.subs.UpdateStatus(ctx, subID, tenantID, domain.StatusPastDue)
+		_, _ = h.ledger.RecordTrialEnd(ctx, tenantID, subID, sub.CustomerID, "NGN",
+			fmt.Sprintf("trial-end-%s", subID))
+		return nil
+	}
+
+	// Token key exists — charge the card now
+	log.Info().Str("sub_id", subID.String()).Msg("trial expired — charging card now")
+
+	result, err := h.payment.ChargeToken(ctx, payment.ChargeTokenRequest{
+		CustomerID:     sub.CustomerID.String(),
+		TokenisedCard:  sub.TokenKey,
+		Amount:         plan.Amount,
+		Currency:       plan.Currency,
+		IdempotencyKey: fmt.Sprintf("trial-charge-%s", subID),
+		Reference:      fmt.Sprintf("trial-charge-%s", subID),
+	})
+
+	if err == nil && result.Success {
+		// Charge succeeded — activate subscription
+		now := time.Now().UTC()
+		periodEnd := now.AddDate(0, 1, 0)
+		_, _ = h.subs.UpdateAfterRenewal(ctx, subID, tenantID, domain.StatusActive, now, periodEnd)
+
+		_, _ = h.ledger.RecordCharge(ctx, tenantID, subID, subID, sub.CustomerID,
+			plan.Amount, plan.Currency, fmt.Sprintf("trial-charge-%s", subID))
+
+		h.createInvoiceForCharge(ctx, sub, plan, result.Reference)
+
+		log.Info().Str("sub_id", subID.String()).
+			Str("amount", fmt.Sprintf("%.2f", float64(plan.Amount)/100)).
+			Msg("trial charge succeeded — subscription activated")
+		return nil
+	}
+
+	// Charge failed — enter grace period
+	log.Warn().Str("sub_id", subID.String()).Msg("trial charge failed — entering grace period")
+	retry := time.Now().UTC().Add(48 * time.Hour)
+	_, _ = h.subs.UpdateDunning(ctx, subID, tenantID, domain.StatusGracePeriod, 0, &retry)
 
 	_, _ = h.ledger.RecordTrialEnd(ctx, tenantID, subID, sub.CustomerID, "NGN",
 		fmt.Sprintf("trial-end-%s", subID))
 
-	log.Info().Str("sub_id", subID.String()).Msg("trial expired — subscription activated")
 	return nil
 }
 
@@ -130,7 +177,7 @@ func (h *Handlers) RetryFailedPayment(ctx context.Context, payload json.RawMessa
 
 	result, err := h.payment.ChargeToken(ctx, payment.ChargeTokenRequest{
 		CustomerID:     sub.CustomerID.String(),
-		TokenisedCard:  "",
+		TokenisedCard:  sub.TokenKey,
 		Amount:         plan.Amount,
 		Currency:       plan.Currency,
 		IdempotencyKey: fmt.Sprintf("retry-%s-%d", subID, sub.DunningAttempt+1),
@@ -145,6 +192,8 @@ func (h *Handlers) RetryFailedPayment(ctx context.Context, payload json.RawMessa
 		now := time.Now().UTC()
 		periodEnd := now.AddDate(0, 1, 0)
 		_, _ = h.subs.UpdateAfterRenewal(ctx, subID, tenantID, domain.StatusActive, now, periodEnd)
+
+		h.createInvoiceForCharge(ctx, sub, plan, result.Reference)
 
 		log.Info().Str("sub_id", subID.String()).Msg("dunning recovery successful")
 		return nil
@@ -224,7 +273,7 @@ func (h *Handlers) GraceRetry(ctx context.Context, payload json.RawMessage) erro
 
 	result, chargeErr := h.payment.ChargeToken(ctx, payment.ChargeTokenRequest{
 		CustomerID:     sub.CustomerID.String(),
-		TokenisedCard:  "",
+		TokenisedCard:  sub.TokenKey,
 		Amount:         plan.Amount,
 		Currency:       plan.Currency,
 		IdempotencyKey: fmt.Sprintf("grace-%s-%d", subID, time.Now().Unix()),
@@ -242,6 +291,9 @@ func (h *Handlers) GraceRetry(ctx context.Context, payload json.RawMessage) erro
 		ik := fmt.Sprintf("grace-recovery-%s", subID)
 		_, _ = h.ledger.RecordCharge(ctx, tenantID, subID, subID, sub.CustomerID,
 			plan.Amount, plan.Currency, ik)
+
+		h.createInvoiceForCharge(ctx, sub, plan, result.Reference)
+
 		log.Info().Str("sub_id", subID.String()).Msg("grace retry succeeded — subscription activated")
 		return nil
 	}
@@ -257,4 +309,47 @@ func (h *Handlers) GraceRetry(ctx context.Context, payload json.RawMessage) erro
 
 	log.Info().Str("sub_id", subID.String()).Msg("grace retry failed — subscription moved to PAST_DUE")
 	return nil
+}
+
+// createInvoiceForCharge generates an invoice record after a successful charge.
+func (h *Handlers) createInvoiceForCharge(ctx context.Context, sub *domain.Subscription, plan *domain.Plan, chargeRef string) {
+	ik := fmt.Sprintf("invoice-charge-%s-%s", sub.ID, chargeRef)
+	lineItems, _ := json.Marshal([]map[string]interface{}{
+		{
+			"description": fmt.Sprintf("%s — %s billing", plan.Name, plan.Interval),
+			"amount":      plan.Amount,
+			"currency":    plan.Currency,
+		},
+	})
+
+	// Step 1: Create invoice
+	invoice, err := h.invoices.Create(ctx, sub.TenantID, sub.ID, sub.CustomerID,
+		plan.Amount, plan.Currency, domain.InvoiceOpen,
+		time.Now().UTC(), lineItems, &ik)
+	if err != nil {
+		log.Error().Err(err).Str("sub_id", sub.ID.String()).Msg("failed to create invoice for charge")
+		return
+	}
+
+	// Step 2: Record ledger entry using the real invoice ID
+	ledgerIK := fmt.Sprintf("ledger-charge-%s-%s", sub.ID, chargeRef)
+	_, ledgerErr := h.ledger.RecordCharge(ctx,
+		sub.TenantID, sub.ID, invoice.ID, sub.CustomerID,
+		plan.Amount, plan.Currency, ledgerIK)
+	if ledgerErr != nil {
+		log.Error().Err(ledgerErr).Str("sub_id", sub.ID.String()).Msg("failed to record ledger charge")
+	}
+
+	// Step 3: Mark invoice paid with the charge reference
+	_, paidErr := h.invoices.MarkPaid(ctx, invoice.ID, sub.TenantID, chargeRef)
+	if paidErr != nil {
+		log.Error().Err(paidErr).Str("sub_id", sub.ID.String()).Msg("failed to mark invoice paid")
+		return
+	}
+
+	log.Info().
+		Str("sub_id", sub.ID.String()).
+		Str("invoice_id", invoice.ID.String()).
+		Int64("amount_kobo", plan.Amount).
+		Msg("invoice created, ledger entry recorded, invoice marked paid")
 }
