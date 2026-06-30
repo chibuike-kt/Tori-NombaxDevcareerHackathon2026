@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getPlans, createPlan } from "@/lib/api";
+import { getPlans, createPlan, deactivatePlan } from "@/lib/api";
 import { formatKobo, formatDate } from "@/lib/utils";
 
 function PlanIDRow({ id }: { id: string }) {
@@ -50,6 +50,9 @@ export default function PlansPage() {
   const plans = data?.data ?? [];
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState("");
+  const [confirmDeactivateId, setConfirmDeactivateId] = useState<string | null>(
+    null,
+  );
   const [form, setForm] = useState({
     name: "",
     amount: "",
@@ -80,6 +83,14 @@ export default function PlansPage() {
       setError(e instanceof Error ? e.message : "Failed to create plan"),
   });
 
+  const deactivate = useMutation({
+    mutationFn: (id: string) => deactivatePlan(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plans"] });
+      setConfirmDeactivateId(null);
+    },
+  });
+
   const intervalLabel: Record<string, string> = {
     monthly: "/mo",
     annual: "/yr",
@@ -100,7 +111,7 @@ export default function PlansPage() {
             className="text-sm font-medium mt-0.5"
             style={{ color: "#8A94A6" }}
           >
-            {plans.length} active pricing plans
+            {plans.filter((p) => p.is_active).length} active pricing plans
           </p>
         </div>
         <button
@@ -266,7 +277,10 @@ export default function PlansPage() {
             <div
               key={plan.id}
               className="bg-white border rounded-xl p-5"
-              style={{ borderColor: "#EAECEF" }}
+              style={{
+                borderColor: "#EAECEF",
+                opacity: plan.is_active ? 1 : 0.6,
+              }}
             >
               <div className="flex items-start justify-between mb-3">
                 <div
@@ -320,6 +334,55 @@ export default function PlansPage() {
                 </div>
               )}
               <PlanIDRow id={plan.id} />
+
+              {plan.is_active && (
+                <>
+                  {confirmDeactivateId === plan.id ? (
+                    <div
+                      className="rounded-lg px-3 py-2.5 mb-3"
+                      style={{
+                        background: "#FEF2F2",
+                        border: "1px solid #FECACA",
+                      }}
+                    >
+                      <p
+                        className="text-xs font-semibold mb-2"
+                        style={{ color: "#991B1B" }}
+                      >
+                        Deactivate this plan? Existing subscriptions keep
+                        billing — new signups will be blocked.
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => deactivate.mutate(plan.id)}
+                          disabled={deactivate.isPending}
+                          className="text-xs font-bold px-3 py-1.5 rounded-lg text-white"
+                          style={{ background: "#DC2626" }}
+                        >
+                          {deactivate.isPending ? "Deactivating..." : "Confirm"}
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeactivateId(null)}
+                          className="text-xs font-bold px-3 py-1.5 rounded-lg"
+                          style={{ background: "#F3F4F6", color: "#4B5563" }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeactivateId(plan.id)}
+                      className="text-xs font-semibold mb-3 flex items-center gap-1"
+                      style={{ color: "#9CA3AF" }}
+                    >
+                      <i className="ti ti-trash" style={{ fontSize: 13 }} />
+                      Deactivate plan
+                    </button>
+                  )}
+                </>
+              )}
+
               <div
                 className="pt-3 border-t flex items-center justify-between"
                 style={{ borderColor: "#F0F2F4" }}

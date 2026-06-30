@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/handlers"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/postgres"
 	"github.com/google/uuid"
@@ -18,6 +19,14 @@ func main() {
 	tenantEmail := os.Getenv("SEED_TENANT_EMAIL")
 	if tenantEmail == "" {
 		tenantEmail = "dev@tori.ng"
+	}
+	tenantPassword := os.Getenv("SEED_TENANT_PASSWORD")
+	if tenantPassword == "" {
+		tenantPassword = "tori-dev-2026"
+	}
+	tenantName := os.Getenv("SEED_TENANT_NAME")
+	if tenantName == "" {
+		tenantName = "Tori Demo"
 	}
 
 	pool, err := postgres.NewPool(ctx)
@@ -32,10 +41,40 @@ func main() {
 	subsRepo := postgres.NewSubscriptionRepo(pool)
 	webhookRepo := postgres.NewWebhookRepo(pool)
 
+	// ---- Tenant — create if missing, mark verified so judges can log straight in ----
 	tenant, err := tenants.GetByEmail(ctx, tenantEmail)
 	if err != nil {
-		fail("find tenant "+tenantEmail, err)
+		fmt.Printf("tenant %s not found — creating\n", tenantEmail)
+
+		placeholderHash := "seed_placeholder_" + uuid.New().String()
+		webhookSecret := "whsec_" + uuid.New().String()
+
+		tenant, err = tenants.Create(ctx, tenantName, tenantEmail,
+			placeholderHash, webhookSecret, domain.DefaultDunningConfig())
+		if err != nil {
+			fail("create tenant", err)
+		}
+
+		passwordHash := handlers.HashPassword(tenantPassword)
+		if err := tenants.SetPassword(ctx, tenant.ID, passwordHash); err != nil {
+			fail("set tenant password", err)
+		}
+
+		fmt.Printf("  tenant created with password: %s\n", tenantPassword)
 	}
+
+	// Mark email verified so the seeded tenant is not blocked by the
+	// verification flow — judges should be able to log straight into the dashboard.
+	if !tenant.EmailVerified {
+		updated, err := tenants.MarkEmailVerified(ctx, tenant.ID)
+		if err != nil {
+			fmt.Printf("  warning: failed to mark tenant email verified: %v\n", err)
+		} else {
+			tenant = updated
+			fmt.Println("  tenant marked email_verified = true")
+		}
+	}
+
 	tid := tenant.ID
 	fmt.Printf("seeding tenant %s (%s)\n", tenant.Name, tid)
 
@@ -224,25 +263,23 @@ func main() {
 			// Invoice for each successful charge
 			invoiceStatus := "paid"
 			dueDate := chargeTime
-			paidAt := chargeTime.Add(2 * time.Hour) // paid 2 hours after charge
+			paidAt := chargeTime.Add(2 * time.Hour)
 			invoiceIK := fmt.Sprintf("seed-invoice-%s-m%d", sub.ID, m)
 			lineItems := fmt.Sprintf(`[{"description": "%s — monthly billing", "amount": %d, "currency": "NGN"}]`, plan.Name, plan.Amount)
+			nombaRef := fmt.Sprintf("WEB-ONLINE_C-seed-%s-m%d", sub.ID, m)
 			_, _ = pool.Exec(ctx, `
 				INSERT INTO invoices
-					(id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, line_items, idempotency_key, created_at)
-				VALUES ($1, $2, $3, $4, $5, 'NGN', $6, $7, $8, $9, $10, $11)
+					(id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, line_items, idempotency_key, nomba_charge_ref, created_at)
+				VALUES ($1, $2, $3, $4, $5, 'NGN', $6, $7, $8, $9, $10, $11, $12)
 				ON CONFLICT (idempotency_key) DO NOTHING
 			`, uuid.New(), tid, subID, custID, plan.Amount, invoiceStatus,
-				dueDate, paidAt, lineItems, invoiceIK, chargeTime)
+				dueDate, paidAt, lineItems, invoiceIK, nombaRef, chargeTime)
 		}
 
 		// Open invoice for current period (active subscriptions)
 		if sc.status == domain.StatusActive || sc.status == domain.StatusGracePeriod ||
 			sc.status == domain.StatusDunning || sc.status == domain.StatusPastDue {
 			invoiceStatus := "open"
-			if sc.status == domain.StatusGracePeriod || sc.status == domain.StatusDunning {
-				invoiceStatus = "open"
-			}
 			dueDate := periodEnd
 			invoiceIK := fmt.Sprintf("seed-invoice-current-%s", sub.ID)
 			lineItems := fmt.Sprintf(`[{"description": "%s — monthly billing", "amount": %d, "currency": "NGN"}]`, plan.Name, plan.Amount)
@@ -322,9 +359,10 @@ func main() {
 	}
 
 	fmt.Println("\nseed complete.")
-	fmt.Printf("  login:     %s\n", tenantEmail)
-	fmt.Printf("  password:  tori-dev-2026\n")
-	fmt.Println("  dashboard: http://localhost:3000/login")
+	fmt.Printf("  login:          %s\n", tenantEmail)
+	fmt.Printf("  password:       %s\n", tenantPassword)
+	fmt.Printf("  email_verified: true (seeded tenant skips OTP flow)\n")
+	fmt.Println("  dashboard:      http://localhost:3000/login")
 }
 
 func fail(stage string, err error) {

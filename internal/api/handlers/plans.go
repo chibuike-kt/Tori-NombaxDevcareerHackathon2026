@@ -64,13 +64,11 @@ func (h *PlanHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 func (h *PlanHandler) List(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
-
-	plans, err := h.plans.List(r.Context(), tenantID)
+	plans, err := h.plans.ListAll(r.Context(), tenantID)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}
-
 	respond.List(w, r, http.StatusOK, plans, &respond.Pagination{Total: int64(len(plans))})
 }
 

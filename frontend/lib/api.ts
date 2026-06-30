@@ -169,8 +169,8 @@ export const logout = async (): Promise<void> => {
 
 // Plans
 export const getPlans = () => api.get<{ data: Plan[] }>("/v1/plans");
-export const createPlan = (body: Partial<Plan>) =>
-  api.post<{ data: Plan }>("/v1/plans", body);
+export const createPlan = (body: Partial<Plan>) => api.post<{ data: Plan }>("/v1/plans", body);
+export const deactivatePlan = (id: string) => api.delete(`/v1/plans/${id}`);
 
 // Customers
 export const getCustomers = (limit = 50) =>
