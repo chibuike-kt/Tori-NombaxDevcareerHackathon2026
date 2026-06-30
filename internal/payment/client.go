@@ -1,10 +1,14 @@
 package payment
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type CheckoutRequest struct {
 	CustomerEmail string
 	CustomerName  string
+	CustomerID    string
 	Amount        int64
 	Currency      string
 	Reference     string
@@ -79,4 +83,5 @@ type NombaClient interface {
 	VerifyPayment(ctx context.Context, reference string) (*VerifyResponse, error)
 	RefundPayment(ctx context.Context, req RefundRequest) (*RefundResponse, error)
 	ListTransactions(ctx context.Context, req ListTransactionsRequest) (*TransactionList, error)
+	FetchSubAccountTransactions(ctx context.Context, from, to time.Time, limit int, cursor string) (*TransactionList, error)
 }
