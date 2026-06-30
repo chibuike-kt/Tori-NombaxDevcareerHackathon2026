@@ -73,6 +73,23 @@ type Plan struct {
 	CreatedAt       time.Time   `json:"created_at"`
 }
 
+type ReconciliationRun struct {
+	ID              uuid.UUID       `json:"id"`
+	TenantID        uuid.UUID       `json:"tenant_id"`
+	RunAt           time.Time       `json:"run_at"`
+	PeriodFrom      time.Time       `json:"period_from"`
+	PeriodTo        time.Time       `json:"period_to"`
+	NombaTxCount    int32           `json:"nomba_tx_count"`
+	MatchedCount    int32           `json:"matched_count"`
+	MissingCount    int32           `json:"missing_count"`
+	MismatchCount   int32           `json:"mismatch_count"`
+	TotalNombaKobo  int64           `json:"total_nomba_kobo"`
+	TotalLedgerKobo int64           `json:"total_ledger_kobo"`
+	Discrepancies   json.RawMessage `json:"discrepancies"`
+	Status          string          `json:"status"`
+	CreatedAt       time.Time       `json:"created_at"`
+}
+
 type ScheduledJob struct {
 	ID          uuid.UUID          `json:"id"`
 	TenantID    pgtype.UUID        `json:"tenant_id"`
@@ -106,6 +123,7 @@ type Subscription struct {
 	Metadata           []byte             `json:"metadata"`
 	CreatedAt          time.Time          `json:"created_at"`
 	UpdatedAt          time.Time          `json:"updated_at"`
+	TokenKey           pgtype.Text        `json:"token_key"`
 }
 
 type Tenant struct {

@@ -17,7 +17,7 @@ const cancelSubscription = `-- name: CancelSubscription :one
 UPDATE subscriptions
 SET status = 'CANCELLED', cancelled_at = NOW(), updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key
 `
 
 type CancelSubscriptionParams struct {
@@ -46,6 +46,7 @@ func (q *Queries) CancelSubscription(ctx context.Context, arg CancelSubscription
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TokenKey,
 	)
 	return i, err
 }
@@ -57,7 +58,7 @@ INSERT INTO subscriptions (
     trial_end, idempotency_key, metadata
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key
 `
 
 type CreateSubscriptionParams struct {
@@ -103,12 +104,13 @@ func (q *Queries) CreateSubscription(ctx context.Context, arg CreateSubscription
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TokenKey,
 	)
 	return i, err
 }
 
 const getSubscriptionByID = `-- name: GetSubscriptionByID :one
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at FROM subscriptions WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key FROM subscriptions WHERE id = $1 AND tenant_id = $2
 `
 
 type GetSubscriptionByIDParams struct {
@@ -137,12 +139,13 @@ func (q *Queries) GetSubscriptionByID(ctx context.Context, arg GetSubscriptionBy
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TokenKey,
 	)
 	return i, err
 }
 
 const getSubscriptionByIDNoTenant = `-- name: GetSubscriptionByIDNoTenant :one
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at FROM subscriptions WHERE id = $1
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key FROM subscriptions WHERE id = $1
 `
 
 func (q *Queries) GetSubscriptionByIDNoTenant(ctx context.Context, id uuid.UUID) (Subscription, error) {
@@ -166,12 +169,13 @@ func (q *Queries) GetSubscriptionByIDNoTenant(ctx context.Context, id uuid.UUID)
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TokenKey,
 	)
 	return i, err
 }
 
 const getSubscriptionByIdempotencyKey = `-- name: GetSubscriptionByIdempotencyKey :one
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at FROM subscriptions WHERE idempotency_key = $1 AND tenant_id = $2
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key FROM subscriptions WHERE idempotency_key = $1 AND tenant_id = $2
 `
 
 type GetSubscriptionByIdempotencyKeyParams struct {
@@ -200,12 +204,13 @@ func (q *Queries) GetSubscriptionByIdempotencyKey(ctx context.Context, arg GetSu
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TokenKey,
 	)
 	return i, err
 }
 
 const listActiveSubscriptionsDue = `-- name: ListActiveSubscriptionsDue :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at FROM subscriptions
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key FROM subscriptions
 WHERE status = 'ACTIVE' AND current_period_end <= $1
 ORDER BY current_period_end ASC
 LIMIT $2
@@ -244,6 +249,7 @@ func (q *Queries) ListActiveSubscriptionsDue(ctx context.Context, arg ListActive
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TokenKey,
 		); err != nil {
 			return nil, err
 		}
@@ -256,7 +262,7 @@ func (q *Queries) ListActiveSubscriptionsDue(ctx context.Context, arg ListActive
 }
 
 const listSubscriptions = `-- name: ListSubscriptions :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at FROM subscriptions
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key FROM subscriptions
 WHERE tenant_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -295,6 +301,7 @@ func (q *Queries) ListSubscriptions(ctx context.Context, arg ListSubscriptionsPa
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TokenKey,
 		); err != nil {
 			return nil, err
 		}
@@ -307,7 +314,7 @@ func (q *Queries) ListSubscriptions(ctx context.Context, arg ListSubscriptionsPa
 }
 
 const listSubscriptionsByCustomer = `-- name: ListSubscriptionsByCustomer :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at FROM subscriptions
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key FROM subscriptions
 WHERE tenant_id = $1 AND customer_id = $2
 ORDER BY created_at DESC
 `
@@ -344,6 +351,7 @@ func (q *Queries) ListSubscriptionsByCustomer(ctx context.Context, arg ListSubsc
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TokenKey,
 		); err != nil {
 			return nil, err
 		}
@@ -356,7 +364,7 @@ func (q *Queries) ListSubscriptionsByCustomer(ctx context.Context, arg ListSubsc
 }
 
 const listSubscriptionsByCustomerNoTenant = `-- name: ListSubscriptionsByCustomerNoTenant :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at FROM subscriptions
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key FROM subscriptions
 WHERE customer_id = $1
   AND status != 'CANCELLED'
 ORDER BY created_at DESC
@@ -389,6 +397,7 @@ func (q *Queries) ListSubscriptionsByCustomerNoTenant(ctx context.Context, custo
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TokenKey,
 		); err != nil {
 			return nil, err
 		}
@@ -401,7 +410,7 @@ func (q *Queries) ListSubscriptionsByCustomerNoTenant(ctx context.Context, custo
 }
 
 const listSubscriptionsByStatus = `-- name: ListSubscriptionsByStatus :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at FROM subscriptions
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key FROM subscriptions
 WHERE tenant_id = $1 AND status = $2
 ORDER BY created_at DESC
 LIMIT $3 OFFSET $4
@@ -446,6 +455,7 @@ func (q *Queries) ListSubscriptionsByStatus(ctx context.Context, arg ListSubscri
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TokenKey,
 		); err != nil {
 			return nil, err
 		}
@@ -458,7 +468,7 @@ func (q *Queries) ListSubscriptionsByStatus(ctx context.Context, arg ListSubscri
 }
 
 const listSubscriptionsDueForRetry = `-- name: ListSubscriptionsDueForRetry :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at FROM subscriptions
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key FROM subscriptions
 WHERE status IN ('PAST_DUE', 'DUNNING') AND next_retry_at <= $1
 ORDER BY next_retry_at ASC
 LIMIT $2
@@ -496,6 +506,7 @@ func (q *Queries) ListSubscriptionsDueForRetry(ctx context.Context, arg ListSubs
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TokenKey,
 		); err != nil {
 			return nil, err
 		}
@@ -508,7 +519,7 @@ func (q *Queries) ListSubscriptionsDueForRetry(ctx context.Context, arg ListSubs
 }
 
 const listTrialingSubscriptionsDue = `-- name: ListTrialingSubscriptionsDue :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at FROM subscriptions
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key FROM subscriptions
 WHERE status = 'TRIALING' AND trial_end <= $1
 ORDER BY trial_end ASC
 LIMIT $2
@@ -547,6 +558,7 @@ func (q *Queries) ListTrialingSubscriptionsDue(ctx context.Context, arg ListTria
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TokenKey,
 		); err != nil {
 			return nil, err
 		}
@@ -562,7 +574,7 @@ const pauseSubscription = `-- name: PauseSubscription :one
 UPDATE subscriptions
 SET status = 'PAUSED', paused_at = NOW(), updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key
 `
 
 type PauseSubscriptionParams struct {
@@ -591,6 +603,7 @@ func (q *Queries) PauseSubscription(ctx context.Context, arg PauseSubscriptionPa
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TokenKey,
 	)
 	return i, err
 }
@@ -599,7 +612,7 @@ const resumeSubscription = `-- name: ResumeSubscription :one
 UPDATE subscriptions
 SET status = 'ACTIVE', paused_at = NULL, updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key
 `
 
 type ResumeSubscriptionParams struct {
@@ -628,6 +641,7 @@ func (q *Queries) ResumeSubscription(ctx context.Context, arg ResumeSubscription
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TokenKey,
 	)
 	return i, err
 }
@@ -642,7 +656,7 @@ SET
     next_retry_at = NULL,
     updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key
 `
 
 type UpdateSubscriptionAfterRenewalParams struct {
@@ -680,6 +694,7 @@ func (q *Queries) UpdateSubscriptionAfterRenewal(ctx context.Context, arg Update
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TokenKey,
 	)
 	return i, err
 }
@@ -692,7 +707,7 @@ SET
     next_retry_at = $5,
     updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key
 `
 
 type UpdateSubscriptionDunningParams struct {
@@ -730,6 +745,7 @@ func (q *Queries) UpdateSubscriptionDunning(ctx context.Context, arg UpdateSubsc
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TokenKey,
 	)
 	return i, err
 }
@@ -738,7 +754,7 @@ const updateSubscriptionPlan = `-- name: UpdateSubscriptionPlan :one
 UPDATE subscriptions
 SET plan_id = $3, updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key
 `
 
 type UpdateSubscriptionPlanParams struct {
@@ -768,6 +784,7 @@ func (q *Queries) UpdateSubscriptionPlan(ctx context.Context, arg UpdateSubscrip
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TokenKey,
 	)
 	return i, err
 }
@@ -776,7 +793,7 @@ const updateSubscriptionStatus = `-- name: UpdateSubscriptionStatus :one
 UPDATE subscriptions
 SET status = $3, updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key
 `
 
 type UpdateSubscriptionStatusParams struct {
@@ -806,6 +823,7 @@ func (q *Queries) UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscr
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TokenKey,
 	)
 	return i, err
 }
@@ -817,7 +835,7 @@ WHERE id = $1
   AND tenant_id = $2
   AND updated_at = $4
   AND status != 'CANCELLED'
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key
 `
 
 type UpdateSubscriptionStatusOptimisticParams struct {
@@ -853,6 +871,46 @@ func (q *Queries) UpdateSubscriptionStatusOptimistic(ctx context.Context, arg Up
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TokenKey,
+	)
+	return i, err
+}
+
+const updateSubscriptionTokenKey = `-- name: UpdateSubscriptionTokenKey :one
+UPDATE subscriptions
+SET token_key = $3, updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key
+`
+
+type UpdateSubscriptionTokenKeyParams struct {
+	ID       uuid.UUID   `json:"id"`
+	TenantID uuid.UUID   `json:"tenant_id"`
+	TokenKey pgtype.Text `json:"token_key"`
+}
+
+func (q *Queries) UpdateSubscriptionTokenKey(ctx context.Context, arg UpdateSubscriptionTokenKeyParams) (Subscription, error) {
+	row := q.db.QueryRow(ctx, updateSubscriptionTokenKey, arg.ID, arg.TenantID, arg.TokenKey)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.CustomerID,
+		&i.PlanID,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.TrialEnd,
+		&i.PausedAt,
+		&i.CancelledAt,
+		&i.CancelAtPeriodEnd,
+		&i.DunningAttempt,
+		&i.NextRetryAt,
+		&i.IdempotencyKey,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TokenKey,
 	)
 	return i, err
 }
