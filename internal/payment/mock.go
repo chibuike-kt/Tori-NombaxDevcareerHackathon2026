@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 )
 
 // MockNombaClient is used in all tests. No real network calls.
@@ -24,6 +25,10 @@ type MockNombaClient struct {
 
 func NewMockNombaClient() *MockNombaClient {
 	return &MockNombaClient{}
+}
+
+func (m *MockNombaClient) FetchSubAccountTransactions(_ context.Context, from, to time.Time, limit int, cursor string) (*TransactionList, error) {
+	return &TransactionList{}, nil
 }
 
 // QueueChargeResponse adds a response to be returned on the next ChargeToken call.
