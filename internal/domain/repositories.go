@@ -27,6 +27,7 @@ type TenantRepository interface {
 	List(ctx context.Context) ([]*Tenant, error)
 	UpdateAPIKeyHash(ctx context.Context, id uuid.UUID, hash string) error
 	UpdateAPIKeyHashAndHint(ctx context.Context, id uuid.UUID, hash, hint string) (*Tenant, error)
+	MarkEmailVerified(ctx context.Context, id uuid.UUID) (*Tenant, error)
 }
 
 type CustomerRepository interface {
@@ -70,6 +71,7 @@ type SubscriptionRepository interface {
 	ListDueForRetry(ctx context.Context, asOf time.Time, limit int) ([]*Subscription, error)
 	UpdateStatusOptimistic(ctx context.Context, id, tenantID uuid.UUID, status SubscriptionStatus, lastUpdatedAt time.Time) (*Subscription, error)
 	ListByCustomerNoTenant(ctx context.Context, customerID uuid.UUID) ([]*Subscription, error)
+	UpdateTokenKey(ctx context.Context, id, tenantID uuid.UUID, tokenKey string) (*Subscription, error)
 }
 
 type InvoiceRepository interface {
@@ -129,4 +131,11 @@ type WebhookRepository interface {
 	ListDeliveriesByEventTypeAndDateRange(ctx context.Context, tenantID uuid.UUID, eventTypes []string, from, to time.Time) ([]*WebhookDelivery, error)
 	DisableWebhookEndpoint(ctx context.Context, id uuid.UUID) error
 CountRecentFailedDeliveries(ctx context.Context, endpointID uuid.UUID) (int64, error)
+}
+
+type EmailVerificationRepository interface {
+	Create(ctx context.Context, tenantID uuid.UUID, code string, expiresAt time.Time) (*EmailVerification, error)
+	GetByCode(ctx context.Context, code string) (*EmailVerification, error)
+	MarkUsed(ctx context.Context, id uuid.UUID) error
+	DeleteByTenant(ctx context.Context, tenantID uuid.UUID) error
 }
