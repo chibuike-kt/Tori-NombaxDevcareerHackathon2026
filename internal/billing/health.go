@@ -56,13 +56,19 @@ func ComputeHealth(sub *domain.Subscription) HealthScore {
 	}
 
 	// New subscription penalty — unproven payment relationship
-	age := time.Since(sub.CreatedAt).Hours() / 24
-	if age < 30 {
-		score -= 5
-		if reason == "Subscription is current and healthy" {
-			reason = "New subscription. First payment not yet proven."
+// New subscription penalty — only for non-active states or no payment confirmed
+		age := time.Since(sub.CreatedAt).Hours() / 24
+		if age < 30 && sub.Status != domain.StatusActive {
+				score -= 5
+				if reason == "Subscription is current and healthy" {
+						reason = "New subscription. First payment not yet proven."
+				}
+		} else if age < 30 && sub.Status == domain.StatusActive {
+				// Active and paid — no penalty, just note it's new
+				if reason == "Subscription is current and healthy" {
+						reason = "New subscription. Payment confirmed."
+				}
 		}
-	}
 
 	// Previously recovered from dunning but now active — history of failure
 	if sub.Status == domain.StatusActive && sub.DunningAttempt > 0 {
