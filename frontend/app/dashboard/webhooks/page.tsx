@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/utils";
 
 interface Endpoint {
   id: string;
@@ -515,7 +515,7 @@ export default function WebhooksPage() {
                           className="px-4 py-3 text-xs font-medium"
                           style={{ color: "#98A2B3" }}
                         >
-                          {formatDate(d.created_at)}
+                          {formatDateTime(d.created_at)}
                         </td>
                         <td className="px-4 py-3">
                           {d.status === "failed" && (

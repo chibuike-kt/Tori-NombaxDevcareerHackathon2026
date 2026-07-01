@@ -7,16 +7,18 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/webhook"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
 type WebhookHandler struct {
-	webhooks domain.WebhookRepository
+	webhooks   domain.WebhookRepository
+	dispatcher *webhook.Dispatcher
 }
 
-func NewWebhookHandler(webhooks domain.WebhookRepository) *WebhookHandler {
-	return &WebhookHandler{webhooks: webhooks}
+func NewWebhookHandler(webhooks domain.WebhookRepository, dispatcher *webhook.Dispatcher) *WebhookHandler {
+	return &WebhookHandler{webhooks: webhooks, dispatcher: dispatcher}
 }
 
 func (h *WebhookHandler) CreateEndpoint(w http.ResponseWriter, r *http.Request) {
@@ -146,6 +148,11 @@ func (h *WebhookHandler) RetryDelivery(w http.ResponseWriter, r *http.Request) {
 	delivery, err := h.webhooks.GetDeliveryByID(r.Context(), id, tenantID)
 	if err != nil {
 		respond.NotFound(w, r)
+		return
+	}
+
+	if err := h.dispatcher.RetryDelivery(r.Context(), tenantID, delivery.EventType, delivery.Payload); err != nil {
+		respond.InternalError(w, r, err)
 		return
 	}
 

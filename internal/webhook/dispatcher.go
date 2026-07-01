@@ -211,3 +211,18 @@ func nextRetryAt(attempt int) time.Time {
 func SignPayload(secret string, payload []byte) string {
 	return sign(secret, payload)
 }
+
+// RetryDelivery re-enqueues a failed webhook delivery by its original payload.
+func (d *Dispatcher) RetryDelivery(ctx context.Context, tenantID uuid.UUID, eventType string, payload json.RawMessage) error {
+	jobPayload, err := json.Marshal(map[string]interface{}{
+		"tenant_id":  tenantID.String(),
+		"event_type": eventType,
+		"data":       payload,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal retry payload: %w", err)
+	}
+
+	_, err = d.jobs.Enqueue(ctx, &tenantID, domain.JobWebhookDeliver, jobPayload, time.Now(), 5)
+	return err
+}

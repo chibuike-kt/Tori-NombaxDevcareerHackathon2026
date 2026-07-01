@@ -23,6 +23,18 @@ export function formatDate(dateStr: string): string {
   });
 }
 
+export function formatDateTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
 export function statusPill(status: string): { bg: string; color: string } {
   switch (status) {
     case "ACTIVE":
