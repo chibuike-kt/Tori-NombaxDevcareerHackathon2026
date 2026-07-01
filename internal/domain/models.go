@@ -73,6 +73,7 @@ const (
 	JobReconciliation JobType = "reconciliation"
 	JobCheckoutAbandoned JobType = "checkout_abandoned"
 	JobWebhookDeliver JobType = "webhook_deliver"
+	JobCancelAtPeriodEnd JobType = "cancel_at_period_end"
 )
 
 type FailureCategory string
