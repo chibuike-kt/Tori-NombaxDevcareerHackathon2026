@@ -195,6 +195,11 @@ func (h *SubscriptionHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var body struct {
+		Immediate bool `json:"immediate"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+
 	sub, err := h.subs.GetByID(r.Context(), id, tenantID)
 	if err != nil {
 		respond.NotFound(w, r)
@@ -207,15 +212,41 @@ func (h *SubscriptionHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := h.subs.Cancel(r.Context(), id, tenantID)
+	if body.Immediate {
+		// Force cancel — revoke access now
+		updated, err := h.subs.Cancel(r.Context(), id, tenantID)
+		if err != nil {
+			respond.InternalError(w, r, err)
+			return
+		}
+		h.cancelPendingJobs(id.String())
+		h.fireEvent(tenantID, domain.EventSubscriptionCancelled, updated)
+		respond.JSON(w, r, http.StatusOK, updated)
+		return
+	}
+
+	// Cancel at period end — access continues until current_period_end
+	updated, err := h.subs.CancelAtPeriodEnd(r.Context(), id, tenantID)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}
 
-	h.cancelPendingJobs(id.String())
+	// Schedule a job to cancel at period end
+	_, _ = h.jobs.Enqueue(r.Context(), &tenantID, domain.JobCancelAtPeriodEnd,
+		mustJSON(map[string]string{
+			"subscription_id": id.String(),
+			"tenant_id":       tenantID.String(),
+		}),
+		sub.CurrentPeriodEnd, 3)
+
 	h.fireEvent(tenantID, domain.EventSubscriptionCancelled, updated)
 	respond.JSON(w, r, http.StatusOK, updated)
+}
+
+func mustJSON(v interface{}) []byte {
+	b, _ := json.Marshal(v)
+	return b
 }
 
 func (h *SubscriptionHandler) Pause(w http.ResponseWriter, r *http.Request) {

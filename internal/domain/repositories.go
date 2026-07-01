@@ -72,6 +72,7 @@ type SubscriptionRepository interface {
 	UpdateStatusOptimistic(ctx context.Context, id, tenantID uuid.UUID, status SubscriptionStatus, lastUpdatedAt time.Time) (*Subscription, error)
 	ListByCustomerNoTenant(ctx context.Context, customerID uuid.UUID) ([]*Subscription, error)
 	UpdateTokenKey(ctx context.Context, id, tenantID uuid.UUID, tokenKey string) (*Subscription, error)
+	CancelAtPeriodEnd(ctx context.Context, id, tenantID uuid.UUID) (*Subscription, error)
 }
 
 type InvoiceRepository interface {
