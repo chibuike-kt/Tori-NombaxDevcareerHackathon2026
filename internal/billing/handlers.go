@@ -25,6 +25,7 @@ type Handlers struct {
 	payment   payment.NombaClient
 	webhooks  domain.WebhookRepository
 	invoices  domain.InvoiceRepository
+	jobs      domain.JobRepository
 }
 
 func NewHandlers(
@@ -32,22 +33,24 @@ func NewHandlers(
 	tenants domain.TenantRepository,
 	customers domain.CustomerRepository,
 	plans domain.PlanRepository,
-	ledgerSvc *ledger.Service,
-	dunningEngine *dunning.Engine,
-	paymentClient payment.NombaClient,
+	ledger *ledger.Service,
+	dunning *dunning.Engine,
+	payment payment.NombaClient,
 	webhooks domain.WebhookRepository,
 	invoices domain.InvoiceRepository,
+	jobs domain.JobRepository,
 ) *Handlers {
 	return &Handlers{
-		subs:      subs,
-		tenants:   tenants,
+		subs: subs,
+		tenants: tenants,
 		customers: customers,
-		plans:     plans,
-		ledger:    ledgerSvc,
-		dunning:   dunningEngine,
-		payment:   paymentClient,
-		webhooks:  webhooks,
-		invoices:  invoices,
+		plans: plans,
+		ledger: ledger,
+		dunning: dunning,
+		payment: payment,
+		webhooks: webhooks,
+		invoices: invoices,
+		jobs: jobs,
 	}
 }
 

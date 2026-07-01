@@ -67,10 +67,10 @@ func main() {
 	}
 	dunningEngine := dunning.NewEngine(classifier)
 
-	handlers := billing.NewHandlers(
-		subsRepo, tenantRepo, customerRepo, planRepo,
-		ledgerSvc, dunningEngine, paymentClient, webhookRepo, invoicesRepo,
-	)
+handlers := billing.NewHandlers(
+	subsRepo, tenantRepo, customerRepo, planRepo,
+	ledgerSvc, dunningEngine, paymentClient, webhookRepo, invoicesRepo, jobRepo,
+)
 	// Register all job handlers on a single worker instance
 	// RunPool will clone it into 5 concurrent goroutines
 	worker := scheduler.NewWorker(jobRepo, 10*time.Second)

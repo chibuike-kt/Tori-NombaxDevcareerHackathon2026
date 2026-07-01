@@ -212,7 +212,7 @@ r.Group(func(r chi.Router) {
 	})
 		nombaWebhookH := handlers.NewNombaWebhookHandler(
     deps.Subscriptions, deps.Tokens, deps.Plans, deps.Invoices,
-    ledger.NewService(deps.Ledger), deps.Payment, dispatcher,
+    ledger.NewService(deps.Ledger), deps.Payment, dispatcher, deps.Jobs,
 )
 		r.Post("/v1/nomba/webhook", nombaWebhookH.Handle)
 		r.Get("/v1/nomba/webhook", func(w http.ResponseWriter, r *http.Request) {

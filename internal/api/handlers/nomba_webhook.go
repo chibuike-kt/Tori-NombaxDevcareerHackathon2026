@@ -30,6 +30,7 @@ type NombaWebhookHandler struct {
 	ledgerSvc  *ledger.Service
 	payment    payment.NombaClient
 	dispatcher *webhook.Dispatcher
+	jobs       domain.JobRepository
 }
 
 func NewNombaWebhookHandler(
@@ -40,12 +41,13 @@ func NewNombaWebhookHandler(
 	ledgerSvc *ledger.Service,
 	paymentClient payment.NombaClient,
 	dispatcher *webhook.Dispatcher,
+	jobs domain.JobRepository,
 ) *NombaWebhookHandler {
 	return &NombaWebhookHandler{
 		subs: subs, tokens: tokens,
 		plans: plans, invoices: invoices,
 		ledgerSvc: ledgerSvc, payment: paymentClient,
-		dispatcher: dispatcher,
+		dispatcher: dispatcher, jobs: jobs,
 	}
 }
 
@@ -342,17 +344,23 @@ func (h *NombaWebhookHandler) handlePaymentFailed(w http.ResponseWriter, r *http
 	}
 
 	// Move PENDING_PAYMENT to PAST_DUE on failed checkout payment
-	if sub.Status == domain.StatusPendingPayment {
-		_, updateErr := h.subs.UpdateStatus(r.Context(), subID, sub.TenantID, domain.StatusPastDue)
-		if updateErr != nil {
-			log.Error().Err(updateErr).Str("sub_id", subID.String()).Msg("nomba webhook: failed to move pending to past_due")
-		} else {
-			log.Warn().
-				Str("sub_id", subID.String()).
-				Str("response_code", data.Transaction.ResponseCode).
-				Msg("nomba webhook: checkout payment failed — subscription moved to PAST_DUE")
-		}
+if sub.Status == domain.StatusPendingPayment {
+	_, updateErr := h.subs.UpdateStatus(r.Context(), subID, sub.TenantID, domain.StatusPastDue)
+	if updateErr != nil {
+		log.Error().Err(updateErr).Str("sub_id", subID.String()).Msg("nomba webhook: failed to move pending to past_due")
 	} else {
+		retryAt := time.Now().UTC().AddDate(0, 0, 3)
+		_, _ = h.jobs.Enqueue(r.Context(), &sub.TenantID, domain.JobRetryFailedPayment,
+			mustJSON(map[string]string{
+				"subscription_id": subID.String(),
+				"tenant_id":       sub.TenantID.String(),
+			}), retryAt, 3)
+		log.Warn().
+			Str("sub_id", subID.String()).
+			Str("response_code", data.Transaction.ResponseCode).
+			Msg("nomba webhook: checkout payment failed — subscription PAST_DUE, retry scheduled Day 3")
+	}
+} else {
 		log.Warn().
 			Str("sub_id", subID.String()).
 			Str("status", string(sub.Status)).

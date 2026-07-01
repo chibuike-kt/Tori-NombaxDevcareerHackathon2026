@@ -16,6 +16,12 @@ import (
 // PENDING_PAYMENT subs abandoned after 1 hour — real money may have been charged,
 // Nomba webhook may have failed to deliver.
 // TRIALING subs abandoned after 24 hours — only ₦50 verification charge at risk.
+
+func mustJSON(v interface{}) []byte {
+	b, _ := json.Marshal(v)
+	return b
+}
+
 func (h *Handlers) CheckAbandonedCheckouts(ctx context.Context, payload json.RawMessage) error {
 	var p struct {
 		TenantID string `json:"tenant_id"`
@@ -78,6 +84,14 @@ func (h *Handlers) CheckAbandonedCheckouts(ctx context.Context, payload json.Raw
 			log.Error().Err(updateErr).Str("sub_id", sub.ID.String()).Msg("billing: failed to move abandoned checkout to PAST_DUE")
 			continue
 		}
+		retryAt := time.Now().UTC().AddDate(0, 0, 3)
+		_, _ = h.jobs.Enqueue(ctx, &tenantID, domain.JobRetryFailedPayment,
+			mustJSON(map[string]string{
+				"subscription_id": sub.ID.String(),
+				"tenant_id":       tenantID.String(),
+			}), retryAt, 3)
+		abandoned++
+		log.Info().Str("sub_id", sub.ID.String()).Msg("billing: abandoned checkout moved to PAST_DUE, dunning retry scheduled Day 3")
 
 		abandoned++
 		log.Info().
