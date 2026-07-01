@@ -81,6 +81,7 @@ func main() {
 	worker.Register(domain.JobCheckoutAbandoned, handlers.CheckAbandonedCheckouts)
 	webhookDispatcher := webhook.NewDispatcher(webhookRepo, jobRepo)
 	worker.Register(domain.JobWebhookDeliver, webhookDispatcher.HandleWebhookDeliver)
+	worker.Register(domain.JobCancelAtPeriodEnd, handlers.CancelAtPeriodEnd)
 
 	// Reconciliation service
 	reconSvc := reconciliation.NewService(pool, paymentClient, ledgerRepo)

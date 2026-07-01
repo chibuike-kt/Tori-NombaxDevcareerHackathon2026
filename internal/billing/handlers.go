@@ -353,3 +353,39 @@ func (h *Handlers) createInvoiceForCharge(ctx context.Context, sub *domain.Subsc
 		Int64("amount_kobo", plan.Amount).
 		Msg("invoice created, ledger entry recorded, invoice marked paid")
 }
+
+// CancelAtPeriodEnd is the job handler that fires at current_period_end
+// to complete a customer-requested cancellation.
+func (h *Handlers) CancelAtPeriodEnd(ctx context.Context, payload json.RawMessage) error {
+	var p struct {
+		SubscriptionID string `json:"subscription_id"`
+		TenantID       string `json:"tenant_id"`
+	}
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return fmt.Errorf("unmarshal payload: %w", err)
+	}
+	subID, _ := uuid.Parse(p.SubscriptionID)
+	tenantID, _ := uuid.Parse(p.TenantID)
+
+	sub, err := h.subs.GetByID(ctx, subID, tenantID)
+	if err != nil {
+		return fmt.Errorf("get subscription: %w", err)
+	}
+
+	if !sub.CancelAtPeriodEnd {
+		// Customer may have reactivated — skip
+		log.Info().Str("sub_id", subID.String()).Msg("billing: cancel_at_period_end skipped — flag not set")
+		return nil
+	}
+
+	_, err = h.subs.Cancel(ctx, subID, tenantID)
+	if err != nil {
+		return fmt.Errorf("cancel subscription: %w", err)
+	}
+
+	log.Info().
+		Str("sub_id", subID.String()).
+		Msg("billing: subscription cancelled at period end")
+
+	return nil
+}
