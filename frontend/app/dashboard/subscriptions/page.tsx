@@ -565,6 +565,14 @@ export default function SubscriptionsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <StatusPill status={sub.status} />
+                        {sub.cancel_at_period_end && (
+                          <span
+                            className="block text-[10px] font-semibold mt-1"
+                            style={{ color: "#B8860B" }}
+                          >
+                            Cancels {formatDate(sub.current_period_end)}
+                          </span>
+                        )}
                       </td>
                       <td
                         className="px-4 py-3 text-xs font-medium"
@@ -597,25 +605,29 @@ export default function SubscriptionsPage() {
                               {sub.status === "ACTIVE" && (
                                 <button
                                   onClick={() => pause.mutate(sub.id)}
-                                  className="text-[11px] px-2.5 py-1 rounded-md font-bold border"
+                                  className="text-[11px] px-2.5 py-1 rounded-md font-bold border hover:opacity-75 transition-opacity"
                                   style={{
                                     borderColor: "#E5E7EB",
                                     color: "#6B7280",
+                                    cursor: "pointer",
                                   }}
                                 >
                                   Pause
                                 </button>
                               )}
-                              <button
-                                onClick={() => cancel.mutate(sub.id)}
-                                className="text-[11px] px-2.5 py-1 rounded-md font-bold border"
-                                style={{
-                                  borderColor: "#FDCACA",
-                                  color: "#DC2626",
-                                }}
-                              >
-                                Cancel
-                              </button>
+                              {!sub.cancel_at_period_end && (
+                                <button
+                                  onClick={() => cancel.mutate(sub.id)}
+                                  className="text-[11px] px-2.5 py-1 rounded-md font-bold border hover:opacity-75 transition-opacity"
+                                  style={{
+                                    borderColor: "#FDCACA",
+                                    color: "#DC2626",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Cancel
+                                </button>
+                              )}
                             </>
                           )}
                           {sub.status === "PAUSED" && (

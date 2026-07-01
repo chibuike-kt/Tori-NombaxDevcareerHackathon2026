@@ -310,6 +310,8 @@ export interface Subscription {
   trial_end?: string;
   dunning_attempt: number;
   next_retry_at?: string;
+  cancel_at_period_end: boolean;
+  cancelled_at?: string;
   created_at: string;
   updated_at: string;
 }
