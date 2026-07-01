@@ -456,3 +456,39 @@ func (h *AuthHandler) ResendVerification(w http.ResponseWriter, r *http.Request)
 		"message": "Verification email sent. Check your inbox.",
 	})
 }
+
+// UpdateDunningConfig handles PATCH /v1/dunning-config
+func (h *AuthHandler) UpdateDunningConfig(w http.ResponseWriter, r *http.Request) {
+	tenant := middleware.GetTenant(r.Context())
+	if tenant == nil {
+		respond.Unauthorised(w, r, "not authenticated")
+		return
+	}
+
+	var body domain.DunningConfig
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respond.BadRequest(w, r, "invalid_body", "request body is not valid JSON")
+		return
+	}
+
+	// Validate
+	if body.MaxAttempts < 1 || body.MaxAttempts > 10 {
+		respond.BadRequest(w, r, "invalid_field", "max_attempts must be between 1 and 10")
+		return
+	}
+	if len(body.RetryIntervalsDays) == 0 {
+		respond.BadRequest(w, r, "invalid_field", "retry_intervals_days must not be empty")
+		return
+	}
+	if body.SuspensionAction != "suspend" && body.SuspensionAction != "cancel" {
+		body.SuspensionAction = "suspend"
+	}
+
+	updated, err := h.tenants.UpdateDunningConfig(r.Context(), tenant.ID, body)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, updated)
+}

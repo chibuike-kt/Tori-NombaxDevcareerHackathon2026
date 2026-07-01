@@ -167,6 +167,17 @@ export const logout = async (): Promise<void> => {
   }
 };
 
+export const getDunningConfig = () => api.get<{ data: Tenant }>("/v1/me");
+
+export const updateDunningConfig = (config: {
+  retry_intervals_days: number[];
+  max_attempts: number;
+  suspension_action: string;
+  notify_customer: boolean;
+  notify_merchant: boolean;
+  smart_retry: boolean;
+}) => api.patch<{ data: Tenant }>("/v1/dunning-config", config);
+
 // Plans
 export const getPlans = () => api.get<{ data: Plan[] }>("/v1/plans");
 export const createPlan = (body: Partial<Plan>) => api.post<{ data: Plan }>("/v1/plans", body);
@@ -258,6 +269,14 @@ export interface Tenant {
   api_key_hint?: string;
   is_active: boolean;
   created_at: string;
+  dunning_config?: {
+    retry_intervals_days: number[];
+    max_attempts: number;
+    suspension_action: string;
+    notify_customer: boolean;
+    notify_merchant: boolean;
+    smart_retry: boolean;
+  };
 }
 
 export interface Plan {

@@ -118,6 +118,7 @@ r.Group(func(r chi.Router) {
 		r.Get("/v1/me", authH.Me)
 		r.Patch("/v1/me", authH.UpdateMe)
 		r.Post("/v1/auth/logout", authH.Logout)
+		r.Patch("/v1/dunning-config", authH.UpdateDunningConfig)
 
 		r.Post("/v1/auth/verify-email", authH.VerifyEmail)
 		r.Post("/v1/auth/resend-verification", authH.ResendVerification)
