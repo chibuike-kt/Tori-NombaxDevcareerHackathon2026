@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/db/generated"
@@ -14,11 +15,12 @@ import (
 )
 
 type SubscriptionRepo struct {
-	q *db.Queries
+	q    *db.Queries
+	pool *pgxpool.Pool
 }
 
 func NewSubscriptionRepo(pool *pgxpool.Pool) *SubscriptionRepo {
-	return &SubscriptionRepo{q: db.New(pool)}
+	return &SubscriptionRepo{q: db.New(pool), pool: pool}
 }
 
 func (r *SubscriptionRepo) Create(ctx context.Context, tenantID, customerID, planID uuid.UUID, status domain.SubscriptionStatus, periodStart, periodEnd time.Time, trialEnd *time.Time, idempotencyKey *string, metadata []byte) (*domain.Subscription, error) {
@@ -304,4 +306,27 @@ func (r *SubscriptionRepo) UpdateTokenKey(ctx context.Context, id, tenantID uuid
 		return nil, err
 	}
 	return subFromRow(row), nil
+}
+
+func (r *SubscriptionRepo) CancelAtPeriodEnd(ctx context.Context, id, tenantID uuid.UUID) (*domain.Subscription, error) {
+	var s db.Subscription
+	err := r.pool.QueryRow(ctx,
+		`UPDATE subscriptions
+		 SET cancel_at_period_end = true, updated_at = NOW()
+		 WHERE id = $1 AND tenant_id = $2
+		 RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start,
+		           current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end,
+		           dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key`,
+		id, tenantID,
+	).Scan(
+		&s.ID, &s.TenantID, &s.CustomerID, &s.PlanID, &s.Status,
+		&s.CurrentPeriodStart, &s.CurrentPeriodEnd, &s.TrialEnd,
+		&s.PausedAt, &s.CancelledAt, &s.CancelAtPeriodEnd,
+		&s.DunningAttempt, &s.NextRetryAt, &s.IdempotencyKey,
+		&s.Metadata, &s.CreatedAt, &s.UpdatedAt, &s.TokenKey,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("cancel at period end: %w", err)
+	}
+	return subFromRow(s), nil
 }
