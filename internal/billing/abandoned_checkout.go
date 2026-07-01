@@ -12,9 +12,10 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// CheckAbandonedCheckouts finds subscriptions created more than 24 hours ago
-// with no tokenKey and moves them to PAST_DUE.
-// Handles the case where a customer got the checkout URL but never completed payment.
+// CheckAbandonedCheckouts finds subscriptions with no tokenKey and moves them to PAST_DUE.
+// PENDING_PAYMENT subs abandoned after 1 hour — real money may have been charged,
+// Nomba webhook may have failed to deliver.
+// TRIALING subs abandoned after 24 hours — only ₦50 verification charge at risk.
 func (h *Handlers) CheckAbandonedCheckouts(ctx context.Context, payload json.RawMessage) error {
 	var p struct {
 		TenantID string `json:"tenant_id"`
@@ -33,26 +34,34 @@ func (h *Handlers) CheckAbandonedCheckouts(ctx context.Context, payload json.Raw
 		return fmt.Errorf("list subscriptions: %w", err)
 	}
 
-	cutoff := time.Now().UTC().Add(-24 * time.Hour)
+	pendingCutoff := time.Now().UTC().Add(-1 * time.Hour)   // 1 hour for PENDING_PAYMENT
+	trialCutoff := time.Now().UTC().Add(-24 * time.Hour)    // 24 hours for TRIALING
+
 	abandoned := 0
 
 	for _, sub := range subs {
-		// Skip seeded subscriptions — inserted directly via SQL without going through checkout
+		// Skip seeded subscriptions
 		if sub.IdempotencyKey != nil && strings.HasPrefix(*sub.IdempotencyKey, "seed-") {
 			continue
 		}
 
-		// Only check ACTIVE or TRIALING subs with no tokenKey
+		// Only check subs with no tokenKey
 		if sub.TokenKey != "" {
 			continue
 		}
-		if sub.Status != domain.StatusActive &&
-				sub.Status != domain.StatusTrialing &&
-				sub.Status != domain.StatusPendingPayment {
-				continue
+
+		// Determine cutoff based on status
+		var cutoff time.Time
+		switch sub.Status {
+		case domain.StatusPendingPayment:
+			cutoff = pendingCutoff
+		case domain.StatusTrialing:
+			cutoff = trialCutoff
+		default:
+			continue
 		}
 
-		// Only flag if created more than 24 hours ago
+		// Only flag if old enough
 		if sub.CreatedAt.After(cutoff) {
 			continue
 		}
@@ -61,7 +70,8 @@ func (h *Handlers) CheckAbandonedCheckouts(ctx context.Context, payload json.Raw
 			Str("sub_id", sub.ID.String()).
 			Str("status", string(sub.Status)).
 			Str("created_at", sub.CreatedAt.Format(time.RFC3339)).
-			Msg("billing: abandoned checkout — no tokenKey after 24 hours, moving to PAST_DUE")
+			Dur("age", time.Since(sub.CreatedAt)).
+			Msg("billing: abandoned checkout — no tokenKey, moving to PAST_DUE")
 
 		_, updateErr := h.subs.UpdateStatus(ctx, sub.ID, tenantID, domain.StatusPastDue)
 		if updateErr != nil {
@@ -70,7 +80,10 @@ func (h *Handlers) CheckAbandonedCheckouts(ctx context.Context, payload json.Raw
 		}
 
 		abandoned++
-		log.Info().Str("sub_id", sub.ID.String()).Msg("billing: abandoned checkout moved to PAST_DUE")
+		log.Info().
+			Str("sub_id", sub.ID.String()).
+			Str("status", string(sub.Status)).
+			Msg("billing: abandoned checkout moved to PAST_DUE")
 	}
 
 	log.Info().

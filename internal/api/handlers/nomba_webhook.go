@@ -234,12 +234,13 @@ func (h *NombaWebhookHandler) activateAndRecord(r *http.Request, sub *domain.Sub
 	ctx := r.Context()
 
 	// Move subscription to ACTIVE
-	_, err := h.subs.UpdateStatus(ctx, sub.ID, sub.TenantID, domain.StatusActive)
+	now := time.Now().UTC()
+	_, err := h.subs.UpdateAfterRenewal(ctx, sub.ID, sub.TenantID, domain.StatusActive, now, now.AddDate(0, 1, 0))
 	if err != nil {
-		log.Error().Err(err).Str("sub_id", sub.ID.String()).Msg("nomba webhook: failed to activate subscription")
-		return
+			log.Error().Err(err).Str("sub_id", sub.ID.String()).Msg("nomba webhook: failed to activate subscription")
+			return
 	}
-	log.Info().Str("sub_id", sub.ID.String()).Msg("nomba webhook: subscription activated after payment")
+	log.Info().Str("sub_id", sub.ID.String()).Msg("nomba webhook: subscription activated, period start set to payment confirmation time")
 
 	// Fetch plan for amount
 	plan, err := h.plans.GetByID(ctx, sub.PlanID, sub.TenantID)
