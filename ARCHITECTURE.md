@@ -327,6 +327,26 @@ Write reconciliation_runs row with full summary
 
 ---
 
+## Payment methods — card vs bank transfer
+
+Nomba's hosted checkout lets the customer pay by card or bank transfer. Tori handles both, but they behave differently for recurring billing.
+
+### Card payment (tokenised)
+
+When a customer pays by card, Nomba returns a `tokenKey` in the `payment_success` webhook. Tori stores this token on the subscription. Every future renewal and every dunning retry charges this token automatically with no customer interaction. This is the primary path and the one recurring billing is designed around.
+
+### Bank transfer
+
+When a customer pays by bank transfer, there is no card to tokenise, so the `payment_success` webhook arrives with no `tokenKey`. Tori still activates the subscription and records the invoice and ledger entry — the customer paid, so they get access. This is important: a transfer-paying customer is never left stuck in PENDING_PAYMENT.
+
+However, because there is no stored token, Tori cannot silently charge the customer when the subscription renews. At the next billing cycle the tokenised charge has nothing to charge against, so the renewal fails and the subscription enters the normal dunning flow. The `dunning.started` webhook fires to the developer's server, which is the signal to prompt the customer to pay again — either by generating a fresh checkout link via `POST /v1/platform/subscriptions/{id}/checkout` or by asking them to add a card.
+
+### Design rationale
+
+This is deliberate. Forcing card-only payment would exclude the large segment of Nigerian customers who prefer bank transfer. Allowing transfer payment but being honest that it cannot auto-renew is better than silently failing or refusing the payment. The dunning flow already exists to handle "we could not charge this customer" — a transfer-paid renewal is just another instance of that, and the developer is notified through the same webhook they already handle.
+
+For products that require guaranteed auto-renewal, the recommendation is to enable only card payments on the checkout by passing `allowedPaymentMethods: ["Card"]` when creating the checkout, so every subscriber has a tokenised card from the start.
+
 ## 8. Dunning engine
 
 ### Nigerian failure classification
