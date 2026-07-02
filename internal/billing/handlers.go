@@ -163,10 +163,16 @@ func (h *Handlers) RetryFailedPayment(ctx context.Context, payload json.RawMessa
 		return fmt.Errorf("get subscription: %w", err)
 	}
 
-	if sub.Status != domain.StatusDunning && sub.Status != domain.StatusPastDue {
-		log.Info().Str("sub_id", subID.String()).Msg("not in dunning — skip")
-		return nil
-	}
+if sub.Status != domain.StatusDunning && sub.Status != domain.StatusPastDue {
+    log.Info().Str("sub_id", subID.String()).Msg("not in dunning — skip")
+    return nil
+}
+
+// If customer requested cancellation, stop retrying — don't charge a cancelling subscription
+if sub.CancelAtPeriodEnd {
+    log.Info().Str("sub_id", subID.String()).Msg("billing: cancel_at_period_end set — skipping dunning retry")
+    return nil
+}
 
 	tenant, err := h.tenants.GetByID(ctx, tenantID)
 	if err != nil {
@@ -261,13 +267,19 @@ func (h *Handlers) GraceRetry(ctx context.Context, payload json.RawMessage) erro
 		return fmt.Errorf("get subscription: %w", err)
 	}
 
-	if sub.Status != domain.StatusGracePeriod {
-		log.Info().
-			Str("sub_id", subID.String()).
-			Str("status", string(sub.Status)).
-			Msg("grace retry skipped — subscription no longer in grace period")
-		return nil
-	}
+if sub.Status != domain.StatusGracePeriod {
+    log.Info().
+        Str("sub_id", subID.String()).
+        Str("status", string(sub.Status)).
+        Msg("grace retry skipped — subscription no longer in grace period")
+    return nil
+}
+
+// If customer requested cancellation, stop retrying
+if sub.CancelAtPeriodEnd {
+    log.Info().Str("sub_id", subID.String()).Msg("billing: cancel_at_period_end set — skipping grace retry")
+    return nil
+}
 
 	plan, err := h.plans.GetByID(ctx, sub.PlanID, tenantID)
 	if err != nil {

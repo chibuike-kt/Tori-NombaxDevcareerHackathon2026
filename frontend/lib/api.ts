@@ -202,6 +202,8 @@ export const pauseSubscription = (id: string) =>
   api.post(`/v1/subscriptions/${id}/pause`, {});
 export const resumeSubscription = (id: string) =>
   api.post(`/v1/subscriptions/${id}/resume`, {});
+export const recoverSubscription = (id: string) =>
+  api.post(`/v1/subscriptions/${id}/recover`, {});
 
 // Checkout
 export const createCheckout = (

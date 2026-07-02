@@ -159,6 +159,7 @@ r.Group(func(r chi.Router) {
 		r.Post("/v1/subscriptions/{id}/cancel", subH.Cancel)
 		r.Post("/v1/subscriptions/{id}/pause", subH.Pause)
 		r.Post("/v1/subscriptions/{id}/resume", subH.Resume)
+		r.Post("/v1/subscriptions/{id}/recover", subH.Recover)
 		ledgerSvcForPlanChange := ledger.NewService(deps.Ledger)
 		planChangeH := handlers.NewPlanChangeHandler(deps.Subscriptions, deps.Plans, ledgerSvcForPlanChange)
 		r.Patch("/v1/subscriptions/{id}/plan", planChangeH.ChangePlan)
@@ -209,6 +210,7 @@ r.Group(func(r chi.Router) {
 		r.Post("/v1/platform/subscriptions/{id}/cancel", subH.Cancel)
 		r.Post("/v1/platform/subscriptions/{id}/pause", subH.Pause)
 		r.Post("/v1/platform/subscriptions/{id}/resume", subH.Resume)
+		r.Post("/v1/platform/subscriptions/{id}/recover", subH.Recover)
 	})
 		nombaWebhookH := handlers.NewNombaWebhookHandler(
     deps.Subscriptions, deps.Tokens, deps.Plans, deps.Invoices,

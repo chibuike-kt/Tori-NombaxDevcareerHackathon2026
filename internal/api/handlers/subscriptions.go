@@ -309,3 +309,35 @@ func (h *SubscriptionHandler) Resume(w http.ResponseWriter, r *http.Request) {
 	h.fireEvent(tenantID, domain.EventSubscriptionResumed, updated)
 	respond.JSON(w, r, http.StatusOK, updated)
 }
+
+func (h *SubscriptionHandler) Recover(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		respond.BadRequest(w, r, "invalid_id", "subscription ID is not a valid UUID")
+		return
+	}
+
+	sub, err := h.subs.GetByID(r.Context(), id, tenantID)
+	if err != nil {
+		respond.NotFound(w, r)
+		return
+	}
+
+	_, err = subscription.Transition(sub.Status, subscription.EventManualRecovery)
+	if err != nil {
+		respond.UnprocessableEntity(w, r, "invalid_transition", err.Error())
+		return
+	}
+
+	updated, err := h.subs.UpdateStatus(r.Context(), id, tenantID, domain.StatusActive)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	h.cancelPendingJobs(id.String())
+	h.fireEvent(tenantID, domain.EventSubscriptionResumed, updated)
+
+	respond.JSON(w, r, http.StatusOK, updated)
+}

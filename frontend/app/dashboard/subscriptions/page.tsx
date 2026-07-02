@@ -10,6 +10,7 @@ import {
   cancelSubscription,
   pauseSubscription,
   resumeSubscription,
+  recoverSubscription,
   createCheckout,
   type Customer,
   type Plan,
@@ -86,6 +87,11 @@ export default function SubscriptionsPage() {
       setActionError(
         e instanceof Error ? e.message : "Failed to resume subscription",
       ),
+  });
+
+  const recover = useMutation({
+    mutationFn: recoverSubscription,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["subscriptions"] }),
   });
 
   const checkout = useMutation({
@@ -653,6 +659,20 @@ export default function SubscriptionsPage() {
                               }}
                             >
                               Cancel
+                            </button>
+                          )}
+
+                          {sub.status === "SUSPENDED" && (
+                            <button
+                              onClick={() => recover.mutate(sub.id)}
+                              className="text-[11px] px-2.5 py-1 rounded-md font-bold border hover:opacity-75 transition-opacity"
+                              style={{
+                                borderColor: "#00B37E",
+                                color: "#00B37E",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Recover
                             </button>
                           )}
                         </div>
