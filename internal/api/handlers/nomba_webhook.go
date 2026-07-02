@@ -152,16 +152,22 @@ func (h *NombaWebhookHandler) handlePaymentSuccess(w http.ResponseWriter, r *htt
 	tokenKey := data.TokenizedCardData.TokenKey
 	orderRef := data.Order.OrderReference
 
+	hasToken := tokenKey != "" && tokenKey != "N/A"
+
 	log.Info().
 		Str("order_reference", orderRef).
 		Str("customer_email", middleware.MaskEmail(data.Order.CustomerEmail)).
 		Str("token_key", tokenKey).
+		Bool("has_token", hasToken).
 		Str("card_type", data.TokenizedCardData.CardType).
 		Str("card_pan", data.TokenizedCardData.CardPan).
 		Float64("amount", data.Transaction.TransactionAmount).
-		Msg("nomba payment_success — card tokenised, ready for recurring billing")
+		Msg("nomba payment_success received")
 
-	if tokenKey == "" || tokenKey == "N/A" || orderRef == "" {
+	// Only order_reference is strictly required to match the payment to a subscription.
+	// A missing tokenKey means the customer paid by bank transfer, not card —
+	// we still activate the subscription because the payment succeeded.
+	if orderRef == "" {
 		respond.JSON(w, r, http.StatusOK, map[string]string{"status": "processed"})
 		return
 	}
@@ -181,51 +187,55 @@ func (h *NombaWebhookHandler) handlePaymentSuccess(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Store tokenKey on subscription
-	_, err = h.subs.UpdateTokenKey(r.Context(), subID, sub.TenantID, tokenKey)
-	if err != nil {
-		log.Error().Err(err).Str("sub_id", subID.String()).Msg("nomba webhook: failed to store token key")
+	// Store tokenKey only if the payment was a tokenised card.
+	// Bank transfer payments have no token — recurring billing will require
+	// a card on the next cycle (handled at renewal via checkout regeneration).
+	if hasToken {
+		_, err = h.subs.UpdateTokenKey(r.Context(), subID, sub.TenantID, tokenKey)
+		if err != nil {
+			log.Error().Err(err).Str("sub_id", subID.String()).Msg("nomba webhook: failed to store token key")
+		} else {
+			log.Info().
+				Str("sub_id", subID.String()).
+				Str("token_key", tokenKey).
+				Msg("nomba webhook: token key stored on subscription")
+		}
 	} else {
-		log.Info().
+		log.Warn().
 			Str("sub_id", subID.String()).
-			Str("token_key", tokenKey).
-			Msg("nomba webhook: token key stored on subscription")
+			Msg("nomba webhook: payment succeeded via bank transfer — no card token, recurring billing not set up for next cycle")
 	}
 
 	switch sub.Status {
 	case domain.StatusPendingPayment:
 		// No-trial plan — checkout payment is the first real charge.
 		// Activate subscription, create invoice and ledger entry.
+		// Applies to both card and transfer payments — the customer paid.
 		h.activateAndRecord(r, sub, data)
 
 	case domain.StatusTrialing:
-		// Trial plan — ₦50 verification charge. Refund it immediately.
-		// Card is now tokenised for future billing.
-		amountKobo := int64(data.Transaction.TransactionAmount * 100)
-		if amountKobo <= 6000 {
-			refundResp, refundErr := h.payment.RefundPayment(r.Context(), payment.RefundRequest{
-				Reference: data.Transaction.TransactionID,
-				Amount:    amountKobo,
-				Reason:    "trial card verification refund",
-			})
-			if refundErr != nil || !refundResp.Success {
-				log.Warn().
-					Str("sub_id", subID.String()).
-					Msg("nomba webhook: trial verification refund failed — will retry manually")
-			} else {
+		// Trial plan — a ₦1 verification charge tokenises the card.
+		// The charge is intentionally kept to ₦1 (a negligible, non-refundable
+		// verification cost) because Nomba's refund API does not currently support
+		// card transaction refunds. The tokenKey is what matters — it lets the full
+		// plan amount be charged automatically when the trial ends via ExpireTrial.
+		if hasToken {
+			log.Info().
+				Str("sub_id", subID.String()).
+				Str("token_key", tokenKey).
+				Msg("nomba webhook: trial card verified and tokenised — full amount will be charged when trial ends")
+		} else {
+					log.Warn().
+						Str("sub_id", subID.String()).
+						Msg("nomba webhook: trial payment via transfer — no card token, cannot auto-charge when trial ends")
+				}
+
+			default:
 				log.Info().
 					Str("sub_id", subID.String()).
-					Int64("amount_kobo", amountKobo).
-					Msg("nomba webhook: trial verification charge refunded")
+					Str("status", string(sub.Status)).
+					Msg("nomba webhook: payment recorded, no status change for current state")
 			}
-		}
-
-	default:
-		log.Info().
-			Str("sub_id", subID.String()).
-			Str("status", string(sub.Status)).
-			Msg("nomba webhook: tokenKey stored, no further action for this status")
-	}
 
 	respond.JSON(w, r, http.StatusOK, map[string]string{"status": "processed"})
 }

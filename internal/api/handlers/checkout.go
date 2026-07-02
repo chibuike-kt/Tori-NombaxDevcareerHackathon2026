@@ -196,7 +196,7 @@ if plan.TrialPeriodDays > 0 {
 	// For no-trial plans, charge the full plan amount immediately — this IS the first payment.
 	checkoutAmount := plan.Amount
 	if plan.TrialPeriodDays > 0 {
-			checkoutAmount = 5000 // ₦50 card verification charge during trial — fully refunded after tokenisation
+			checkoutAmount = 100 // ₦1 card verification charge during trial — tokenises the card for recurring billing
 	}
 
 	// Create Nomba checkout session
@@ -233,7 +233,7 @@ if plan.TrialPeriodDays > 0 {
 				Int64("checkout_amount_kobo", checkoutAmount).
 				Str("checkout_note", func() string {
 						if plan.TrialPeriodDays > 0 {
-								return "₦50 verification charge — fully refunded after card tokenisation"
+								return "₦1 verification charge — tokenises card for recurring billing"
 						}
 						return "full plan amount charged immediately"
 				}()).
