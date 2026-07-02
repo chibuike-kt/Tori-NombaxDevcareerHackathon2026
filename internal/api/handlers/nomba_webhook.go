@@ -96,11 +96,19 @@ func (h *NombaWebhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	signature := r.Header.Get("nomba-signature")
+signature := r.Header.Get("nomba-signature")
 	timestamp := r.Header.Get("nomba-timestamp")
 	secret := os.Getenv("NOMBA_WEBHOOK_SECRET")
 
-	if secret != "" && signature != "" {
+	// If a webhook secret is configured, every inbound webhook MUST carry a valid
+	// signature. A missing signature is treated as a failed verification — otherwise
+	// an attacker could forge a payment_success by simply omitting the header.
+	if secret != "" {
+		if signature == "" {
+			log.Warn().Msg("nomba webhook: rejected — signature header missing but secret is configured")
+			respond.JSON(w, r, http.StatusUnauthorized, map[string]string{"error": "missing signature"})
+			return
+		}
 		if !verifyNombaSignature(rawBody, signature, timestamp, secret) {
 			log.Warn().Msg("nomba webhook: signature verification failed")
 			respond.JSON(w, r, http.StatusUnauthorized, map[string]string{"error": "invalid signature"})

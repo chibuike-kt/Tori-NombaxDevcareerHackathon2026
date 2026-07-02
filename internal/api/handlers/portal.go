@@ -127,7 +127,7 @@ func (h *PortalHandler) PortalCancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify this subscription belongs to the customer in the token
+// Verify this subscription belongs to the customer in the token
 	if sub.CustomerID != customerID {
 		respond.Unauthorised(w, r, "subscription does not belong to this customer")
 		return
@@ -139,7 +139,8 @@ func (h *PortalHandler) PortalCancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := h.subs.Cancel(r.Context(), subID, sub.TenantID)
+	// Customer-initiated cancellation keeps access until the period ends
+	updated, err := h.subs.CancelAtPeriodEnd(r.Context(), subID, sub.TenantID)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
