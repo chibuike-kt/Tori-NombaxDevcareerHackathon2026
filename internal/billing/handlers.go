@@ -117,7 +117,7 @@ func (h *Handlers) ExpireTrial(ctx context.Context, payload json.RawMessage) err
 	if err == nil && result.Success {
 		// Charge succeeded — activate subscription
 		now := time.Now().UTC()
-		periodEnd := now.AddDate(0, 1, 0)
+		periodEnd := nextPeriodEnd(now, plan)
 		_, _ = h.subs.UpdateAfterRenewal(ctx, subID, tenantID, domain.StatusActive, now, periodEnd)
 
 		_, _ = h.ledger.RecordCharge(ctx, tenantID, subID, subID, sub.CustomerID,
@@ -199,7 +199,7 @@ if sub.CancelAtPeriodEnd {
 			plan.Amount, plan.Currency, ik)
 
 		now := time.Now().UTC()
-		periodEnd := now.AddDate(0, 1, 0)
+		periodEnd := nextPeriodEnd(now, plan)
 		_, _ = h.subs.UpdateAfterRenewal(ctx, subID, tenantID, domain.StatusActive, now, periodEnd)
 
 		h.createInvoiceForCharge(ctx, sub, plan, result.Reference)
@@ -403,4 +403,17 @@ func (h *Handlers) CancelAtPeriodEnd(ctx context.Context, payload json.RawMessag
 		Msg("billing: subscription cancelled at period end")
 
 	return nil
+}
+
+// nextPeriodEnd calculates the next period end date based on the plan interval.
+func nextPeriodEnd(from time.Time, plan *domain.Plan) time.Time {
+	switch plan.Interval {
+	case domain.IntervalAnnual:
+		return from.AddDate(1, 0, 0)
+	case domain.IntervalMonthly:
+		return from.AddDate(0, 1, 0)
+	default:
+		// Custom — use interval_count as days
+		return from.AddDate(0, 0, plan.IntervalCount)
+	}
 }
