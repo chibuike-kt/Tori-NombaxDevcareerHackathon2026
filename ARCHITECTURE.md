@@ -676,6 +676,35 @@ Every HTTP request is logged with method, path, status code, latency in millisec
 ```
 
 ---
+## Known behaviors and design decisions
+
+Every system has boundaries. These are the deliberate design decisions and known limitations in Tori, documented so operators and reviewers understand exactly how the system behaves at its edges.
+
+### Cancellation is always at period end for customers
+
+When a customer cancels — whether through the self-service portal or when a developer calls the cancel endpoint without `immediate: true` — the subscription is flagged `cancel_at_period_end` and keeps ACTIVE status until `current_period_end`. Access continues for the period the customer already paid for. A scheduled job moves the subscription to CANCELLED at period end, and no renewal charge fires. This matches how Stripe, Paddle, and every mature billing platform handle cancellation. Only an explicit `immediate: true` (operator force-cancel) revokes access immediately.
+
+When a cancellation is scheduled, all pending dunning and grace-retry jobs for that subscription are skipped — a cancelling customer is never charged again.
+
+### Bank transfer payments cannot auto-renew
+
+Nomba's hosted checkout accepts both card and bank transfer. Card payments return a `tokenKey` that Tori stores for automatic recurring charging. Bank transfer payments have no token. Tori still activates the subscription and records the payment — the customer paid, so they get access — but at renewal there is no token to charge. The renewal fails into the normal dunning flow, and the `dunning.started` webhook signals the developer to prompt the customer for a card. Products requiring guaranteed auto-renewal should restrict checkout to card only via `allowedPaymentMethods: ["Card"]`.
+
+### Trial verification uses a ₦1 non-refundable charge
+
+Trial plans tokenise the customer's card with a ₦1 verification charge rather than the full plan amount. The card is tokenised so the full amount can be charged automatically when the trial ends. The ₦1 charge is intentionally non-refundable — Nomba's refund API does not currently support card transaction refunds, and ₦1 is a negligible, industry-standard verification cost. The value that matters is the stored token, not the ₦1.
+
+### Proration assumes same-interval plan changes
+
+Mid-cycle plan changes are prorated by computing the daily rate of both the old and new plan against the current billing period, crediting unused days on the old plan and charging remaining days on the new plan. This is exact for plan changes within the same billing interval (monthly to monthly, annual to annual), which is the overwhelming majority of real plan changes. Cross-interval changes (monthly to annual) are a known edge case where the simplification slightly understates the annual plan's daily value; for those, starting a fresh billing period is the cleaner approach.
+
+### Nomba webhook verification is fail-open without a configured secret
+
+Inbound Nomba webhook signature verification is enforced only when `NOMBA_WEBHOOK_SECRET` is configured. If the secret is not set, signatures are not checked and webhooks are accepted — a fail-open design chosen so local development and sandbox testing are not blocked by signature setup. In production the secret is always configured, so every inbound webhook is cryptographically verified with HMAC-SHA256 and exact Nomba field ordering. Duplicate webhooks are rejected by `requestId` deduplication with a 24-hour Redis TTL regardless of signature configuration.
+
+### Portal tokens expire after one hour with no refresh
+
+Customer self-service portal tokens are scoped JWTs valid for one hour. There is no refresh mechanism — a customer whose token expires mid-session must be issued a new one by the developer. For a hackathon demo this is acceptable; a production deployment would add a refresh flow or lengthen the token lifetime.
 
 ## 14. Security
 
