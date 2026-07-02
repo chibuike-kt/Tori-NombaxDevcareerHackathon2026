@@ -158,6 +158,109 @@ Tori was designed around all of this.
 
 ---
 
+## Production proof
+
+The following are real log outputs from the live Railway deployment captured on July 1, 2026.
+
+### Real Nomba production webhook — Verve card end to end
+
+A real ₦100 charge on a Verve card. Nomba fired the `payment_success` webhook to Tori's live Railway endpoint. Tori activated the subscription, created the invoice, and recorded the ledger entry — all within the same webhook handler.
+
+```
+6:43PM INF nomba: initiating checkout amount_kobo=10000 reference=a0839797-a0dc-44a5-93d4-a846b13ce2fc
+6:43PM DBG nomba: outbound request method=POST url=https://api.nomba.com/v1/checkout/order
+6:43PM INF nomba: checkout created checkout_url=https://pay.nomba.com/checkout/fb9ddae8-f5af-486e-a658-d9568524af76
+6:44PM INF nomba webhook received event_type=payment_success request_id=a64bc178-805e-4bf0-aca3-821c7b0f7a79
+6:44PM INF nomba payment_success — card tokenised, ready for recurring billing
+        amount=100 card_pan="507872****4811" card_type=Verve
+        order_reference=a0839797-a0dc-44a5-93d4-a846b13ce2fc
+        token_key=4104486919
+6:44PM INF nomba webhook: token key stored on subscription sub_id=a0839797-a0dc-44a5-93d4-a846b13ce2fc
+6:44PM INF nomba webhook: subscription activated, period start set to payment confirmation time
+6:44PM INF nomba webhook: PENDING_PAYMENT → ACTIVE, invoice created and marked paid
+        amount_kobo=10000 invoice_id=3ef83506-6d7d-42cb-bf8c-68cd1ca352df plan=Test
+        sub_id=a0839797-a0dc-44a5-93d4-a846b13ce2fc
+6:45PM INF processing job job_type=webhook_deliver
+6:45PM INF processing job job_type=webhook_deliver
+```
+
+### Abandoned checkout — automatic PAST_DUE after 1 hour
+
+A subscription where Nomba sandbox did not deliver the webhook. After 1 hour with no tokenKey, the abandoned checkout worker moved it to PAST_DUE automatically and scheduled a dunning retry at Day 3.
+
+```
+worker-1 | INF billing: abandoned checkout — no tokenKey, moving to PAST_DUE
+         status=PENDING_PAYMENT age=1h2m
+         sub_id=56f40906-8ef7-4fc2-977a-336b75a36f24
+worker-1 | INF billing: abandoned checkout moved to PAST_DUE, dunning retry scheduled Day 3
+worker-1 | INF billing: abandoned checkout check complete abandoned=1
+```
+
+### Trial expiry — automatic charge via tokenised card
+
+A TRIALING subscription at trial end. The worker charged the stored tokenKey for the full plan amount without any customer interaction.
+
+```
+worker-1 | INF trial expired — charging card now sub_id=a75c0407-9992-402b-b11a-494229895cc2
+worker-1 | INF nomba: charging tokenised card
+         amount_kobo=250000 idempotency_key=trial-charge-a75c0407-9992-402b-b11a-494229895cc2
+worker-1 | INF nomba: charge succeeded reference=trial-charge-a75c0407-9992-402b-b11a-494229895cc2
+worker-1 | INF invoice created, ledger entry recorded, invoice marked paid
+         amount_kobo=250000 invoice_id=6a717e90-945f-4198-9219-97b0b7e3897b
+worker-1 | INF trial charge succeeded — subscription activated amount=2500.00
+```
+
+### Live metrics — Railway production database
+
+```json
+{
+  "subscriptions": {
+    "total": 14,
+    "active": 13,
+    "by_status": { "ACTIVE": 13, "PAST_DUE": 1 }
+  },
+  "revenue": {
+    "mrr_kobo": 5000,
+    "mrr_naira": 50,
+    "gross_this_month": 422500,
+    "net_this_month": 422500
+  },
+  "billing": {
+    "charge_success_rate_pct": 100,
+    "at_risk_count": 0
+  },
+  "worker": {
+    "queue_depth": 0,
+    "failed_jobs_count": 0
+  }
+}
+```
+
+### Health endpoint — no authentication required
+
+```json
+{
+  "status": "ok",
+  "checks": { "api": "ok", "database": "ok", "nomba": "connected" },
+  "database": { "total_conns": 3, "idle_conns": 3, "max_conns": 20 },
+  "worker": { "queue_depth": 0 },
+  "runtime": { "goroutines": 6, "heap_alloc_mb": 1.41 }
+}
+```
+
+### Nightly reconciliation run
+
+```
+worker-1 | INF reconciliation: starting run
+         from=2026-06-30T00:00:00Z to=2026-07-01T00:00:00Z
+worker-1 | INF reconciliation: fetched Nomba transactions count=4
+worker-1 | INF reconciliation: run complete
+         matched=2 mismatched=0 missing=2 status=discrepancies_found
+```
+
+The 2 missing entries are sandbox test transactions where Nomba processed payment but the webhook was not delivered — exactly the discrepancy the reconciliation system is designed to detect.
+
+
 ## Technical architecture
 
 ### Services
