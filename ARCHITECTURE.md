@@ -337,7 +337,7 @@ When a customer pays by card, Nomba returns a `tokenKey` in the `payment_success
 
 ### Bank transfer
 
-When a customer pays by bank transfer, there is no card to tokenise, so the `payment_success` webhook arrives with no `tokenKey`. Tori still activates the subscription and records the invoice and ledger entry — the customer paid, so they get access. This is important: a transfer-paying customer is never left stuck in PENDING_PAYMENT.
+When a customer accidentally pays by bank transfer, there is no card to tokenise, so the `payment_success` webhook arrives with no `tokenKey`. Tori still activates the subscription and records the invoice and ledger entry — the customer paid, so they get access. This is important: a transfer-paying customer is never left stuck in PENDING_PAYMENT.
 
 However, because there is no stored token, Tori cannot silently charge the customer when the subscription renews. At the next billing cycle the tokenised charge has nothing to charge against, so the renewal fails and the subscription enters the normal dunning flow. The `dunning.started` webhook fires to the developer's server, which is the signal to prompt the customer to pay again — either by generating a fresh checkout link via `POST /v1/platform/subscriptions/{id}/checkout` or by asking them to add a card.
 
