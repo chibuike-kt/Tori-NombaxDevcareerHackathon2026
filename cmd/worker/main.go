@@ -85,7 +85,8 @@ handlers := billing.NewHandlers(
 	worker.Register(domain.JobCancelAtPeriodEnd, handlers.CancelAtPeriodEnd)
 
 	// Reconciliation service
-	reconSvc := reconciliation.NewService(pool, paymentClient, ledgerRepo)
+reconSvc := reconciliation.NewService(pool, paymentClient, ledgerRepo)
+worker.Register(domain.JobReconciliation, reconSvc.HandleReconciliation)
 
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()

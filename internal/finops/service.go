@@ -56,6 +56,34 @@ type Service struct {
 	subs   domain.SubscriptionRepository
 }
 
+// RecoveryCenterResult is the full picture for the Recovery Command Center.
+type RecoveryCenterResult struct {
+	AtRiskKobo       int64                  `json:"at_risk_kobo"`
+	RecoveredKobo    int64                  `json:"recovered_kobo"`
+	RecoveryRatePct  float64                `json:"recovery_rate_pct"`
+	AtRiskCount      int                    `json:"at_risk_count"`
+	RecoveringCount  int                    `json:"recovering_count"`
+	RecoveredCount   int                    `json:"recovered_count"`
+	AtRisk           []RecoveryItem         `json:"at_risk"`
+	Recovering       []RecoveryItem         `json:"recovering"`
+	Recovered        []RecoveryItem         `json:"recovered"`
+	Currency         string                 `json:"currency"`
+	GeneratedAt      time.Time              `json:"generated_at"`
+}
+
+// RecoveryItem is one subscription in the recovery pipeline.
+type RecoveryItem struct {
+	SubscriptionID  string     `json:"subscription_id"`
+	CustomerID      string     `json:"customer_id"`
+	CustomerEmail   string     `json:"customer_email"`
+	Status          string     `json:"status"`
+	AmountKobo      int64      `json:"amount_kobo"`
+	RecoveryRail    string     `json:"recovery_rail"`
+	DunningAttempt  int        `json:"dunning_attempt"`
+	NextRetryAt     *time.Time `json:"next_retry_at,omitempty"`
+	PlanName        string     `json:"plan_name"`
+}
+
 func NewService(ledger domain.LedgerRepository, subs domain.SubscriptionRepository) *Service {
 	return &Service{ledger: ledger, subs: subs}
 }
@@ -154,4 +182,92 @@ func (s *Service) GetRevenueReport(ctx context.Context, tenantID uuid.UUID, from
 		NetRevenueKobo:   summary.TotalCharged - summary.TotalRefunded - summary.TotalCreditsApplied,
 		Currency:         "NGN",
 	}, nil
+}
+
+// GetRecoveryCenter assembles the live recovery pipeline for a tenant.
+// At-risk    = PAST_DUE and DUNNING subscriptions (money in danger, not yet in active retry)
+// Recovering = subscriptions with a retry scheduled (next_retry_at set)
+// Recovered  = subscriptions that recovered to ACTIVE this period after dunning
+func (s *Service) GetRecoveryCenter(
+	ctx context.Context,
+	tenantID uuid.UUID,
+	subs domain.SubscriptionRepository,
+	customers domain.CustomerRepository,
+	plans domain.PlanRepository,
+	from, to time.Time,
+) (*RecoveryCenterResult, error) {
+	all, err := subs.List(ctx, tenantID, 1000, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	planName := func(id uuid.UUID) (string, int64) {
+		p, err := plans.GetByID(ctx, id, tenantID)
+		if err != nil || p == nil {
+			return "Unknown plan", 0
+		}
+		return p.Name, p.Amount
+	}
+	custEmail := func(id uuid.UUID) string {
+		c, err := customers.GetByID(ctx, id, tenantID)
+		if err != nil || c == nil {
+			return "unknown"
+		}
+		return c.Email
+	}
+
+	result := &RecoveryCenterResult{
+		Currency:    "NGN",
+		GeneratedAt: time.Now().UTC(),
+		AtRisk:      []RecoveryItem{},
+		Recovering:  []RecoveryItem{},
+		Recovered:   []RecoveryItem{},
+	}
+
+	for _, sub := range all {
+		name, amount := planName(sub.PlanID)
+		item := RecoveryItem{
+			SubscriptionID: sub.ID.String(),
+			CustomerID:     sub.CustomerID.String(),
+			CustomerEmail:  custEmail(sub.CustomerID),
+			Status:         string(sub.Status),
+			AmountKobo:     amount,
+			RecoveryRail:   sub.RecoveryRail,
+			DunningAttempt: sub.DunningAttempt,
+			NextRetryAt:    sub.NextRetryAt,
+			PlanName:       name,
+		}
+
+		switch sub.Status {
+		case domain.StatusPastDue:
+			result.AtRisk = append(result.AtRisk, item)
+			result.AtRiskKobo += amount
+		case domain.StatusDunning:
+			// In dunning with a scheduled retry = actively recovering
+			if sub.NextRetryAt != nil {
+				result.Recovering = append(result.Recovering, item)
+			} else {
+				result.AtRisk = append(result.AtRisk, item)
+			}
+			result.AtRiskKobo += amount
+		case domain.StatusActive:
+			// Recovered = active now but had dunning history
+			if sub.DunningAttempt > 0 {
+				result.Recovered = append(result.Recovered, item)
+				result.RecoveredKobo += amount
+			}
+		}
+	}
+
+	result.AtRiskCount = len(result.AtRisk)
+	result.RecoveringCount = len(result.Recovering)
+	result.RecoveredCount = len(result.Recovered)
+
+	// Recovery rate = recovered / (recovered + still at risk)
+	denom := result.RecoveredCount + result.AtRiskCount + result.RecoveringCount
+	if denom > 0 {
+		result.RecoveryRatePct = float64(result.RecoveredCount) / float64(denom) * 100
+	}
+
+	return result, nil
 }

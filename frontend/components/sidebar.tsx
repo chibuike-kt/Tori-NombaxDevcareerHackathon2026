@@ -11,6 +11,7 @@ const nav = [
     icon: "ti-refresh",
   },
   { href: "/dashboard/health", label: "Billing health", icon: "ti-heartbeat" },
+  { href: "/dashboard/recovery", label: "Recovery", icon: "ti-refresh-alert" },
   { href: "/dashboard/customers", label: "Customers", icon: "ti-users" },
   { href: "/dashboard/plans", label: "Plans", icon: "ti-file-text" },
   { href: "/dashboard/invoices", label: "Invoices", icon: "ti-receipt" },

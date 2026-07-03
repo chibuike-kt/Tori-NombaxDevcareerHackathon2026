@@ -7,14 +7,18 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/finops"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
 )
 
 type FinOpsHandler struct {
-	svc *finops.Service
+	svc       *finops.Service
+	subs      domain.SubscriptionRepository
+	customers domain.CustomerRepository
+	plans     domain.PlanRepository
 }
 
-func NewFinOpsHandler(svc *finops.Service) *FinOpsHandler {
-	return &FinOpsHandler{svc: svc}
+func NewFinOpsHandler(svc *finops.Service, subs domain.SubscriptionRepository, customers domain.CustomerRepository, plans domain.PlanRepository) *FinOpsHandler {
+	return &FinOpsHandler{svc: svc, subs: subs, customers: customers, plans: plans}
 }
 
 func (h *FinOpsHandler) MRR(w http.ResponseWriter, r *http.Request) {
@@ -27,6 +31,17 @@ func (h *FinOpsHandler) MRR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	respond.JSON(w, r, http.StatusOK, result)
+}
+
+func (h *FinOpsHandler) RecoveryCenter(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	from, to := parseDateRange(r)
+	result, err := h.svc.GetRecoveryCenter(r.Context(), tenantID, h.subs, h.customers, h.plans, from, to)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
 	respond.JSON(w, r, http.StatusOK, result)
 }
 

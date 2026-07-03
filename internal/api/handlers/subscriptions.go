@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"time"
 	"net/http"
 	"strconv"
 
@@ -340,4 +341,75 @@ func (h *SubscriptionHandler) Recover(w http.ResponseWriter, r *http.Request) {
 	h.fireEvent(tenantID, domain.EventSubscriptionResumed, updated)
 
 	respond.JSON(w, r, http.StatusOK, updated)
+}
+
+// RetryNow forces an immediate dunning retry for a subscription — operator action.
+func (h *SubscriptionHandler) RetryNow(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		respond.BadRequest(w, r, "invalid_id", "subscription ID is not a valid UUID")
+		return
+	}
+
+	sub, err := h.subs.GetByID(r.Context(), id, tenantID)
+	if err != nil {
+		respond.NotFound(w, r)
+		return
+	}
+
+	// Enqueue an immediate retry_failed_payment job
+	payload, _ := json.Marshal(map[string]string{
+		"subscription_id": id.String(),
+		"tenant_id":       tenantID.String(),
+	})
+	_, err = h.jobs.Enqueue(r.Context(), &tenantID, domain.JobRetryFailedPayment, payload, time.Now(), 3)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, map[string]interface{}{
+		"message":         "retry queued",
+		"subscription_id": sub.ID.String(),
+	})
+}
+
+// SendPayLink fires a payment.action_required webhook with a fresh checkout link — operator action.
+func (h *SubscriptionHandler) SendPayLink(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		respond.BadRequest(w, r, "invalid_id", "subscription ID is not a valid UUID")
+		return
+	}
+
+	sub, err := h.subs.GetByID(r.Context(), id, tenantID)
+	if err != nil {
+		respond.NotFound(w, r)
+		return
+	}
+
+	// Set recovery rail to manual and fire the action_required webhook
+	_, _ = h.subs.UpdateRecoveryRail(r.Context(), id, tenantID, "manual")
+
+	payload, _ := json.Marshal(map[string]interface{}{
+		"tenant_id":  tenantID.String(),
+		"event_type": string(domain.EventPaymentActionRequired),
+		"data": map[string]interface{}{
+			"subscription_id": sub.ID.String(),
+			"customer_id":     sub.CustomerID.String(),
+			"reason":          "operator requested customer payment",
+		},
+	})
+	_, err = h.jobs.Enqueue(r.Context(), &tenantID, domain.JobWebhookDeliver, payload, time.Now(), 5)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, map[string]interface{}{
+		"message":         "pay link webhook queued",
+		"subscription_id": sub.ID.String(),
+	})
 }

@@ -415,3 +415,38 @@ export const getInvoices = (status?: string) =>
   api.get<{ data: Invoice[] }>(
     `/v1/invoices${status ? `?status=${status}` : ""}`,
   );
+
+export interface RecoveryItem {
+  subscription_id: string;
+  customer_id: string;
+  customer_email: string;
+  status: string;
+  amount_kobo: number;
+  recovery_rail: string;
+  dunning_attempt: number;
+  next_retry_at?: string;
+  plan_name: string;
+}
+
+export interface RecoveryCenter {
+  at_risk_kobo: number;
+  recovered_kobo: number;
+  recovery_rate_pct: number;
+  at_risk_count: number;
+  recovering_count: number;
+  recovered_count: number;
+  at_risk: RecoveryItem[];
+  recovering: RecoveryItem[];
+  recovered: RecoveryItem[];
+  currency: string;
+  generated_at: string;
+}
+
+export const getRecoveryCenter = () =>
+  api.get<{ data: RecoveryCenter }>("/v1/finance/recovery-center");
+
+export const retrySubscriptionNow = (id: string) =>
+  api.post(`/v1/subscriptions/${id}/retry-now`, {});
+
+export const sendPayLink = (id: string) =>
+  api.post(`/v1/subscriptions/${id}/send-pay-link`, {});
