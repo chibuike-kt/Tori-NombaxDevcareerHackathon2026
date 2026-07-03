@@ -102,6 +102,7 @@ const (
 	EventDunningStarted        WebhookEventType = "dunning.started"
 	EventDunningRecovered      WebhookEventType = "dunning.recovered"
 	EventDunningExhausted      WebhookEventType = "dunning.exhausted"
+	EventPaymentActionRequired WebhookEventType = "payment.action_required"
 )
 
 // Tenant represents a SaaS business registered on the billing engine.
@@ -172,7 +173,9 @@ type Subscription struct {
 	CustomerID         uuid.UUID          `json:"customer_id"`
 	PlanID             uuid.UUID          `json:"plan_id"`
 	Status             SubscriptionStatus `json:"status"`
-	TokenKey string `json:"token_key,omitempty"`
+	TokenKey     string `json:"token_key,omitempty"`
+	MandateID    string `json:"mandate_id,omitempty"`
+	RecoveryRail string `json:"recovery_rail,omitempty"` // card | mandate | manual
 	CurrentPeriodStart time.Time          `json:"current_period_start"`
 	CurrentPeriodEnd   time.Time          `json:"current_period_end"`
 	TrialEnd           *time.Time         `json:"trial_end,omitempty"`

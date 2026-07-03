@@ -239,11 +239,18 @@ func subFromRow(row db.Subscription) *domain.Subscription {
 		NextRetryAt:        fromPgTimestamptz(row.NextRetryAt),
 		IdempotencyKey:     fromPgText(row.IdempotencyKey),
 		TokenKey: func() string {
-				if row.TokenKey.Valid {
-						return row.TokenKey.String
-				}
-				return ""
+			if row.TokenKey.Valid {
+				return row.TokenKey.String
+			}
+			return ""
 		}(),
+		MandateID: func() string {
+			if row.MandateID.Valid {
+				return row.MandateID.String
+			}
+			return ""
+		}(),
+		RecoveryRail:       row.RecoveryRail,
 		Metadata:           row.Metadata,
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
@@ -329,4 +336,28 @@ func (r *SubscriptionRepo) CancelAtPeriodEnd(ctx context.Context, id, tenantID u
 		return nil, fmt.Errorf("cancel at period end: %w", err)
 	}
 	return subFromRow(s), nil
+}
+
+func (r *SubscriptionRepo) SetMandate(ctx context.Context, id, tenantID uuid.UUID, mandateID string) (*domain.Subscription, error) {
+	row, err := r.q.SetSubscriptionMandate(ctx, db.SetSubscriptionMandateParams{
+		ID:        id,
+		TenantID:  tenantID,
+		MandateID: pgtype.Text{String: mandateID, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return subFromRow(row), nil
+}
+
+func (r *SubscriptionRepo) UpdateRecoveryRail(ctx context.Context, id, tenantID uuid.UUID, rail string) (*domain.Subscription, error) {
+	row, err := r.q.UpdateSubscriptionRecoveryRail(ctx, db.UpdateSubscriptionRecoveryRailParams{
+		ID:           id,
+		TenantID:     tenantID,
+		RecoveryRail: rail,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return subFromRow(row), nil
 }

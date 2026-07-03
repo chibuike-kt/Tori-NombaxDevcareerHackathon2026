@@ -125,3 +125,15 @@ UPDATE subscriptions
 SET token_key = $3, updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
 RETURNING *;
+
+-- name: SetSubscriptionMandate :one
+UPDATE subscriptions
+SET mandate_id = $3, updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING *;
+
+-- name: UpdateSubscriptionRecoveryRail :one
+UPDATE subscriptions
+SET recovery_rail = $3, updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING *;

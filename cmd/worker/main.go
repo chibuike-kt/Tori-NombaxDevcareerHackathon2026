@@ -45,17 +45,18 @@ func main() {
 
 	ledgerSvc := ledger.NewService(ledgerRepo)
 
-	// Nomba payment client — real if credentials present, mock otherwise
+// Nomba payment client — real if credentials present, mock otherwise
+	// Uses the mandate client so the recovery ladder can escalate card → mandate
 	var paymentClient payment.NombaClient
 	nombaClientID := os.Getenv("NOMBA_CLIENT_ID")
 	if nombaClientID != "" {
-		paymentClient = payment.NewNombaHTTPClient(
+		paymentClient = payment.NewNombaMandateClient(
 			nombaClientID,
 			os.Getenv("NOMBA_CLIENT_SECRET"),
 			os.Getenv("NOMBA_ACCOUNT_ID"),
 			os.Getenv("NOMBA_SUB_ACCOUNT_ID"),
 		)
-		log.Info().Msg("Nomba HTTP client initialised")
+		log.Info().Msg("Nomba mandate client initialised — recovery ladder enabled")
 	} else {
 		paymentClient = payment.NewMockNombaClient()
 		log.Warn().Msg("NOMBA_CLIENT_ID not set — using mock payment client")

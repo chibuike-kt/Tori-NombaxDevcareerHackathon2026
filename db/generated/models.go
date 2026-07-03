@@ -25,6 +25,15 @@ type Customer struct {
 	CreatedAt       time.Time   `json:"created_at"`
 }
 
+type EmailVerification struct {
+	ID        uuid.UUID          `json:"id"`
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	Code      string             `json:"code"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	UsedAt    pgtype.Timestamptz `json:"used_at"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type Invoice struct {
 	ID               uuid.UUID          `json:"id"`
 	TenantID         uuid.UUID          `json:"tenant_id"`
@@ -124,19 +133,23 @@ type Subscription struct {
 	CreatedAt          time.Time          `json:"created_at"`
 	UpdatedAt          time.Time          `json:"updated_at"`
 	TokenKey           pgtype.Text        `json:"token_key"`
+	MandateID          pgtype.Text        `json:"mandate_id"`
+	RecoveryRail       string             `json:"recovery_rail"`
 }
 
 type Tenant struct {
-	ID            uuid.UUID       `json:"id"`
-	Name          string          `json:"name"`
-	Email         string          `json:"email"`
-	ApiKeyHash    string          `json:"api_key_hash"`
-	WebhookSecret string          `json:"webhook_secret"`
-	DunningConfig json.RawMessage `json:"dunning_config"`
-	IsActive      bool            `json:"is_active"`
-	CreatedAt     time.Time       `json:"created_at"`
-	PasswordHash  string          `json:"password_hash"`
-	ApiKeyHint    string          `json:"api_key_hint"`
+	ID            uuid.UUID          `json:"id"`
+	Name          string             `json:"name"`
+	Email         string             `json:"email"`
+	ApiKeyHash    string             `json:"api_key_hash"`
+	WebhookSecret string             `json:"webhook_secret"`
+	DunningConfig json.RawMessage    `json:"dunning_config"`
+	IsActive      bool               `json:"is_active"`
+	CreatedAt     time.Time          `json:"created_at"`
+	PasswordHash  string             `json:"password_hash"`
+	ApiKeyHint    string             `json:"api_key_hint"`
+	EmailVerified bool               `json:"email_verified"`
+	VerifiedAt    pgtype.Timestamptz `json:"verified_at"`
 }
 
 type WebhookDelivery struct {

@@ -184,28 +184,27 @@ if sub.CancelAtPeriodEnd {
 		return fmt.Errorf("get plan: %w", err)
 	}
 
-	result, err := h.payment.ChargeToken(ctx, payment.ChargeTokenRequest{
-		CustomerID:     sub.CustomerID.String(),
-		TokenisedCard:  sub.TokenKey,
-		Amount:         plan.Amount,
-		Currency:       plan.Currency,
-		IdempotencyKey: fmt.Sprintf("retry-%s-%d", subID, sub.DunningAttempt+1),
-		Reference:      fmt.Sprintf("retry-%s-%d", subID, sub.DunningAttempt+1),
-	})
+	// Recovery ladder — escalate through card → mandate → pay-link
+	result, rail := h.attemptRecoveryCharge(ctx, sub, plan)
 
-	if err == nil && result.Success {
+	// Track which rail is currently being used
+	_, _ = h.subs.UpdateRecoveryRail(ctx, subID, tenantID, rail)
+
+	if result.Success {
 		ik := fmt.Sprintf("recovery-%s-%d", subID, sub.DunningAttempt)
 		_, _ = h.ledger.RecordCharge(ctx, tenantID, subID, subID, sub.CustomerID,
 			plan.Amount, plan.Currency, ik)
-
 		now := time.Now().UTC()
 		periodEnd := nextPeriodEnd(now, plan)
 		_, _ = h.subs.UpdateAfterRenewal(ctx, subID, tenantID, domain.StatusActive, now, periodEnd)
-
 		h.createInvoiceForCharge(ctx, sub, plan, result.Reference)
-
-		log.Info().Str("sub_id", subID.String()).Msg("dunning recovery successful")
+		log.Info().Str("sub_id", subID.String()).Str("rail", rail).Msg("dunning recovery successful")
 		return nil
+	}
+
+	// If the ladder reached the manual rail, fire payment.action_required with a fresh pay-link
+	if rail == "manual" || result.FailureCode == "action_required" {
+		h.firePaymentActionRequired(ctx, sub, plan)
 	}
 
 	decision, decErr := h.dunning.Decide(ctx, sub, result.FailureCode, tenant.DunningConfig)
@@ -416,4 +415,117 @@ func nextPeriodEnd(from time.Time, plan *domain.Plan) time.Time {
 		// Custom — use interval_count as days
 		return from.AddDate(0, 0, plan.IntervalCount)
 	}
+}
+
+// attemptRecoveryCharge escalates through the recovery ladder based on the
+// current attempt number and the payment rails available on the subscription.
+//
+// The ladder:
+//   Attempts 1-2 : retry the tokenised card
+//   Attempt 3+   : escalate to direct-debit mandate if one exists,
+//                  otherwise signal that customer action is required (pay-link)
+//
+// Returns the charge result and the rail that was used ("card", "mandate", "manual").
+func (h *Handlers) attemptRecoveryCharge(ctx context.Context, sub *domain.Subscription, plan *domain.Plan) (*payment.ChargeResponse, string) {
+	attempt := sub.DunningAttempt + 1
+	cardAvailable := sub.TokenKey != "" && sub.TokenKey != "N/A"
+	mandateAvailable := sub.MandateID != ""
+
+	// Rail 1 — tokenised card on the first two attempts
+	if attempt <= 2 && cardAvailable {
+		return h.chargeCard(ctx, sub, plan, attempt), "card"
+	}
+
+	// Attempt 3+ — escalate to direct-debit mandate if available
+	if attempt >= 3 && mandateAvailable {
+		if mc, ok := h.payment.(payment.MandateCharger); ok {
+			log.Info().Str("sub_id", sub.ID.String()).Int("attempt", attempt).
+				Msg("recovery ladder: escalating to direct-debit mandate")
+			result, err := mc.DebitMandate(ctx, payment.DebitMandateRequest{
+				MandateID: sub.MandateID,
+				Amount:    plan.Amount,
+				Currency:  plan.Currency,
+				Reference: fmt.Sprintf("retry-mandate-%s-%d", sub.ID, attempt),
+				Narration: "Subscription renewal — direct debit recovery",
+			})
+			if err != nil {
+				return &payment.ChargeResponse{Success: false, FailureCode: "processing_error", FailureMessage: err.Error()}, "mandate"
+			}
+			return result, "mandate"
+		}
+	}
+
+	// Fall back to card if we still have one
+	if cardAvailable {
+		return h.chargeCard(ctx, sub, plan, attempt), "card"
+	}
+
+	// No automatic rail — customer must act (pay-link escalation handled by caller)
+	return &payment.ChargeResponse{
+		Success:        false,
+		FailureCode:    "action_required",
+		FailureMessage: "no automatic payment rail available — customer action required",
+	}, "manual"
+}
+
+// chargeCard performs a tokenised card charge with a deterministic idempotency key.
+func (h *Handlers) chargeCard(ctx context.Context, sub *domain.Subscription, plan *domain.Plan, attempt int) *payment.ChargeResponse {
+	result, err := h.payment.ChargeToken(ctx, payment.ChargeTokenRequest{
+		CustomerID:     sub.CustomerID.String(),
+		TokenisedCard:  sub.TokenKey,
+		Amount:         plan.Amount,
+		Currency:       plan.Currency,
+		IdempotencyKey: fmt.Sprintf("retry-card-%s-%d", sub.ID, attempt),
+		Reference:      fmt.Sprintf("retry-card-%s-%d", sub.ID, attempt),
+	})
+	if err != nil {
+		return &payment.ChargeResponse{Success: false, FailureCode: "processing_error", FailureMessage: err.Error()}
+	}
+	return result
+}
+
+// firePaymentActionRequired is the final rung of the recovery ladder.
+// When no automatic rail (card or mandate) can recover the payment, Tori
+// generates a fresh Nomba checkout link and fires a payment.action_required
+// webhook so the product can prompt the customer to pay manually.
+func (h *Handlers) firePaymentActionRequired(ctx context.Context, sub *domain.Subscription, plan *domain.Plan) {
+	// Generate a fresh pay-link
+	payLink := ""
+	resp, err := h.payment.InitiateCheckout(ctx, payment.CheckoutRequest{
+		CustomerID: sub.CustomerID.String(),
+		Amount:     plan.Amount,
+		Currency:   plan.Currency,
+		Reference:  sub.ID.String(),
+	})
+	if err != nil {
+		log.Error().Err(err).Str("sub_id", sub.ID.String()).
+			Msg("recovery ladder: failed to generate pay-link for action_required")
+	} else {
+		payLink = resp.CheckoutURL
+	}
+
+	// Enqueue the webhook delivery via the job queue
+	payload, _ := json.Marshal(map[string]interface{}{
+		"tenant_id":  sub.TenantID.String(),
+		"event_type": string(domain.EventPaymentActionRequired),
+		"data": map[string]interface{}{
+			"subscription_id": sub.ID.String(),
+			"customer_id":     sub.CustomerID.String(),
+			"amount":          plan.Amount,
+			"currency":        plan.Currency,
+			"pay_link":        payLink,
+			"reason":          "automatic payment recovery exhausted — customer action required",
+		},
+	})
+	_, err = h.jobs.Enqueue(ctx, &sub.TenantID, domain.JobWebhookDeliver, payload, time.Now(), 5)
+	if err != nil {
+		log.Error().Err(err).Str("sub_id", sub.ID.String()).
+			Msg("recovery ladder: failed to enqueue payment.action_required webhook")
+		return
+	}
+
+	log.Info().
+		Str("sub_id", sub.ID.String()).
+		Str("pay_link", payLink).
+		Msg("recovery ladder: payment.action_required fired with fresh pay-link")
 }

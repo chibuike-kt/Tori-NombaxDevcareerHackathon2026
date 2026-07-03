@@ -85,3 +85,9 @@ type NombaClient interface {
 	ListTransactions(ctx context.Context, req ListTransactionsRequest) (*TransactionList, error)
 	FetchSubAccountTransactions(ctx context.Context, from, to time.Time, limit int, cursor string) (*TransactionList, error)
 }
+
+// MandateCharger is implemented by clients that can debit a direct-debit mandate.
+// The recovery ladder type-asserts against this to escalate from card to mandate.
+type MandateCharger interface {
+	DebitMandate(ctx context.Context, req DebitMandateRequest) (*ChargeResponse, error)
+}

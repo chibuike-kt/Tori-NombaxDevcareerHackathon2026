@@ -73,6 +73,8 @@ type SubscriptionRepository interface {
 	ListByCustomerNoTenant(ctx context.Context, customerID uuid.UUID) ([]*Subscription, error)
 	UpdateTokenKey(ctx context.Context, id, tenantID uuid.UUID, tokenKey string) (*Subscription, error)
 	CancelAtPeriodEnd(ctx context.Context, id, tenantID uuid.UUID) (*Subscription, error)
+	SetMandate(ctx context.Context, id, tenantID uuid.UUID, mandateID string) (*Subscription, error)
+	UpdateRecoveryRail(ctx context.Context, id, tenantID uuid.UUID, rail string) (*Subscription, error)
 }
 
 type InvoiceRepository interface {
