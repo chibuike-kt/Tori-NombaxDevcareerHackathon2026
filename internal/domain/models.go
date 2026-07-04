@@ -26,15 +26,16 @@ const (
 )
 
 type Member struct {
-	ID          uuid.UUID    `json:"id"`
-	TenantID    uuid.UUID    `json:"tenant_id"`
-	Email       string       `json:"email"`
-	Name        string       `json:"name"`
-	Role        MemberRole   `json:"role"`
-	Status      MemberStatus `json:"status"`
-	LastLoginAt *time.Time   `json:"last_login_at,omitempty"`
-	CreatedAt   time.Time    `json:"created_at"`
-	UpdatedAt   time.Time    `json:"updated_at"`
+	ID           uuid.UUID    `json:"id"`
+	TenantID     uuid.UUID    `json:"tenant_id"`
+	Email        string       `json:"email"`
+	Name         string       `json:"name"`
+	Role         MemberRole   `json:"role"`
+	Status       MemberStatus `json:"status"`
+	PasswordHash string       `json:"-"`
+	LastLoginAt  *time.Time   `json:"last_login_at,omitempty"`
+	CreatedAt    time.Time    `json:"created_at"`
+	UpdatedAt    time.Time    `json:"updated_at"`
 }
 
 type Invitation struct {
@@ -352,6 +353,31 @@ type MonthlyRevenueRow struct {
 	Month    time.Time
 	Charged  int64
 	Refunded int64
+}
+
+// SubscriptionTransition is an audit-trail row recorded automatically every
+// time a subscription's status changes.
+type SubscriptionTransition struct {
+	ID             uuid.UUID `json:"id"`
+	SubscriptionID uuid.UUID `json:"subscription_id"`
+	TenantID       uuid.UUID `json:"tenant_id"`
+	FromStatus     string    `json:"from_status"`
+	ToStatus       string    `json:"to_status"`
+	Reason         string    `json:"reason,omitempty"`
+	Actor          string    `json:"actor"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+// APIKey is a per-tenant, per-mode credential for the Platform API.
+// A tenant holds at most one key per mode (test, live) at a time.
+type APIKey struct {
+	ID         uuid.UUID  `json:"id"`
+	TenantID   uuid.UUID  `json:"tenant_id"`
+	Mode       string     `json:"mode"`
+	KeyHash    string     `json:"-"`
+	KeyHint    string     `json:"key_hint"`
+	CreatedAt  time.Time  `json:"created_at"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
 }
 
 type EmailVerification struct {

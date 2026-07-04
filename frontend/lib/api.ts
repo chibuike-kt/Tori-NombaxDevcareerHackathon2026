@@ -196,6 +196,8 @@ export const getCustomerSubscriptions = (id: string) =>
 // Subscriptions
 export const getSubscriptions = () =>
   api.get<{ data: Subscription[] }>("/v1/subscriptions");
+export const getSubscription = (id: string) =>
+  api.get<{ data: Subscription }>(`/v1/subscriptions/${id}`);
 export const cancelSubscription = (id: string) =>
   api.post(`/v1/subscriptions/${id}/cancel`, {});
 export const pauseSubscription = (id: string) =>
@@ -245,18 +247,31 @@ export const getRevenueForecast = () =>
   api.get<{ data: RevenueForecast }>("/v1/health/forecast");
 
 // API Keys
+export interface APIKeyReveal {
+  key: string;
+  name: string;
+  hint: string;
+  mode: "live" | "test";
+}
+
+export interface APIKeyInfo {
+  hint: string;
+  created_at: string;
+}
+
+export interface APIKeyHints {
+  live: APIKeyInfo | null;
+  test: APIKeyInfo | null;
+}
+
 export const createAPIKey = (name: string) =>
-  api.post<{ data: { key: string; name: string; hint: string } }>(
-    "/v1/api-keys",
-    { name },
-  );
+  api.post<{ data: APIKeyReveal }>("/v1/api-keys", { name });
 export const rotateAPIKey = () =>
-  api.post<{ data: { key: string; name: string; hint: string } }>(
-    "/v1/api-keys/rotate",
-    {},
-  );
-export const getAPIKeyHint = () =>
-  api.get<{ data: { hint: string; note?: string } }>("/v1/api-keys");
+  api.post<{ data: APIKeyReveal }>("/v1/api-keys/rotate", {});
+export const createTestAPIKey = () =>
+  api.post<{ data: APIKeyReveal }>("/v1/api-keys/test", {});
+export const getAPIKeyHints = () =>
+  api.get<{ data: APIKeyHints }>("/v1/api-keys");
 
 // Me
 export const getMe = () => api.get<{ data: Tenant }>("/v1/me");
@@ -503,3 +518,26 @@ export const removeMember = (id: string) =>
 
 export const revokeInvitation = (id: string) =>
   api.delete(`/v1/team/invitations/${id}`);
+
+export const acceptInvite = (token: string, name: string, password: string) =>
+  api.post<{ data: { message: string } }>("/v1/team/invitations/accept", {
+    token,
+    name,
+    password,
+  });
+
+export interface SubscriptionTransition {
+  id: string;
+  subscription_id: string;
+  tenant_id: string;
+  from_status: string;
+  to_status: string;
+  reason?: string;
+  actor: string;
+  created_at: string;
+}
+
+export const getSubscriptionTransitions = (id: string) =>
+  api.get<{ data: SubscriptionTransition[] }>(
+    `/v1/subscriptions/${id}/transitions`,
+  );

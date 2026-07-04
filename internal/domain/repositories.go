@@ -76,6 +76,7 @@ type SubscriptionRepository interface {
 	CancelAtPeriodEnd(ctx context.Context, id, tenantID uuid.UUID) (*Subscription, error)
 	SetMandate(ctx context.Context, id, tenantID uuid.UUID, mandateID string) (*Subscription, error)
 	UpdateRecoveryRail(ctx context.Context, id, tenantID uuid.UUID, rail string) (*Subscription, error)
+	ListTransitions(ctx context.Context, id, tenantID uuid.UUID, limit, offset int) ([]*SubscriptionTransition, error)
 }
 
 type InvoiceRepository interface {
@@ -144,10 +145,19 @@ type EmailVerificationRepository interface {
 	DeleteByTenant(ctx context.Context, tenantID uuid.UUID) error
 }
 
+type APIKeyRepository interface {
+	Upsert(ctx context.Context, tenantID uuid.UUID, mode, keyHash, keyHint string) (*APIKey, error)
+	GetByHash(ctx context.Context, keyHash string) (*APIKey, error)
+	GetByTenantAndMode(ctx context.Context, tenantID uuid.UUID, mode string) (*APIKey, error)
+	ListByTenant(ctx context.Context, tenantID uuid.UUID) ([]*APIKey, error)
+	TouchLastUsed(ctx context.Context, id uuid.UUID) error
+}
+
 type MemberRepository interface {
 	Create(ctx context.Context, tenantID uuid.UUID, email, name string, role MemberRole, status MemberStatus, passwordHash *string) (*Member, error)
 	GetByID(ctx context.Context, id, tenantID uuid.UUID) (*Member, error)
 	GetByEmail(ctx context.Context, tenantID uuid.UUID, email string) (*Member, error)
+	GetByEmailAcrossTenants(ctx context.Context, email string) (*Member, error)
 	List(ctx context.Context, tenantID uuid.UUID) ([]*Member, error)
 	UpdateRole(ctx context.Context, id, tenantID uuid.UUID, role MemberRole) (*Member, error)
 	UpdateStatus(ctx context.Context, id, tenantID uuid.UUID, status MemberStatus) (*Member, error)

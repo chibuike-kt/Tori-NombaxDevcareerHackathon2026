@@ -232,6 +232,28 @@ func (q *Queries) GetMemberByEmail(ctx context.Context, arg GetMemberByEmailPara
 	return i, err
 }
 
+const getMemberByEmailAcrossTenants = `-- name: GetMemberByEmailAcrossTenants :one
+SELECT id, tenant_id, email, name, role, status, password_hash, last_login_at, created_at, updated_at FROM members WHERE email = $1 AND status = 'active' ORDER BY created_at ASC LIMIT 1
+`
+
+func (q *Queries) GetMemberByEmailAcrossTenants(ctx context.Context, email string) (Member, error) {
+	row := q.db.QueryRow(ctx, getMemberByEmailAcrossTenants, email)
+	var i Member
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Email,
+		&i.Name,
+		&i.Role,
+		&i.Status,
+		&i.PasswordHash,
+		&i.LastLoginAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getMemberByID = `-- name: GetMemberByID :one
 SELECT id, tenant_id, email, name, role, status, password_hash, last_login_at, created_at, updated_at FROM members WHERE id = $1 AND tenant_id = $2
 `

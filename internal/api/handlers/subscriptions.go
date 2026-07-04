@@ -188,6 +188,24 @@ func (h *SubscriptionHandler) Get(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, r, http.StatusOK, sub)
 }
 
+// ListTransitions returns the audit trail of status changes for a subscription.
+func (h *SubscriptionHandler) ListTransitions(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		respond.BadRequest(w, r, "invalid_id", "subscription ID is not a valid UUID")
+		return
+	}
+
+	transitions, err := h.subs.ListTransitions(r.Context(), id, tenantID, 100, 0)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, transitions)
+}
+
 func (h *SubscriptionHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))

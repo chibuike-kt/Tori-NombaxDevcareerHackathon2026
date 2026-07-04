@@ -35,6 +35,7 @@ type Deps struct {
 	Members            domain.MemberRepository
 	Invitations        domain.InvitationRepository
 	Audit              domain.AuditRepository
+	APIKeys            domain.APIKeyRepository
 }
 
 // maxBodySize limits request bodies to 1MB to prevent OOM attacks.
@@ -87,7 +88,7 @@ r.Get("/health", systemHealthH.Check)
 r.Get("/v1/status", systemHealthH.Check)
 
 	// Handlers
-	authH := handlers.NewAuthHandler(deps.Tenants, deps.Tokens, deps.EmailVerifications, deps.EmailClient)
+	authH := handlers.NewAuthHandler(deps.Tenants, deps.Tokens, deps.EmailVerifications, deps.EmailClient, deps.Members, deps.APIKeys)
 	planH := handlers.NewPlanHandler(deps.Plans)
 	customerH := handlers.NewCustomerHandler(deps.Customers)
 	dispatcher := webhook.NewDispatcher(deps.Webhooks, deps.Jobs)
@@ -99,13 +100,14 @@ r.Get("/v1/status", systemHealthH.Check)
 	webhookH := handlers.NewWebhookHandler(deps.Webhooks, dispatcher)
 	healthH := handlers.NewHealthHandler(deps.Subscriptions, deps.Plans)
 	checkoutH := handlers.NewCheckoutHandler(deps.Customers, deps.Plans, deps.Subscriptions, deps.Jobs, deps.Payment)
-	teamH := handlers.NewTeamHandler(deps.Members, deps.Invitations, deps.Audit)
-	apiKeyH := handlers.NewAPIKeyHandler(deps.Tenants)
+	teamH := handlers.NewTeamHandler(deps.Members, deps.Invitations, deps.Audit, deps.Tenants, deps.EmailClient)
+	apiKeyH := handlers.NewAPIKeyHandler(deps.Tenants, deps.APIKeys)
 
 	// Public routes — no auth
 	r.Post("/v1/auth/register", authH.Register)
 	r.Post("/v1/auth/login", authH.Login)
 	r.Post("/v1/auth/refresh", authH.Refresh)
+	r.Post("/v1/team/invitations/accept", teamH.AcceptInvite)
 	portalH := handlers.NewPortalHandler(deps.Customers, deps.Subscriptions, deps.Plans)
 r.Group(func(r chi.Router) {
     r.Get("/v1/portal", portalH.GetPortalData)
@@ -135,9 +137,10 @@ r.Group(func(r chi.Router) {
 		r.Get("/v1/health/forecast", healthH.GetRevenueForecast)
 		r.Get("/v1/ledger/monthly", ledgerH.MonthlyRevenue)
 
-		r.Get("/v1/api-keys", apiKeyH.GetAPIKeyHint)
+		r.Get("/v1/api-keys", apiKeyH.GetAPIKeyHints)
 		r.Post("/v1/api-keys", apiKeyH.CreateAPIKey)
 		r.Post("/v1/api-keys/rotate", apiKeyH.RotateAPIKey)
+		r.Post("/v1/api-keys/test", apiKeyH.CreateTestAPIKey)
 
 		r.Post("/v1/plans", planH.Create)
 		r.Get("/v1/plans", planH.List)
@@ -164,6 +167,7 @@ r.Group(func(r chi.Router) {
 		r.Post("/v1/subscriptions/{id}/pause", subH.Pause)
 		r.Post("/v1/subscriptions/{id}/resume", subH.Resume)
 		r.Post("/v1/subscriptions/{id}/recover", subH.Recover)
+		r.Get("/v1/subscriptions/{id}/transitions", subH.ListTransitions)
 		ledgerSvcForPlanChange := ledger.NewService(deps.Ledger)
 		planChangeH := handlers.NewPlanChangeHandler(deps.Subscriptions, deps.Plans, ledgerSvcForPlanChange)
 		r.Patch("/v1/subscriptions/{id}/plan", planChangeH.ChangePlan)
@@ -206,7 +210,7 @@ r.Group(func(r chi.Router) {
 
 	// Platform API — API key auth + per-tenant rate limiting
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.APIKeyAuth(deps.Tenants))
+		r.Use(middleware.APIKeyAuth(deps.Tenants, deps.APIKeys))
 		r.Use(tenantRateLimiter(600)) // 600 req/min per tenant for server-to-server
 
 		r.Post("/v1/platform/checkout", checkoutH.CreateCheckout)

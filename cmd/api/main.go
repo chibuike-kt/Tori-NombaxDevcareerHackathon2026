@@ -9,6 +9,7 @@ import (
 	"time"
 
 	api "github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/cache"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/payment"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/postgres"
@@ -42,21 +43,41 @@ func main() {
 	}
 	log.Info().Msg("Redis connection established")
 
-	// Nomba payment client — real if credentials present, mock otherwise
-	var paymentClient payment.NombaClient
+	// Live Nomba payment client — real if credentials present, mock otherwise
+	var liveClient payment.NombaClient
 	nombaClientID := os.Getenv("NOMBA_CLIENT_ID")
 	if nombaClientID != "" {
-		paymentClient = payment.NewNombaHTTPClient(
+		liveClient = payment.NewNombaHTTPClient(
 			nombaClientID,
 			os.Getenv("NOMBA_CLIENT_SECRET"),
 			os.Getenv("NOMBA_ACCOUNT_ID"),
 			os.Getenv("NOMBA_SUB_ACCOUNT_ID"),
 		)
-		log.Info().Msg("Nomba HTTP client initialised")
+		log.Info().Msg("Nomba HTTP client initialised (live)")
 	} else {
-		paymentClient = payment.NewMockNombaClient()
-		log.Warn().Msg("NOMBA_CLIENT_ID not set — using mock payment client")
+		liveClient = payment.NewMockNombaClient()
+		log.Warn().Msg("NOMBA_CLIENT_ID not set — using mock payment client for live mode")
 	}
+
+	// Test Nomba payment client — always targets sandbox when credentials present
+	var testClient payment.NombaClient
+	nombaTestClientID := os.Getenv("NOMBA_TEST_CLIENT_ID")
+	if nombaTestClientID != "" {
+		testClient = payment.NewNombaHTTPClientForSandbox(
+			nombaTestClientID,
+			os.Getenv("NOMBA_TEST_CLIENT_SECRET"),
+			os.Getenv("NOMBA_ACCOUNT_ID"),
+			os.Getenv("NOMBA_SUB_ACCOUNT_ID"),
+		)
+		log.Info().Msg("Nomba HTTP client initialised (test/sandbox)")
+	} else {
+		testClient = payment.NewMockNombaClient()
+		log.Warn().Msg("NOMBA_TEST_CLIENT_ID not set — using mock payment client for test mode")
+	}
+
+	// Requests authenticated with a test API key route to the sandbox client;
+	// live keys and JWT-authenticated dashboard requests route to the live client.
+	paymentClient := payment.NewModeAwareClient(liveClient, testClient, middleware.GetAPIKeyMode)
 
 deps := api.Deps{
     Tenants:            postgres.NewTenantRepo(pool),
@@ -73,6 +94,7 @@ deps := api.Deps{
 		Members:     postgres.NewMemberRepo(pool),
 		Invitations: postgres.NewInvitationRepo(pool),
 		Audit:       postgres.NewAuditRepo(pool),
+		APIKeys:     postgres.NewAPIKeyRepo(pool),
     EmailClient:        email.NewResendClient(),
 		Pool: pool,
 }

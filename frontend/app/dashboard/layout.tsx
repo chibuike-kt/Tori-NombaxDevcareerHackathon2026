@@ -1,11 +1,17 @@
 "use client";
 import { useState, Suspense, lazy } from "react";
 import { Sidebar } from "@/components/sidebar";
+import { Topbar } from "@/components/topbar";
 
-// Lazy load the banner so it only renders on the client after hydration
+// Lazy load the banners so they only render on the client after hydration
 const EmailVerificationBanner = lazy(() =>
   import("@/components/email-verification-banner").then((m) => ({
     default: m.EmailVerificationBanner,
+  })),
+);
+const TestModeBanner = lazy(() =>
+  import("@/components/test-mode-banner").then((m) => ({
+    default: m.TestModeBanner,
   })),
 );
 
@@ -35,7 +41,13 @@ export default function DashboardLayout({
         <Sidebar onClose={() => setSidebarOpen(false)} />
       </div>
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Banner rendered client-side only via Suspense — no SSR, no hydration mismatch */}
+        <div className="hidden lg:block">
+          <Topbar />
+        </div>
+        {/* Banners rendered client-side only via Suspense — no SSR, no hydration mismatch */}
+        <Suspense fallback={null}>
+          <TestModeBanner />
+        </Suspense>
         <Suspense fallback={null}>
           <EmailVerificationBanner />
         </Suspense>

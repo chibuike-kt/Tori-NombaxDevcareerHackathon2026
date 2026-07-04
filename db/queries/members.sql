@@ -9,6 +9,9 @@ SELECT * FROM members WHERE id = $1 AND tenant_id = $2;
 -- name: GetMemberByEmail :one
 SELECT * FROM members WHERE tenant_id = $1 AND email = $2;
 
+-- name: GetMemberByEmailAcrossTenants :one
+SELECT * FROM members WHERE email = $1 AND status = 'active' ORDER BY created_at ASC LIMIT 1;
+
 -- name: ListMembers :many
 SELECT * FROM members WHERE tenant_id = $1 ORDER BY created_at ASC;
 

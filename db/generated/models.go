@@ -12,6 +12,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ApiKey struct {
+	ID         uuid.UUID          `json:"id"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	Mode       string             `json:"mode"`
+	KeyHash    string             `json:"key_hash"`
+	KeyHint    string             `json:"key_hint"`
+	CreatedAt  time.Time          `json:"created_at"`
+	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
+}
+
 type AuditLog struct {
 	ID         uuid.UUID   `json:"id"`
 	TenantID   uuid.UUID   `json:"tenant_id"`
@@ -172,6 +182,17 @@ type Subscription struct {
 	TokenKey           pgtype.Text        `json:"token_key"`
 	MandateID          pgtype.Text        `json:"mandate_id"`
 	RecoveryRail       string             `json:"recovery_rail"`
+}
+
+type SubscriptionTransition struct {
+	ID             uuid.UUID   `json:"id"`
+	SubscriptionID uuid.UUID   `json:"subscription_id"`
+	TenantID       uuid.UUID   `json:"tenant_id"`
+	FromStatus     string      `json:"from_status"`
+	ToStatus       string      `json:"to_status"`
+	Reason         pgtype.Text `json:"reason"`
+	Actor          string      `json:"actor"`
+	CreatedAt      time.Time   `json:"created_at"`
 }
 
 type Tenant struct {

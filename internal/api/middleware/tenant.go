@@ -16,13 +16,33 @@ type tenantContextKey string
 
 const tenantKey tenantContextKey = "tenant"
 
+type apiKeyModeContextKey string
+
+const apiKeyModeKey apiKeyModeContextKey = "api_key_mode"
+
+// WithAPIKeyMode attaches the mode ("test" or "live") of the API key that
+// authenticated the request to the context.
+func WithAPIKeyMode(ctx context.Context, mode string) context.Context {
+	return context.WithValue(ctx, apiKeyModeKey, mode)
+}
+
+// GetAPIKeyMode returns the API key mode for the request, defaulting to
+// "live" for JWT-authenticated dashboard requests and background jobs that
+// never carry an API key.
+func GetAPIKeyMode(ctx context.Context) string {
+	if m, ok := ctx.Value(apiKeyModeKey).(string); ok && m != "" {
+		return m
+	}
+	return "live"
+}
+
 // HashAPIKey produces the SHA-256 hex digest of a plaintext API key.
 func HashAPIKey(key string) string {
 	h := sha256.Sum256([]byte(key))
 	return hex.EncodeToString(h[:])
 }
 
-func APIKeyAuth(tenants domain.TenantRepository) func(http.Handler) http.Handler {
+func APIKeyAuth(tenants domain.TenantRepository, apiKeys domain.APIKeyRepository) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			key := r.Header.Get("X-API-Key")
@@ -32,13 +52,22 @@ func APIKeyAuth(tenants domain.TenantRepository) func(http.Handler) http.Handler
 			}
 
 			hash := HashAPIKey(key)
-			tenant, err := tenants.GetByAPIKeyHash(r.Context(), hash)
+			record, err := apiKeys.GetByHash(r.Context(), hash)
 			if err != nil {
 				respond.Unauthorised(w, r, "invalid API key")
 				return
 			}
 
+			tenant, err := tenants.GetByID(r.Context(), record.TenantID)
+			if err != nil {
+				respond.Unauthorised(w, r, "invalid API key")
+				return
+			}
+
+			_ = apiKeys.TouchLastUsed(r.Context(), record.ID)
+
 			ctx := context.WithValue(r.Context(), tenantKey, tenant)
+			ctx = WithAPIKeyMode(ctx, record.Mode)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

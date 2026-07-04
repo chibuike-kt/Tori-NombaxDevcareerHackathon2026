@@ -27,6 +27,8 @@ type AuthHandler struct {
 	tokens             domain.TokenRevoker
 	emailVerifications domain.EmailVerificationRepository
 	emailClient        *email.ResendClient
+	members            domain.MemberRepository
+	apiKeys            domain.APIKeyRepository
 }
 
 func NewAuthHandler(
@@ -34,12 +36,16 @@ func NewAuthHandler(
 	tokens domain.TokenRevoker,
 	emailVerifications domain.EmailVerificationRepository,
 	emailClient *email.ResendClient,
+	members domain.MemberRepository,
+	apiKeys domain.APIKeyRepository,
 ) *AuthHandler {
 	return &AuthHandler{
 		tenants:            tenants,
 		tokens:             tokens,
 		emailVerifications: emailVerifications,
 		emailClient:        emailClient,
+		members:            members,
+		apiKeys:            apiKeys,
 	}
 }
 
@@ -144,6 +150,18 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Generate both a live and a test API key up front.
+	for _, mode := range []string{"live", "test"} {
+		_, hash, hint, keyErr := generateAPIKey(mode)
+		if keyErr != nil {
+			log.Error().Err(keyErr).Str("tenant_id", tenant.ID.String()).Msg("auth: failed to generate " + mode + " api key")
+			continue
+		}
+		if _, keyErr := h.apiKeys.Upsert(r.Context(), tenant.ID, mode, hash, hint); keyErr != nil {
+			log.Error().Err(keyErr).Str("tenant_id", tenant.ID.String()).Msg("auth: failed to store " + mode + " api key")
+		}
+	}
+
 	// Generate and send email verification code
 	code, err := generateVerificationCode()
 	if err != nil {
@@ -207,8 +225,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	tenant, err := h.tenants.GetByEmail(r.Context(), body.Email)
 	if err != nil {
-		h.tokens.RecordLoginFailure(r.Context(), body.Email)
-		respond.Unauthorised(w, r, "invalid credentials")
+		h.loginAsMember(w, r, body.Email, body.Password)
 		return
 	}
 
@@ -246,6 +263,61 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		"refresh_token":  refreshToken,
 		"token_type":     "Bearer",
 		"email_verified": tenant.EmailVerified,
+	})
+}
+
+// loginAsMember handles sign-in for invited team members — accounts that
+// exist in the members table rather than as their own tenant. The issued
+// JWT is scoped to the member's tenant_id, giving them the same dashboard
+// access as the tenant owner.
+func (h *AuthHandler) loginAsMember(w http.ResponseWriter, r *http.Request, emailAddr, password string) {
+	member, err := h.members.GetByEmailAcrossTenants(r.Context(), emailAddr)
+	if err != nil || member.PasswordHash == "" {
+		h.tokens.RecordLoginFailure(r.Context(), emailAddr)
+		respond.Unauthorised(w, r, "invalid credentials")
+		return
+	}
+
+	if member.Status != domain.MemberStatusActive {
+		respond.Unauthorised(w, r, "invalid credentials")
+		return
+	}
+
+	if !verifyPassword(password, member.PasswordHash) {
+		count, _ := h.tokens.RecordLoginFailure(r.Context(), emailAddr)
+		if maxLoginAttempts-count <= 0 {
+			respond.Error(w, r, http.StatusTooManyRequests, "account_locked",
+				"too many failed login attempts — account locked for 15 minutes")
+			return
+		}
+		respond.Unauthorised(w, r, "invalid credentials")
+		return
+	}
+
+	memberTenant, err := h.tenants.GetByID(r.Context(), member.TenantID)
+	if err != nil || !memberTenant.IsActive {
+		respond.Unauthorised(w, r, "account is inactive")
+		return
+	}
+
+	h.tokens.ClearLoginFailures(r.Context(), emailAddr)
+
+	accessToken, err := middleware.GenerateJWT(member.TenantID)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+	refreshToken, err := middleware.GenerateRefreshToken(member.TenantID)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, map[string]interface{}{
+		"access_token":   accessToken,
+		"refresh_token":  refreshToken,
+		"token_type":     "Bearer",
+		"email_verified": memberTenant.EmailVerified,
 	})
 }
 

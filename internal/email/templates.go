@@ -151,3 +151,33 @@ func WelcomeEmail(name string) (subject, html string) {
 </html>`, name)
 	return
 }
+
+// InviteEmail returns the HTML for a team member invitation.
+func InviteEmail(tenantName, inviteURL, role string) (subject, html string) {
+	subject = "You've been invited to join " + tenantName + " on Tori"
+	html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;margin:0;padding:40px 0;">
+  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #eaecef;">
+    <div style="background:#0F1728;padding:28px 32px;">
+      <span style="color:#fff;font-size:22px;font-weight:900;letter-spacing:-0.5px;">Tori<span style="color:#00B37E;">.</span></span>
+    </div>
+    <div style="padding:32px;">
+      <h1 style="font-size:20px;font-weight:800;color:#0F1728;margin:0 0 8px;">You've been invited</h1>
+      <p style="color:#6B7280;font-size:14px;margin:0 0 24px;">
+        You've been invited to join <strong>` + tenantName + `</strong> on Tori as a <strong>` + role + `</strong>.
+      </p>
+      <a href="` + inviteURL + `"
+         style="display:inline-block;background:#0F1728;color:#fff;font-weight:700;font-size:14px;padding:14px 28px;border-radius:10px;text-decoration:none;">
+        Accept invitation
+      </a>
+      <p style="color:#9CA3AF;font-size:12px;margin:24px 0 0;">
+        This invitation expires in 72 hours. If you weren't expecting this, you can ignore it.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`
+	return
+}

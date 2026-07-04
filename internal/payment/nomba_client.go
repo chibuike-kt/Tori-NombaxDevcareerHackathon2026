@@ -52,6 +52,15 @@ func NewNombaHTTPClient(clientID, clientSecret, accountID, subAccountID string) 
 	}
 }
 
+// NewNombaHTTPClientForSandbox builds a client that always targets Nomba's
+// sandbox, regardless of NOMBA_ENV. Used for test-mode API key traffic.
+func NewNombaHTTPClientForSandbox(clientID, clientSecret, accountID, subAccountID string) *NombaHTTPClient {
+	c := NewNombaHTTPClient(clientID, clientSecret, accountID, subAccountID)
+	c.baseURL = nombaSandboxBase
+	c.isSandbox = true
+	return c
+}
+
 // maskEmail masks an email for safe logging. amaka@startup.ng → am***@startup.ng
 func maskEmail(email string) string {
 	parts := strings.SplitN(email, "@", 2)

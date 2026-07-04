@@ -2,15 +2,23 @@
 
 import { useEffect, useState } from "react";
 import { getMe, type Tenant } from "@/lib/api";
+import { getMode, setMode as persistMode, type NombaMode } from "@/lib/mode";
 
 export function Topbar() {
   const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [mode, setModeState] = useState<NombaMode>("live");
 
   useEffect(() => {
     getMe()
       .then((res) => setTenant(res.data))
       .catch(() => {});
+    setModeState(getMode());
   }, []);
+
+  const switchMode = (next: NombaMode) => {
+    persistMode(next);
+    setModeState(next);
+  };
 
   const initials = tenant?.name
     ? tenant.name
@@ -41,6 +49,31 @@ export function Topbar() {
         />
       </div>
       <div className="flex items-center gap-3">
+        <div
+          className="flex items-center rounded-lg p-1 gap-1"
+          style={{ background: "#F1F3F5" }}
+        >
+          <button
+            onClick={() => switchMode("live")}
+            className="text-xs font-bold px-3 py-1.5 rounded-md transition-colors"
+            style={{
+              background: mode === "live" ? "#0F1728" : "transparent",
+              color: mode === "live" ? "#fff" : "#6B7280",
+            }}
+          >
+            Live
+          </button>
+          <button
+            onClick={() => switchMode("test")}
+            className="text-xs font-bold px-3 py-1.5 rounded-md transition-colors"
+            style={{
+              background: mode === "test" ? "#D97706" : "transparent",
+              color: mode === "test" ? "#fff" : "#6B7280",
+            }}
+          >
+            Test
+          </button>
+        </div>
         <button
           className="w-9 h-9 rounded-lg flex items-center justify-center"
           style={{ background: "#F1F3F5", color: "#6B7280" }}

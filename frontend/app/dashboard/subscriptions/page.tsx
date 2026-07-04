@@ -534,7 +534,10 @@ export default function SubscriptionsPage() {
                       style={{ borderTop: "0.5px solid #F2F4F6" }}
                     >
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
+                        <Link
+                          href={`/dashboard/subscriptions/${sub.id}`}
+                          className="flex items-center gap-2.5"
+                        >
                           <span
                             className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[10px] font-bold flex-shrink-0"
                             style={{ background: av.bg, color: av.color }}
@@ -543,7 +546,7 @@ export default function SubscriptionsPage() {
                           </span>
                           <div>
                             <div
-                              className="text-xs font-semibold"
+                              className="text-xs font-semibold hover:underline"
                               style={{ color: "#1F2733" }}
                             >
                               {cust?.email ?? "Unknown"}
@@ -555,7 +558,7 @@ export default function SubscriptionsPage() {
                               {sub.id.slice(0, 8)}...
                             </div>
                           </div>
-                        </div>
+                        </Link>
                       </td>
                       <td
                         className="px-4 py-3 text-xs font-semibold"

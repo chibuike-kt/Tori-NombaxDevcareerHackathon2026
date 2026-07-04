@@ -40,6 +40,9 @@ func memberFromRow(row db.Member) *domain.Member {
 		t := row.LastLoginAt.Time
 		m.LastLoginAt = &t
 	}
+	if row.PasswordHash.Valid {
+		m.PasswordHash = row.PasswordHash.String
+	}
 	return m
 }
 
@@ -74,6 +77,14 @@ func (r *MemberRepo) GetByEmail(ctx context.Context, tenantID uuid.UUID, email s
 	row, err := r.q.GetMemberByEmail(ctx, db.GetMemberByEmailParams{TenantID: tenantID, Email: email})
 	if err != nil {
 		return nil, fmt.Errorf("get member by email: %w", err)
+	}
+	return memberFromRow(row), nil
+}
+
+func (r *MemberRepo) GetByEmailAcrossTenants(ctx context.Context, email string) (*domain.Member, error) {
+	row, err := r.q.GetMemberByEmailAcrossTenants(ctx, email)
+	if err != nil {
+		return nil, fmt.Errorf("get member by email across tenants: %w", err)
 	}
 	return memberFromRow(row), nil
 }
