@@ -19,6 +19,7 @@ const nav = [
   { href: "/dashboard/webhooks", label: "Webhooks", icon: "ti-webhook" },
   { href: "/dashboard/api-keys", label: "API Keys", icon: "ti-key" },
   { href: "/dashboard/settings", label: "Settings", icon: "ti-settings" },
+  { href: "/dashboard/team", label: "Team & Roles", icon: "ti-users-group" },
 ];
 
 export function Sidebar({ onClose }: { onClose?: () => void }) {

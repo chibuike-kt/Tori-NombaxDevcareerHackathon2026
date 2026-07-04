@@ -31,7 +31,10 @@ type Deps struct {
 	Payment            payment.NombaClient
 	EmailVerifications domain.EmailVerificationRepository
 	EmailClient        *email.ResendClient
-	Pool *pgxpool.Pool
+	Pool               *pgxpool.Pool
+	Members            domain.MemberRepository
+	Invitations        domain.InvitationRepository
+	Audit              domain.AuditRepository
 }
 
 // maxBodySize limits request bodies to 1MB to prevent OOM attacks.
@@ -96,6 +99,7 @@ r.Get("/v1/status", systemHealthH.Check)
 	webhookH := handlers.NewWebhookHandler(deps.Webhooks, dispatcher)
 	healthH := handlers.NewHealthHandler(deps.Subscriptions, deps.Plans)
 	checkoutH := handlers.NewCheckoutHandler(deps.Customers, deps.Plans, deps.Subscriptions, deps.Jobs, deps.Payment)
+	teamH := handlers.NewTeamHandler(deps.Members, deps.Invitations, deps.Audit)
 	apiKeyH := handlers.NewAPIKeyHandler(deps.Tenants)
 
 	// Public routes — no auth
@@ -191,6 +195,13 @@ r.Group(func(r chi.Router) {
 		r.Delete("/v1/webhooks/endpoints/{id}", webhookH.DeleteEndpoint)
 		r.Get("/v1/webhooks/logs", webhookH.ListDeliveries)
 		r.Post("/v1/webhooks/logs/{id}/retry", webhookH.RetryDelivery)
+		// Team management
+		r.Get("/v1/team/members", teamH.ListMembers)
+		r.Post("/v1/team/members/invite", teamH.InviteMember)
+		r.Patch("/v1/team/members/{id}/role", teamH.UpdateMemberRole)
+		r.Delete("/v1/team/members/{id}", teamH.RemoveMember)
+		r.Delete("/v1/team/invitations/{id}", teamH.RevokeInvitation)
+		r.Get("/v1/team/audit-log", teamH.ListAuditLog)
 	})
 
 	// Platform API — API key auth + per-tenant rate limiting

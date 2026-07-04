@@ -450,3 +450,56 @@ export const retrySubscriptionNow = (id: string) =>
 
 export const sendPayLink = (id: string) =>
   api.post(`/v1/subscriptions/${id}/send-pay-link`, {});
+
+export interface Member {
+  id: string;
+  tenant_id: string;
+  email: string;
+  name: string;
+  role: string;
+  status: string;
+  last_login_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Invitation {
+  id: string;
+  tenant_id: string;
+  email: string;
+  role: string;
+  token: string;
+  expires_at: string;
+  accepted_at?: string;
+  created_at: string;
+}
+
+export interface AuditEntry {
+  id: string;
+  tenant_id: string;
+  actor_email: string;
+  action: string;
+  target: string;
+  ip_address: string;
+  created_at: string;
+}
+
+export const getTeamMembers = () =>
+  api.get<{ data: { members: Member[]; invitations: Invitation[] } }>(
+    "/v1/team/members",
+  );
+
+export const getAuditLog = () =>
+  api.get<{ data: { data: AuditEntry[] } }>("/v1/team/audit-log");
+
+export const inviteMember = (email: string, role: string) =>
+  api.post("/v1/team/members/invite", { email, role });
+
+export const updateMemberRole = (id: string, role: string) =>
+  api.patch(`/v1/team/members/${id}/role`, { role });
+
+export const removeMember = (id: string) =>
+  api.delete(`/v1/team/members/${id}`);
+
+export const revokeInvitation = (id: string) =>
+  api.delete(`/v1/team/invitations/${id}`);

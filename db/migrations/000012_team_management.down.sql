@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS audit_log;
+DROP TABLE IF EXISTS invitations;
+DROP TABLE IF EXISTS members;

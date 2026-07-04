@@ -7,6 +7,60 @@ import (
 	"github.com/google/uuid"
 )
 
+// MemberRole defines access levels within a tenant workspace.
+type MemberRole string
+
+const (
+	MemberRoleOwner     MemberRole = "owner"
+	MemberRoleAdmin     MemberRole = "admin"
+	MemberRoleDeveloper MemberRole = "developer"
+	MemberRoleViewer    MemberRole = "viewer"
+)
+
+type MemberStatus string
+
+const (
+	MemberStatusActive    MemberStatus = "active"
+	MemberStatusInvited   MemberStatus = "invited"
+	MemberStatusSuspended MemberStatus = "suspended"
+)
+
+type Member struct {
+	ID          uuid.UUID    `json:"id"`
+	TenantID    uuid.UUID    `json:"tenant_id"`
+	Email       string       `json:"email"`
+	Name        string       `json:"name"`
+	Role        MemberRole   `json:"role"`
+	Status      MemberStatus `json:"status"`
+	LastLoginAt *time.Time   `json:"last_login_at,omitempty"`
+	CreatedAt   time.Time    `json:"created_at"`
+	UpdatedAt   time.Time    `json:"updated_at"`
+}
+
+type Invitation struct {
+	ID         uuid.UUID  `json:"id"`
+	TenantID   uuid.UUID  `json:"tenant_id"`
+	Email      string     `json:"email"`
+	Role       MemberRole `json:"role"`
+	Token      string     `json:"token"`
+	InvitedBy  *uuid.UUID `json:"invited_by,omitempty"`
+	ExpiresAt  time.Time  `json:"expires_at"`
+	AcceptedAt *time.Time `json:"accepted_at,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
+type AuditEntry struct {
+	ID          uuid.UUID       `json:"id"`
+	TenantID    uuid.UUID       `json:"tenant_id"`
+	ActorID     *uuid.UUID      `json:"actor_id,omitempty"`
+	ActorEmail  string          `json:"actor_email"`
+	Action      string          `json:"action"`
+	Target      string          `json:"target"`
+	IPAddress   string          `json:"ip_address"`
+	Metadata    json.RawMessage `json:"metadata,omitempty"`
+	CreatedAt   time.Time       `json:"created_at"`
+}
+
 type SubscriptionStatus string
 
 const (

@@ -12,6 +12,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AuditLog struct {
+	ID         uuid.UUID   `json:"id"`
+	TenantID   uuid.UUID   `json:"tenant_id"`
+	ActorID    pgtype.UUID `json:"actor_id"`
+	ActorEmail pgtype.Text `json:"actor_email"`
+	Action     string      `json:"action"`
+	Target     pgtype.Text `json:"target"`
+	IpAddress  pgtype.Text `json:"ip_address"`
+	Metadata   []byte      `json:"metadata"`
+	CreatedAt  time.Time   `json:"created_at"`
+}
+
 type Customer struct {
 	ID              uuid.UUID   `json:"id"`
 	TenantID        uuid.UUID   `json:"tenant_id"`
@@ -32,6 +44,18 @@ type EmailVerification struct {
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 	UsedAt    pgtype.Timestamptz `json:"used_at"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type Invitation struct {
+	ID         uuid.UUID          `json:"id"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	Email      string             `json:"email"`
+	Role       string             `json:"role"`
+	Token      string             `json:"token"`
+	InvitedBy  pgtype.UUID        `json:"invited_by"`
+	ExpiresAt  time.Time          `json:"expires_at"`
+	AcceptedAt pgtype.Timestamptz `json:"accepted_at"`
+	CreatedAt  time.Time          `json:"created_at"`
 }
 
 type Invoice struct {
@@ -65,6 +89,19 @@ type LedgerEntry struct {
 	IdempotencyKey string      `json:"idempotency_key"`
 	Metadata       []byte      `json:"metadata"`
 	CreatedAt      time.Time   `json:"created_at"`
+}
+
+type Member struct {
+	ID           uuid.UUID          `json:"id"`
+	TenantID     uuid.UUID          `json:"tenant_id"`
+	Email        string             `json:"email"`
+	Name         pgtype.Text        `json:"name"`
+	Role         string             `json:"role"`
+	Status       string             `json:"status"`
+	PasswordHash pgtype.Text        `json:"password_hash"`
+	LastLoginAt  pgtype.Timestamptz `json:"last_login_at"`
+	CreatedAt    time.Time          `json:"created_at"`
+	UpdatedAt    time.Time          `json:"updated_at"`
 }
 
 type Plan struct {

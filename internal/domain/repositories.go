@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"time"
+	"encoding/json"
 
 	"github.com/google/uuid"
 )
@@ -141,4 +142,27 @@ type EmailVerificationRepository interface {
 	GetByCode(ctx context.Context, code string) (*EmailVerification, error)
 	MarkUsed(ctx context.Context, id uuid.UUID) error
 	DeleteByTenant(ctx context.Context, tenantID uuid.UUID) error
+}
+
+type MemberRepository interface {
+	Create(ctx context.Context, tenantID uuid.UUID, email, name string, role MemberRole, status MemberStatus, passwordHash *string) (*Member, error)
+	GetByID(ctx context.Context, id, tenantID uuid.UUID) (*Member, error)
+	GetByEmail(ctx context.Context, tenantID uuid.UUID, email string) (*Member, error)
+	List(ctx context.Context, tenantID uuid.UUID) ([]*Member, error)
+	UpdateRole(ctx context.Context, id, tenantID uuid.UUID, role MemberRole) (*Member, error)
+	UpdateStatus(ctx context.Context, id, tenantID uuid.UUID, status MemberStatus) (*Member, error)
+	Delete(ctx context.Context, id, tenantID uuid.UUID) error
+}
+
+type InvitationRepository interface {
+	Create(ctx context.Context, tenantID uuid.UUID, email string, role MemberRole, token string, invitedBy *uuid.UUID, expiresAt time.Time) (*Invitation, error)
+	GetByToken(ctx context.Context, token string) (*Invitation, error)
+	List(ctx context.Context, tenantID uuid.UUID) ([]*Invitation, error)
+	Accept(ctx context.Context, token string) (*Invitation, error)
+	Delete(ctx context.Context, id, tenantID uuid.UUID) error
+}
+
+type AuditRepository interface {
+	Create(ctx context.Context, tenantID uuid.UUID, actorID *uuid.UUID, actorEmail, action, target, ip string, metadata json.RawMessage) (*AuditEntry, error)
+	List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*AuditEntry, error)
 }

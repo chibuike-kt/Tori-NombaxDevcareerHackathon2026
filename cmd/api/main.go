@@ -70,6 +70,9 @@ deps := api.Deps{
     Tokens:             tokenStore,
     Payment:            paymentClient,
     EmailVerifications: postgres.NewEmailVerificationRepo(pool),
+		Members:     postgres.NewMemberRepo(pool),
+		Invitations: postgres.NewInvitationRepo(pool),
+		Audit:       postgres.NewAuditRepo(pool),
     EmailClient:        email.NewResendClient(),
 		Pool: pool,
 }
