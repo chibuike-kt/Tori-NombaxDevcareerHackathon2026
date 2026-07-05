@@ -37,7 +37,7 @@ export const TABS: Tab[] = [
             blocks: [
               {
                 type: "p",
-                text: "Tori is a recurring billing engine built natively on Nomba's payment infrastructure. It solves one specific problem: every Nigerian SaaS, edtech, and creator platform that charges customers on a recurring basis has had to build the same billing system from scratch. Tori is that system.",
+                text: "Tori is a recurring billing engine built natively on Nomba's payment infrastructure. Nigerian card failure rates run 8 to 10 percent per billing cycle. On a 1,000 subscriber product at ₦10,000 a month with a 10 percent failure rate, that is ₦800,000 at risk every single cycle if nobody retries the failed charges correctly. Every Nigerian SaaS, edtech, and creator platform that charges customers on a recurring basis has had to build the retry logic, the state machine, and the ledger from scratch. Tori is that system, already built.",
               },
               {
                 type: "callout",
@@ -48,12 +48,34 @@ export const TABS: Tab[] = [
               {
                 type: "list",
                 items: [
-                  "Charges customers through Nomba on each billing cycle  monthly, annual, or custom",
+                  "Charges customers through Nomba on each billing cycle: monthly, annual, or custom",
                   "Classifies payment failures and retries on Nigerian payday windows",
-                  "Writes every charge, refund, and adjustment to an immutable double-entry ledger",
+                  "Escalates failed payments up a recovery ladder: card retry first, then a direct debit mandate, then a manual pay link",
+                  "Recovery Command Center shows every at risk, recovering, and recovered subscription with one click retry and pay link actions",
+                  "Writes every charge, refund, and adjustment to an immutable double entry ledger",
+                  "Records every subscription status change in a transition audit trail with a timestamp, reason, and actor",
                   "Fires signed webhooks to your product for every billing event",
                   "Reconciles every Nomba transaction against the ledger nightly",
                   "Computes MRR, churn, dunning recovery, and revenue forecast from real data",
+                  "Team management with roles (owner, admin, developer, viewer), email invites, and an admin action audit log",
+                  "Test and live API keys. A tori_test_ key routes to Nomba sandbox, a tori_live_ key routes to Nomba production, automatically",
+                  "Promo codes with percentage or fixed discounts, plan specific codes, use limits, and expiry dates",
+                  "Session management with instant revocation. See every active login with device, IP, and last active time, and kill any of them from the dashboard",
+                ],
+              },
+              { type: "h2", text: "How it works, end to end", id: "how-it-works" },
+              {
+                type: "list",
+                items: [
+                  "You create a plan (price, interval, trial length) and get a live API key and a test API key",
+                  "You call POST /v1/platform/checkout with a customer email and plan ID, and an optional promo_code",
+                  "If the promo code is valid, Tori applies the discount to the first charge and returns original_amount_kobo, discount_kobo, and final_amount_kobo in the response",
+                  "Tori creates a Nomba checkout session. A tori_test_ key hits Nomba sandbox. A tori_live_ key hits Nomba production. No code branching required on your side",
+                  "The customer pays. Nomba fires a payment_success webhook. Tori tokenises the card and activates the subscription",
+                  "On each billing cycle, Tori charges the stored token automatically. No cron job, no retry logic, on your end",
+                  "If a charge fails, Tori retries on the card first, escalates to a direct debit mandate if one exists on the subscription, and falls back to a manual pay link plus a payment.action_required webhook if both fail",
+                  "Every status change, for example ACTIVE to PAST_DUE or PAST_DUE to DUNNING, is written to the transition audit trail with a timestamp, a reason, and who or what triggered it",
+                  "Your team can invite teammates with specific roles, review every admin action in the audit log, and revoke any login session instantly from the Security page",
                 ],
               },
               { type: "h2", text: "The three objects", id: "objects" },
@@ -193,18 +215,23 @@ Step 9  Every future charge uses stored tokenKey automatically`,
             blocks: [
               {
                 type: "p",
-                text: "Every Platform API call requires your secret API key in the X-API-Key header. It is shown exactly once at creation.",
+                text: "Every tenant gets two keys the moment you register: a live key and a test key. Every Platform API call requires one of them in the X-API-Key header. Each full key is shown exactly once, at creation or rotation.",
               },
               {
                 type: "callout",
                 variant: "warn",
-                text: "Your API key is shown only once. Tori stores only a SHA-256 hash. If you lose it, rotate it from the dashboard  the old key stops working immediately.",
+                text: "Your API key is shown only once. Tori stores only a SHA-256 hash. If you lose it, rotate it from the API Keys page. The old key stops working immediately.",
               },
               { type: "h2", text: "Key format", id: "format" },
               {
                 type: "code",
                 lang: "bash",
-                code: "tori_live_a5eac054adef09a31a7d823d6e71b1245deffa7eb5c8a51c765e7678e9d578c0",
+                code: `Live:  tori_live_a5eac054adef09a31a7d823d6e71b1245deffa7eb5c8a51c765e7678e9d578c0
+Test:  tori_test_4d2c9f6e1a8b3d5c7e9f0a2b4d6e8f1a3c5e7d9f1b3d5e7f9a1c3e5d7f9b1a3c`,
+              },
+              {
+                type: "p",
+                text: "The prefix is not cosmetic. Tori reads it on every Platform API request and routes accordingly: tori_live_ hits Nomba production, tori_test_ hits Nomba sandbox. See the Test mode section below for what that means in practice.",
               },
               { type: "h2", text: "Usage", id: "using" },
               {
@@ -222,6 +249,54 @@ Step 9  Every future charge uses stored tokenKey automatically`,
                   "Secret manager (AWS Secrets Manager, HashiCorp Vault, Railway secrets)",
                   "Never in source code, never in frontend/mobile code",
                 ],
+              },
+            ],
+          },
+          {
+            id: "test-mode",
+            label: "Test mode",
+            icon: "ti-flask",
+            blocks: [
+              {
+                type: "p",
+                text: "Use your tori_test_ key to hit Nomba sandbox. No real money moves. Everything else behaves identically to production: checkout sessions, tokenisation, webhooks, dunning, the ledger.",
+              },
+              { type: "h2", text: "How routing works", id: "test-routing" },
+              {
+                type: "p",
+                text: "Tori looks at the prefix of the key on the X-API-Key header of every Platform API request. A tori_test_ key always talks to Nomba's sandbox environment, no matter what NOMBA_ENV is set to on the server. A tori_live_ key always talks to Nomba production. There is no separate test mode flag to pass in the request body. The key decides.",
+              },
+              {
+                type: "code",
+                lang: "bash",
+                code: `# This call never touches real money, because the key is tori_test_
+curl ${BASE}/v1/platform/checkout \\
+  -H "X-API-Key: tori_test_4d2c9f6e1a8b3d5c..." \\
+  -H "Content-Type: application/json" \\
+  -d '{ "email": "amaka@startup.ng", "plan_id": "plan_..." }'`,
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "The dashboard has a Live/Test toggle in the header. Switching it does not change which key your server uses. It only changes what the operator dashboard displays. Your server always uses whichever key you deployed to it.",
+              },
+              {
+                type: "h2",
+                text: "What test mode is good for",
+                id: "test-uses",
+              },
+              {
+                type: "list",
+                items: [
+                  "Building your integration end to end before you have real Nomba production credentials approved",
+                  "Running your CI test suite against real checkout, webhook, and dunning flows without spending money",
+                  "Demoing the product to a stakeholder without creating real subscriptions",
+                ],
+              },
+              {
+                type: "callout",
+                variant: "warn",
+                text: "Revoke and regenerate keys independently. Revoking your test key does not affect your live key, and vice versa. Rotate whichever one leaked.",
               },
             ],
           },
@@ -314,10 +389,25 @@ Authorization: Bearer eyJ...`,
                 code: `curl ${BASE}/v1/platform/plans -H "X-API-Key: tori_live_..." \\
   -d '{ "name": "Pro", "amount": 1500000, "interval": "monthly", "trial_period_days": 14 }'`,
               },
-              { type: "h2", text: "2  Start a subscription", id: "step-2" },
+              {
+                type: "h2",
+                text: "2  Optionally create a promo code",
+                id: "step-2",
+              },
               {
                 type: "p",
-                text: "The checkout endpoint finds or creates the customer by email and starts the subscription in one call. Always redirect the customer to checkout_url immediately  even during a free trial  so their card is tokenised now.",
+                text: "Skip this if you are not running a discount. If you are, create the code once, then pass it on any checkout call.",
+              },
+              {
+                type: "code",
+                lang: "bash",
+                code: `curl ${BASE}/v1/promo-codes -H "Authorization: Bearer eyJ..." \\
+  -d '{ "code": "LAUNCH20", "discount_type": "percentage", "discount_value": 20 }'`,
+              },
+              { type: "h2", text: "3  Start a subscription", id: "step-3" },
+              {
+                type: "p",
+                text: "The checkout endpoint finds or creates the customer by email and starts the subscription in one call. Always redirect the customer to checkout_url immediately  even during a free trial  so their card is tokenised now. Pass promo_code if the customer has a discount code.",
               },
               {
                 type: "code",
@@ -325,12 +415,18 @@ Authorization: Bearer eyJ...`,
                 code: `curl ${BASE}/v1/platform/checkout -H "X-API-Key: tori_live_..." \\
   -d '{ "email": "amaka@startup.ng", "plan_id": "plan_...",
         "external_id": "user_123", "idempotency_key": "signup_user_123",
-        "callback_url": "https://yourapp.ng/payment/success" }'`,
+        "callback_url": "https://yourapp.ng/payment/success",
+        "promo_code": "LAUNCH20" }'`,
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Use your tori_test_ key for this whole flow while you are building. Swap in your tori_live_ key only when you are ready to charge real customers.",
               },
               {
                 type: "h2",
-                text: "3  Register a webhook endpoint",
-                id: "step-3",
+                text: "4  Register a webhook endpoint",
+                id: "step-4",
               },
               {
                 type: "code",
@@ -338,7 +434,7 @@ Authorization: Bearer eyJ...`,
                 code: `curl ${BASE}/v1/webhooks/endpoints -H "Authorization: Bearer eyJ..." \\
   -d '{ "url": "https://yourapp.ng/webhooks/tori", "events": ["*"] }'`,
               },
-              { type: "h2", text: "4  Handle billing events", id: "step-4" },
+              { type: "h2", text: "5  Handle billing events", id: "step-5" },
               {
                 type: "code",
                 lang: "js",
@@ -748,10 +844,17 @@ TORI_WEBHOOK_SECRET=whsec_...`,
             'external_id'     => (string) $school->id,
             'idempotency_key' => 'signup_' . $school->id,
             'callback_url'    => route('payment.success'),
+            'promo_code'      => $request->input('promo_code'), // optional, null is fine
         ]);
 
     $data = $response->json()['data'];
     $school->update(['tori_subscription_id' => $data['subscription']['id']]);
+
+    if ($data['promo_applied'] ?? false) {
+        // Discount was valid and applied. final_amount_kobo is what was actually charged.
+        Log::info('Promo applied', ['discount_kobo' => $data['discount_kobo']]);
+    }
+
     return redirect($data['checkout_url']); // always redirect  even during trial
 }`,
               },
@@ -1339,18 +1442,121 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
         ],
       },
       {
+        group: "Sessions",
+        items: [
+          {
+            id: "ref-sessions-list",
+            label: "List active sessions",
+            icon: "ti-devices",
+            method: "GET",
+            endpoint: "/v1/auth/sessions",
+            blocks: [
+              {
+                type: "p",
+                text: "Every login creates a session record in Redis with the device's IP address and user agent. This endpoint lists every session that has not expired or been revoked, for the currently authenticated tenant.",
+              },
+              { type: "h2", text: "Headers", id: "sessions-list-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Response", id: "sessions-list-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Sessions returned, most recently active first",
+                body: `{
+  "data": [
+    {
+      "id": "3ff914e2b8563b26910423b2c6e3e6d1",
+      "ip_address": "102.89.23.44",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/128.0",
+      "created_at": "2026-07-05T00:41:23.259Z",
+      "last_seen_at": "2026-07-05T09:12:04.881Z",
+      "is_current": true
+    },
+    {
+      "id": "a1c2b3d4e5f60718293a4b5c6d7e8f90",
+      "ip_address": "197.210.54.12",
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0)",
+      "created_at": "2026-07-04T08:15:00.000Z",
+      "last_seen_at": "2026-07-04T18:30:00.000Z",
+      "is_current": false
+    }
+  ],
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "is_current tells you which session belongs to the request you just made. Use it to disable or hide the Revoke button for the session the user is currently looking at, so they cannot lock themselves out by accident.",
+              },
+            ],
+          },
+          {
+            id: "ref-sessions-revoke",
+            label: "Revoke a session",
+            icon: "ti-logout-2",
+            method: "DELETE",
+            endpoint: "/v1/auth/sessions/{id}",
+            blocks: [
+              {
+                type: "p",
+                text: "Immediately kill one session. Any access token or refresh token tied to that session stops working on its very next request, even if it has not expired yet. There is no 15-minute grace window.",
+              },
+              { type: "h2", text: "Headers", id: "sessions-revoke-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Path parameters",
+                id: "sessions-revoke-path",
+              },
+              {
+                type: "param",
+                name: "id",
+                paramType: "string",
+                required: true,
+                description: "The session ID from the sessions list",
+              },
+              { type: "h2", text: "Response", id: "sessions-revoke-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Session revoked",
+                body: `{ "data": { "status": "revoked" }, "meta": { ... } }`,
+              },
+              {
+                type: "callout",
+                variant: "warn",
+                text: "Revoking your own current session logs you out on your next request. The dashboard hides the Revoke button on the session marked is_current for this reason, but the API itself does not block it.",
+              },
+            ],
+          },
+        ],
+      },
+      {
         group: "API Keys",
         items: [
           {
             id: "ref-apikeys-create",
-            label: "Create API key",
+            label: "Create live API key",
             icon: "ti-plus",
             method: "POST",
             endpoint: "/v1/api-keys",
             blocks: [
               {
                 type: "p",
-                text: "Generate a new API key for Platform API authentication. The full key is shown exactly once.",
+                text: "Generate a new live API key, or replace the existing one if you already have one. The full key is shown exactly once.",
               },
               { type: "h2", text: "Headers", id: "apikey-create-headers" },
               {
@@ -1374,18 +1580,19 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
                 paramType: "string",
                 required: false,
                 description:
-                  "A label for this key e.g. Production server, Staging",
+                  "A label for this key, for example Production server. Defaults to Default",
               },
               { type: "h2", text: "Response", id: "apikey-create-response" },
               {
                 type: "response",
                 status: 201,
-                description: "Key created  shown once",
+                description: "Key created, shown once",
                 body: `{
   "data": {
     "key":  "tori_live_a5eac054adef09a31a7d823d6e71b1245deffa7eb5c8a51c765e7678e9d578c0",
+    "name": "Production server",
     "hint": "tori_live_a5ea...78c0",
-    "name": "Production server"
+    "mode": "live"
   },
   "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
 }`,
@@ -1393,20 +1600,60 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
               {
                 type: "callout",
                 variant: "warn",
-                text: "This is the only time the full key is shown. Tori stores only a SHA-256 hash. Copy it to your secret manager immediately.",
+                text: "This is the only time the full key is shown. Tori stores only a SHA-256 hash. Copy it to your secret manager immediately. Calling this again replaces the current live key.",
+              },
+            ],
+          },
+          {
+            id: "ref-apikeys-test-create",
+            label: "Create test API key",
+            icon: "ti-flask",
+            method: "POST",
+            endpoint: "/v1/api-keys/test",
+            blocks: [
+              {
+                type: "p",
+                text: "Generate a new test API key, or replace the existing one. Requests signed with this key always hit Nomba sandbox, no matter what the server's live Nomba credentials are.",
+              },
+              { type: "h2", text: "Headers", id: "apikey-test-create-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Response",
+                id: "apikey-test-create-response",
+              },
+              {
+                type: "response",
+                status: 201,
+                description: "Test key created, shown once",
+                body: `{
+  "data": {
+    "key":  "tori_test_4d2c9f6e1a8b3d5c7e9f0a2b4d6e8f1a3c5e7d9f1b3d5e7f9a1c3e5d7f9b1a3c",
+    "name": "Test key",
+    "hint": "tori_test_4d2c...1a3c",
+    "mode": "test"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
               },
             ],
           },
           {
             id: "ref-apikeys-get",
-            label: "Get key hint",
+            label: "Get key hints",
             icon: "ti-eye",
             method: "GET",
             endpoint: "/v1/api-keys",
             blocks: [
               {
                 type: "p",
-                text: "Returns the hint (first 12 + last 4 characters) of the active API key. The full key is never retrievable after creation.",
+                text: "Returns the hint (first prefix plus last 4 characters) for both the live key and the test key. Either one may not exist yet. The full key is never retrievable after creation.",
               },
               { type: "h2", text: "Headers", id: "apikey-get-headers" },
               {
@@ -1420,27 +1667,31 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
               {
                 type: "response",
                 status: 200,
-                description: "Key hint returned",
-                body: `{ "data": { "hint": "tori_live_a5ea...78c0" }, "meta": { ... } }`,
+                description: "Both key hints returned",
+                body: `{
+  "data": {
+    "live": { "hint": "tori_live_a5ea...78c0", "exists": true },
+    "test": { "hint": null, "exists": false }
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
               },
               {
-                type: "response",
-                status: 404,
-                description: "No key exists for this account",
-                body: `{ "error": { "code": "not_found", "message": "no api key found for this account" }, "meta": { ... } }`,
+                type: "p",
+                text: "hint is null and exists is false for any mode you have not generated a key for yet.",
               },
             ],
           },
           {
             id: "ref-apikeys-rotate",
-            label: "Rotate API key",
+            label: "Rotate live API key",
             icon: "ti-rotate",
             method: "POST",
             endpoint: "/v1/api-keys/rotate",
             blocks: [
               {
                 type: "p",
-                text: "Generates a new key and immediately invalidates the current one. Deploy the new key to all your servers before rotating.",
+                text: "Generates a new live key and immediately invalidates the current one. Deploy the new key to all your servers before rotating.",
               },
               { type: "h2", text: "Headers", id: "apikey-rotate-headers" },
               {
@@ -1454,11 +1705,13 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
               {
                 type: "response",
                 status: 200,
-                description: "Key rotated  new key shown once",
+                description: "Key rotated, new key shown once",
                 body: `{
   "data": {
     "key":  "tori_live_x9y8z7...",
-    "hint": "tori_live_x9y8...a1b2"
+    "name": "Rotated key",
+    "hint": "tori_live_x9y8...a1b2",
+    "mode": "live"
   },
   "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
 }`,
@@ -1466,7 +1719,49 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
               {
                 type: "callout",
                 variant: "warn",
-                text: "The old key stops working the instant you rotate. Any server still using the old key will receive 401 immediately.",
+                text: "The old key stops working the instant you rotate. Any server still using the old key receives 401 immediately.",
+              },
+            ],
+          },
+          {
+            id: "ref-apikeys-revoke",
+            label: "Revoke a key",
+            icon: "ti-trash",
+            method: "DELETE",
+            endpoint: "/v1/api-keys/{mode}",
+            blocks: [
+              {
+                type: "p",
+                text: "Revoke the live key or the test key. Revoking one does not affect the other. There is no undo, generate a new one afterward if you need to keep using that mode.",
+              },
+              { type: "h2", text: "Headers", id: "apikey-revoke-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Path parameters", id: "apikey-revoke-path" },
+              {
+                type: "param",
+                name: "mode",
+                paramType: "string",
+                required: true,
+                description: "live or test",
+              },
+              { type: "h2", text: "Response", id: "apikey-revoke-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Key revoked",
+                body: `{ "data": { "status": "revoked" }, "meta": { ... } }`,
+              },
+              {
+                type: "response",
+                status: 400,
+                description: "Invalid mode",
+                body: `{ "error": { "code": "invalid_mode", "message": "mode must be 'live' or 'test'" }, "meta": { ... } }`,
               },
             ],
           },
@@ -2366,6 +2661,194 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
               },
             ],
           },
+          {
+            id: "ref-subs-transitions",
+            label: "Transition history",
+            icon: "ti-history",
+            method: "GET",
+            endpoint: "/v1/subscriptions/{subscription_id}/transitions",
+            blocks: [
+              {
+                type: "p",
+                text: "Every time a subscription's status changes, Tori writes a row recording the old status, the new status, why it changed, and who or what triggered it. This endpoint returns that history, newest first.",
+              },
+              { type: "h2", text: "Headers", id: "subs-transitions-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Path parameters",
+                id: "subs-transitions-path",
+              },
+              {
+                type: "param",
+                name: "subscription_id",
+                paramType: "uuid",
+                required: true,
+                description: "The subscription ID",
+              },
+              {
+                type: "h2",
+                text: "Response",
+                id: "subs-transitions-response",
+              },
+              {
+                type: "response",
+                status: 200,
+                description: "Transition history returned",
+                body: `{
+  "data": [
+    {
+      "id": "9c1e2f3a-4b5c-6d7e-8f90-1a2b3c4d5e6f",
+      "subscription_id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+      "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
+      "from_status": "ACTIVE",
+      "to_status": "GRACE_PERIOD",
+      "reason": "status_update",
+      "actor": "system",
+      "created_at": "2026-07-03T00:00:00Z"
+    },
+    {
+      "id": "7a8b9c0d-1e2f-3a4b-5c6d-7e8f90a1b2c3",
+      "subscription_id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+      "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
+      "from_status": "TRIALING",
+      "to_status": "ACTIVE",
+      "reason": "renewal",
+      "actor": "system",
+      "created_at": "2026-06-26T00:00:00Z"
+    }
+  ],
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+              {
+                type: "table",
+                headers: ["Field", "Meaning"],
+                rows: [
+                  ["reason", "'status_update' for a direct status change, 'renewal' for a billing cycle renewal"],
+                  ["actor", "'system' for anything triggered by a webhook or a background job. There is no operator-attributed actor yet"],
+                ],
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "This history starts from the day the feature shipped. Status changes that happened before that are not backfilled, only new ones are recorded going forward.",
+              },
+            ],
+          },
+          {
+            id: "ref-subs-retry-now",
+            label: "Retry now",
+            icon: "ti-refresh-dot",
+            method: "POST",
+            endpoint: "/v1/subscriptions/{subscription_id}/retry-now",
+            blocks: [
+              {
+                type: "p",
+                text: "An operator action from the Recovery Command Center. Queues an immediate payment retry instead of waiting for the next scheduled dunning attempt (Day 3, 7, 14, or 21).",
+              },
+              { type: "h2", text: "Headers", id: "subs-retry-now-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Response", id: "subs-retry-now-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Retry queued",
+                body: `{ "data": { "message": "retry queued", "subscription_id": "f6ffcc85-..." }, "meta": { ... } }`,
+              },
+              {
+                type: "p",
+                text: "The retry runs on the next worker poll cycle, not synchronously in this request. Check the subscription's status or its transition history a few seconds later to see the outcome.",
+              },
+            ],
+          },
+          {
+            id: "ref-subs-send-pay-link",
+            label: "Send pay link",
+            icon: "ti-link",
+            method: "POST",
+            endpoint: "/v1/subscriptions/{subscription_id}/send-pay-link",
+            blocks: [
+              {
+                type: "p",
+                text: "An operator action for when card retries and mandate charges have both failed. Marks the subscription's recovery rail as manual and fires a payment.action_required webhook with a fresh checkout link, so you can email or message the customer directly.",
+              },
+              {
+                type: "h2",
+                text: "Headers",
+                id: "subs-send-pay-link-headers",
+              },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Response",
+                id: "subs-send-pay-link-response",
+              },
+              {
+                type: "response",
+                status: 200,
+                description: "Pay link webhook queued",
+                body: `{ "data": { "message": "pay link webhook queued", "subscription_id": "f6ffcc85-..." }, "meta": { ... } }`,
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Handle payment.action_required in your webhook handler the same way you handle dunning.started: show the customer a payment prompt using the checkout link in the event payload.",
+              },
+            ],
+          },
+          {
+            id: "ref-subs-recover",
+            label: "Recover subscription",
+            icon: "ti-first-aid-kit",
+            method: "POST",
+            endpoint: "/v1/subscriptions/{subscription_id}/recover",
+            blocks: [
+              {
+                type: "p",
+                text: "Manually move a SUSPENDED subscription back to ACTIVE. Use this after you have confirmed payment out of band, for example the customer paid by bank transfer and told you directly.",
+              },
+              { type: "h2", text: "Headers", id: "subs-recover-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Response", id: "subs-recover-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Subscription reactivated",
+                body: `{ "data": { "id": "f6ffcc85-...", "status": "ACTIVE" }, "meta": { ... } }`,
+              },
+              {
+                type: "response",
+                status: 422,
+                description: "Not suspended",
+                body: `{ "error": { "code": "invalid_transition", "message": "only suspended subscriptions can be manually recovered" }, "meta": { ... } }`,
+              },
+            ],
+          },
         ],
       },
       {
@@ -2820,6 +3303,548 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
         ],
       },
       {
+        group: "Team Management",
+        items: [
+          {
+            id: "ref-team-list",
+            label: "List members",
+            icon: "ti-users-group",
+            method: "GET",
+            endpoint: "/v1/team/members",
+            blocks: [
+              {
+                type: "p",
+                text: "Returns every active member of your team plus every invitation that has not been accepted yet. The tenant owner is a member too, with role owner.",
+              },
+              { type: "h2", text: "Headers", id: "team-list-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Response", id: "team-list-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Members and invitations returned",
+                body: `{
+  "data": {
+    "members": [
+      {
+        "id": "cc6307db-a4a1-4a7e-9d61-742a6d1641b8",
+        "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
+        "email": "dev@tori.ng",
+        "name": "Tori Demo",
+        "role": "owner",
+        "status": "active",
+        "last_login_at": "2026-07-05T09:12:04.881Z",
+        "created_at": "2026-06-30T23:44:16.663Z",
+        "updated_at": "2026-07-05T09:12:04.881Z"
+      }
+    ],
+    "invitations": [
+      {
+        "id": "d1e2f3a4-b5c6-7d8e-9f01-2a3b4c5d6e7f",
+        "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
+        "email": "newdev@startup.ng",
+        "role": "developer",
+        "expires_at": "2026-07-08T09:00:00Z",
+        "created_at": "2026-07-05T09:00:00Z"
+      }
+    ]
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+              {
+                type: "table",
+                headers: ["Role", "Can do"],
+                rows: [
+                  ["owner", "Everything. Cannot be removed"],
+                  ["admin", "Everything except removing the owner"],
+                  ["developer", "Manage plans, customers, subscriptions, API keys, webhooks"],
+                  ["viewer", "Read-only access to the dashboard"],
+                ],
+              },
+            ],
+          },
+          {
+            id: "ref-team-invite",
+            label: "Invite a member",
+            icon: "ti-user-plus",
+            method: "POST",
+            endpoint: "/v1/team/members/invite",
+            blocks: [
+              {
+                type: "p",
+                text: "Sends an email invite with a link to accept-invite on your dashboard. The invite token is valid for 72 hours.",
+              },
+              { type: "h2", text: "Headers", id: "team-invite-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Body", id: "team-invite-body" },
+              {
+                type: "param",
+                name: "email",
+                paramType: "string",
+                required: true,
+                description: "The teammate's email address",
+              },
+              {
+                type: "param",
+                name: "role",
+                paramType: "string",
+                required: false,
+                description: "owner | admin | developer | viewer. Defaults to developer",
+              },
+              { type: "h2", text: "Response", id: "team-invite-response" },
+              {
+                type: "response",
+                status: 201,
+                description: "Invitation created and emailed",
+                body: `{
+  "data": {
+    "id": "d1e2f3a4-b5c6-7d8e-9f01-2a3b4c5d6e7f",
+    "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
+    "email": "newdev@startup.ng",
+    "role": "developer",
+    "token": "9f8e7d6c5b4a3928f1e0d9c8b7a695847362514f",
+    "expires_at": "2026-07-08T09:00:00Z",
+    "created_at": "2026-07-05T09:00:00Z"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+              {
+                type: "response",
+                status: 400,
+                description: "Already a member",
+                body: `{ "error": { "code": "already_member", "message": "this email is already a team member" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
+            id: "ref-team-role",
+            label: "Update member role",
+            icon: "ti-shield-check",
+            method: "PATCH",
+            endpoint: "/v1/team/members/{member_id}/role",
+            blocks: [
+              {
+                type: "p",
+                text: "Change what a team member is allowed to do.",
+              },
+              { type: "h2", text: "Headers", id: "team-role-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Body", id: "team-role-body" },
+              {
+                type: "param",
+                name: "role",
+                paramType: "string",
+                required: true,
+                description: "owner | admin | developer | viewer",
+              },
+              { type: "h2", text: "Response", id: "team-role-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Role updated",
+                body: `{ "data": { "id": "cc6307db-...", "role": "admin" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
+            id: "ref-team-remove",
+            label: "Remove member",
+            icon: "ti-user-minus",
+            method: "DELETE",
+            endpoint: "/v1/team/members/{member_id}",
+            blocks: [
+              {
+                type: "p",
+                text: "Removes a team member's access. The workspace owner cannot be removed this way.",
+              },
+              { type: "h2", text: "Headers", id: "team-remove-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Response", id: "team-remove-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Member removed",
+                body: `{ "data": { "status": "removed" }, "meta": { ... } }`,
+              },
+              {
+                type: "response",
+                status: 400,
+                description: "Tried to remove the owner",
+                body: `{ "error": { "code": "cannot_remove_owner", "message": "workspace owner cannot be removed" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
+            id: "ref-team-revoke-invite",
+            label: "Revoke invitation",
+            icon: "ti-mail-x",
+            method: "DELETE",
+            endpoint: "/v1/team/invitations/{invitation_id}",
+            blocks: [
+              {
+                type: "p",
+                text: "Cancels a pending invitation before it is accepted. The invite link stops working immediately.",
+              },
+              {
+                type: "h2",
+                text: "Headers",
+                id: "team-revoke-invite-headers",
+              },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Response",
+                id: "team-revoke-invite-response",
+              },
+              {
+                type: "response",
+                status: 200,
+                description: "Invitation revoked",
+                body: `{ "data": { "status": "revoked" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
+            id: "ref-team-accept-invite",
+            label: "Accept invitation",
+            icon: "ti-check",
+            method: "POST",
+            endpoint: "/v1/team/invitations/accept",
+            blocks: [
+              {
+                type: "p",
+                text: "Public endpoint, no authentication required. This is what the accept-invite page on your dashboard calls when an invited teammate sets their name and password.",
+              },
+              { type: "h2", text: "Body", id: "team-accept-invite-body" },
+              {
+                type: "param",
+                name: "token",
+                paramType: "string",
+                required: true,
+                description: "The token from the invite email link",
+              },
+              {
+                type: "param",
+                name: "name",
+                paramType: "string",
+                required: false,
+                description: "The new member's display name",
+              },
+              {
+                type: "param",
+                name: "password",
+                paramType: "string",
+                required: true,
+                description: "Minimum 8 characters",
+              },
+              {
+                type: "h2",
+                text: "Response",
+                id: "team-accept-invite-response",
+              },
+              {
+                type: "response",
+                status: 201,
+                description: "Member created, invitation marked accepted",
+                body: `{ "data": { "message": "Invitation accepted. You can now log in." }, "meta": { ... } }`,
+              },
+              {
+                type: "response",
+                status: 400,
+                description: "Token invalid, expired, or already used",
+                body: `{ "error": { "code": "invitation_expired", "message": "this invitation has expired" }, "meta": { ... } }`,
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "After this call succeeds, the new member logs in through the normal POST /v1/auth/login with the email the invite was sent to. There is no separate member login endpoint.",
+              },
+            ],
+          },
+          {
+            id: "ref-team-audit-log",
+            label: "Audit log",
+            icon: "ti-clipboard-list",
+            method: "GET",
+            endpoint: "/v1/team/audit-log",
+            blocks: [
+              {
+                type: "p",
+                text: "Every admin action (invite, role change, removal) writes one row here with who did it, from what IP, and when.",
+              },
+              { type: "h2", text: "Headers", id: "team-audit-log-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Response", id: "team-audit-log-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Audit log returned, newest first",
+                body: `{
+  "data": {
+    "data": [
+      {
+        "id": "5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b",
+        "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
+        "actor_email": "dev@tori.ng",
+        "action": "member.invited",
+        "target": "newdev@startup.ng",
+        "ip_address": "102.89.23.44",
+        "created_at": "2026-07-05T09:00:00Z"
+      }
+    ]
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        group: "Promo Codes",
+        items: [
+          {
+            id: "ref-promo-create",
+            label: "Create promo code",
+            icon: "ti-discount",
+            method: "POST",
+            endpoint: "/v1/promo-codes",
+            blocks: [
+              {
+                type: "p",
+                text: "Create a discount code customers can redeem at checkout by passing promo_code on POST /v1/platform/checkout.",
+              },
+              { type: "h2", text: "Headers", id: "promo-create-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Body", id: "promo-create-body" },
+              {
+                type: "param",
+                name: "code",
+                paramType: "string",
+                required: true,
+                description:
+                  "4 to 20 letters and numbers. Tori uppercases it automatically, SAVE20 and save20 are the same code",
+              },
+              {
+                type: "param",
+                name: "description",
+                paramType: "string",
+                required: false,
+                description: "Internal note, not shown to the customer",
+              },
+              {
+                type: "param",
+                name: "discount_type",
+                paramType: "string",
+                required: true,
+                description: "percentage or fixed",
+              },
+              {
+                type: "param",
+                name: "discount_value",
+                paramType: "integer",
+                required: true,
+                description:
+                  "For percentage: 1 to 100. For fixed: kobo amount, minimum 100",
+              },
+              {
+                type: "param",
+                name: "plan_id",
+                paramType: "uuid",
+                required: false,
+                description: "Restrict the code to one plan. Omit for all plans",
+              },
+              {
+                type: "param",
+                name: "max_uses",
+                paramType: "integer",
+                required: false,
+                description: "Total redemptions allowed. Omit for unlimited",
+              },
+              {
+                type: "param",
+                name: "expires_at",
+                paramType: "string",
+                required: false,
+                description: "RFC3339 timestamp. Omit for a code that never expires",
+              },
+              { type: "h2", text: "Response", id: "promo-create-response" },
+              {
+                type: "response",
+                status: 201,
+                description: "Promo code created",
+                body: `{
+  "data": {
+    "id": "f16df6ab-1e54-4f33-a91d-3182efa81a15",
+    "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
+    "code": "SAVE20",
+    "description": "Launch discount",
+    "discount_type": "percentage",
+    "discount_value": 20,
+    "plan_id": null,
+    "max_uses": null,
+    "use_count": 0,
+    "expires_at": null,
+    "is_active": true,
+    "created_at": "2026-07-05T01:08:47.056Z",
+    "updated_at": "2026-07-05T01:08:47.056Z"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+              {
+                type: "response",
+                status: 409,
+                description: "Code already exists for this tenant",
+                body: `{ "error": { "code": "code_already_exists", "message": "a promo code with this code already exists" }, "meta": { ... } }`,
+              },
+              {
+                type: "response",
+                status: 400,
+                description: "Invalid discount value",
+                body: `{ "error": { "code": "invalid_discount_value", "message": "percentage discount must be between 1 and 100" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
+            id: "ref-promo-list",
+            label: "List promo codes",
+            icon: "ti-list",
+            method: "GET",
+            endpoint: "/v1/promo-codes",
+            blocks: [
+              {
+                type: "p",
+                text: "Returns every promo code for your account, active and inactive, newest first.",
+              },
+              { type: "h2", text: "Headers", id: "promo-list-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Response", id: "promo-list-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Promo codes returned",
+                body: `{
+  "data": [
+    {
+      "id": "f16df6ab-1e54-4f33-a91d-3182efa81a15",
+      "code": "SAVE20",
+      "discount_type": "percentage",
+      "discount_value": 20,
+      "plan_id": null,
+      "max_uses": null,
+      "use_count": 1,
+      "expires_at": null,
+      "is_active": true,
+      "created_at": "2026-07-05T01:08:47.056Z"
+    }
+  ],
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+              {
+                type: "p",
+                text: "The dashboard computes a display status from these fields: Active, Expired (past expires_at), Depleted (use_count reached max_uses), or Inactive (is_active is false). Tori does not send a status field, you derive it the same way.",
+              },
+            ],
+          },
+          {
+            id: "ref-promo-deactivate",
+            label: "Deactivate promo code",
+            icon: "ti-ban",
+            method: "DELETE",
+            endpoint: "/v1/promo-codes/{promo_id}",
+            blocks: [
+              {
+                type: "p",
+                text: "Soft delete only. Sets is_active to false so the code can no longer be redeemed. There is no hard delete from the API or the dashboard, the code and its use_count history stay for record keeping.",
+              },
+              { type: "h2", text: "Headers", id: "promo-deactivate-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Path parameters",
+                id: "promo-deactivate-path",
+              },
+              {
+                type: "param",
+                name: "promo_id",
+                paramType: "uuid",
+                required: true,
+                description: "The promo code's ID",
+              },
+              {
+                type: "h2",
+                text: "Response",
+                id: "promo-deactivate-response",
+              },
+              {
+                type: "response",
+                status: 200,
+                description: "Promo code deactivated",
+                body: `{ "data": { "id": "f16df6ab-...", "is_active": false }, "meta": { ... } }`,
+              },
+            ],
+          },
+        ],
+      },
+      {
         group: "Billing Health",
         items: [
           {
@@ -2911,6 +3936,194 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
   },
   "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
 }`,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        group: "Finance",
+        items: [
+          {
+            id: "ref-recovery-center",
+            label: "Recovery Command Center",
+            icon: "ti-refresh-alert",
+            method: "GET",
+            endpoint: "/v1/finance/recovery-center",
+            blocks: [
+              {
+                type: "p",
+                text: "One call that answers 'how much revenue is at risk right now, and how much have we gotten back'. Splits every non-healthy subscription into at risk, recovering, and recovered buckets.",
+              },
+              {
+                type: "h2",
+                text: "Headers",
+                id: "recovery-center-headers",
+              },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Response",
+                id: "recovery-center-response",
+              },
+              {
+                type: "response",
+                status: 200,
+                description: "Recovery pipeline returned",
+                body: `{
+  "data": {
+    "at_risk_kobo": 12500000,
+    "recovered_kobo": 0,
+    "recovery_rate_pct": 0,
+    "at_risk_count": 5,
+    "recovering_count": 2,
+    "recovered_count": 0,
+    "at_risk": [
+      {
+        "subscription_id": "aa860e3c-500f-4aeb-bd6b-d6725371fdd4",
+        "customer_id": "e949b34d-0c87-4409-a2be-824cf90e2888",
+        "customer_email": "chibueze@test.com",
+        "status": "PAST_DUE",
+        "amount_kobo": 500000,
+        "recovery_rail": "card",
+        "dunning_attempt": 0,
+        "plan_name": "Starter"
+      }
+    ],
+    "recovering": [
+      {
+        "subscription_id": "ae2723a6-a5f1-4b9b-acd2-5ce138afce56",
+        "customer_id": "0a43124f-9b60-43f6-94ab-848641781b4c",
+        "customer_email": "hauwa@food.ng",
+        "status": "DUNNING",
+        "amount_kobo": 5000000,
+        "recovery_rail": "card",
+        "dunning_attempt": 2,
+        "next_retry_at": "2026-07-05T23:44:41.825Z",
+        "plan_name": "Business"
+      }
+    ],
+    "recovered": [],
+    "currency": "NGN",
+    "generated_at": "2026-07-05T00:23:26.428Z"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+              {
+                type: "table",
+                headers: ["Bucket", "Meaning"],
+                rows: [
+                  ["at_risk", "GRACE_PERIOD or PAST_DUE. Not retrying on a schedule yet, or the first retry hasn't fired"],
+                  ["recovering", "DUNNING. Actively retrying on the payday schedule"],
+                  ["recovered", "Came back to ACTIVE from GRACE_PERIOD, PAST_DUE, or DUNNING within this reporting window"],
+                ],
+              },
+              {
+                type: "p",
+                text: "recovery_rail on each item is card, mandate, or manual. It tells you where that subscription currently sits on the recovery ladder. See the Dunning and retries section for how the ladder escalates from one rail to the next.",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        group: "Settings",
+        items: [
+          {
+            id: "ref-dunning-config",
+            label: "Update dunning configuration",
+            icon: "ti-adjustments",
+            method: "PATCH",
+            endpoint: "/v1/dunning-config",
+            blocks: [
+              {
+                type: "p",
+                text: "Override the default retry schedule and behaviour for your tenant. Applies to every subscription you own.",
+              },
+              {
+                type: "h2",
+                text: "Headers",
+                id: "dunning-config-headers",
+              },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Body", id: "dunning-config-body" },
+              {
+                type: "param",
+                name: "retry_intervals_days",
+                paramType: "array",
+                required: true,
+                description: "Days after failure to retry, for example [3, 7, 14, 21]",
+              },
+              {
+                type: "param",
+                name: "max_attempts",
+                paramType: "integer",
+                required: true,
+                description: "1 to 10",
+              },
+              {
+                type: "param",
+                name: "suspension_action",
+                paramType: "string",
+                required: false,
+                description: "suspend or cancel. What happens after retries are exhausted",
+              },
+              {
+                type: "param",
+                name: "notify_customer",
+                paramType: "boolean",
+                required: false,
+                description: "Fire dunning webhooks the customer-facing product should show",
+              },
+              {
+                type: "param",
+                name: "notify_merchant",
+                paramType: "boolean",
+                required: false,
+                description: "Fire dunning webhooks for internal alerting",
+              },
+              {
+                type: "param",
+                name: "smart_retry",
+                paramType: "boolean",
+                required: false,
+                description: "Use Nigerian failure classification to skip retries on permanent declines",
+              },
+              { type: "h2", text: "Response", id: "dunning-config-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Config updated",
+                body: `{
+  "data": {
+    "retry_intervals_days": [3, 7, 14, 21],
+    "max_attempts": 4,
+    "suspension_action": "suspend",
+    "notify_customer": true,
+    "notify_merchant": true,
+    "smart_retry": true
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+              {
+                type: "response",
+                status: 400,
+                description: "Invalid config",
+                body: `{ "error": { "code": "invalid_field", "message": "max_attempts must be between 1 and 10" }, "meta": { ... } }`,
               },
             ],
           },
@@ -3170,6 +4383,26 @@ X-Ratelimit-Reset: 1782428400`,
             label: "All releases",
             icon: "ti-history",
             blocks: [
+              {
+                type: "h2",
+                text: "2026-07-05: Recovery ladder, team management, test mode, promo codes",
+                id: "v1-6",
+              },
+              {
+                type: "list",
+                items: [
+                  "Recovery ladder: failed payments escalate from card retry, to direct debit mandate (if one exists), to a manual pay link with a payment.action_required webhook",
+                  "Recovery Command Center: GET /v1/finance/recovery-center shows at risk, recovering, and recovered subscriptions in one call, with retry-now and send-pay-link operator actions",
+                  "Team management: members table with roles (owner, admin, developer, viewer), email invite flow with a 72-hour token, accept-invite page, audit log on every admin action",
+                  "Test and live API key mode: a tori_test_ key routes Platform API traffic to Nomba sandbox, a tori_live_ key routes to Nomba production, chosen automatically by key prefix",
+                  "Subscription transition audit trail: every state change is recorded with from_status, to_status, reason, actor, and a timestamp. New GET /v1/subscriptions/{id}/transitions endpoint",
+                  "Security page with real active session tracking: session ID embedded in the JWT, Redis-backed session records with IP and user agent, instant revocation on any session including the one you are using right now",
+                  "GET /v1/auth/sessions and DELETE /v1/auth/sessions/{id}. Two-factor authentication and passkeys are honest 'coming soon' placeholders, not fake flows",
+                  "Promo codes: percentage or fixed discounts, plan-specific codes, use limits, expiry dates. Optional promo_code field on POST /v1/platform/checkout applies the discount and returns discount_kobo, original_amount_kobo, and final_amount_kobo",
+                  "respond.InternalError now logs the underlying error and request ID via zerolog before returning the generic 500. Previously a 500 left no trace in the logs",
+                  "Bug fix: customer portal cancel now uses cancel-at-period-end instead of an immediate cancel, matching how the dashboard cancel endpoint already worked",
+                ],
+              },
               {
                 type: "h2",
                 text: "2026-07-02 — Billing correctness and operator tools",

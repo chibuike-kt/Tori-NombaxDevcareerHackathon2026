@@ -16,6 +16,7 @@
 | | |
 |--|--|
 | **Dashboard** | https://frontend-production-e3be.up.railway.app |
+| **Docs** | https://frontend-production-e3be.up.railway.app/docs |
 | **API base URL** | https://api-production-3847.up.railway.app |
 | **Health check** | https://api-production-3847.up.railway.app/v1/status |
 | **Email** | dev@tori.ng |
@@ -35,6 +36,20 @@ Tori is **Stripe Billing for Nomba**  a fully managed recurring billing engine t
 Your product  →  Tori API  →  Nomba  →  Customer bank
 ```
 
+### What's built
+
+- Recurring billing on Nomba: checkout, tokenisation, automatic renewal, no cron jobs on your side
+- Nine-state subscription lifecycle with full unit test coverage
+- A recovery ladder for failed payments: card retry, then a direct debit mandate if one exists, then a manual pay link
+- Recovery Command Center: every at-risk, recovering, and recovered subscription in one view, with retry-now and send-pay-link operator actions
+- Subscription transition audit trail: every status change recorded with a reason, an actor, and a timestamp
+- Test and live API keys that route to Nomba sandbox or production automatically, no code branching required
+- Promo codes with percentage or fixed discounts, plan-specific codes, use limits, and expiry
+- Team management: roles (owner, admin, developer, viewer), email invites, an admin action audit log
+- Session management: every login tracked with device and IP, instant revocation from the dashboard
+- An append-only double-entry ledger that MRR, ARR, churn, and revenue forecasts are computed from
+- Signed outbound webhooks with retry and a circuit breaker, and nightly reconciliation against Nomba
+
 ---
 
 ## Judging criteria  where to find the evidence
@@ -49,7 +64,9 @@ The Nigerian-specific design decisions throughout the codebase show this was not
 
 ### Technical Execution (25%)
 
-**State machine**  9 validated states with full unit test coverage. Pure function with zero side effects. Every valid and invalid transition is tested including the new PENDING_PAYMENT flow. The state machine is the authoritative source  no direct status updates bypass it.
+**State machine**  9 validated states with full unit test coverage. Pure function with zero side effects. Every valid and invalid transition is tested including the new PENDING_PAYMENT flow. The state machine is the authoritative source  no direct status updates bypass it. Every transition is also written to a `subscription_transitions` audit row (from_status, to_status, reason, actor, timestamp) at the repository layer, so it is recorded no matter which code path triggers it. `GET /v1/subscriptions/{id}/transitions` exposes the full history, and the dashboard's subscription detail page renders it as a timeline.
+
+**Dunning sophistication**  failed payments escalate up a recovery ladder instead of retrying the same card forever: card retry on the payday schedule (Day 3, 7), then a direct debit mandate if one exists on the subscription, then a manual pay link with a `payment.action_required` webhook. The Recovery Command Center (`GET /v1/finance/recovery-center`) shows every at-risk, recovering, and recovered subscription in one call, with `retry-now` and `send-pay-link` operator actions to short-circuit the schedule. Retry timing and suspension behaviour are configurable per tenant via `PATCH /v1/dunning-config`.
 
 **Correct checkout flow**  subscriptions start as PENDING_PAYMENT. They move to ACTIVE only after Nomba fires payment_success and Tori processes it. If payment fails, the subscription moves to PAST_DUE. If the customer abandons checkout for 24 hours, the abandoned checkout worker moves it to PAST_DUE. This ensures a customer never has access to a product they have not paid for.
 
@@ -92,6 +109,7 @@ Full detail in [ARCHITECTURE.md](./ARCHITECTURE.md). Summary:
 - Next.js CSP, HSTS, Permissions-Policy on every frontend response
 - PII masking in logs  customer emails masked in all log output
 - Multi-tenant isolation  tenant_id on every table, tenant from auth context never from request body
+- **Multi-tenant cleanliness**  test and live API keys are separate rows per tenant (`api_keys` table), so a test-mode integration on one tenant cannot touch another tenant's live credentials. Team roles (owner, admin, developer, viewer) and the admin action audit log are scoped to `tenant_id` like everything else. Login sessions are tracked per tenant in Redis, and revoking one tenant's session has no effect on any other tenant's sessions
 - Nomba inbound webhook HMAC-SHA256 verification with exact field ordering and base64 encoding
 - Outbound webhook HMAC-SHA256 signing with timing-safe comparison via hmac.Equal
 - Optimistic locking on state transitions  two concurrent workers cannot corrupt the same subscription
@@ -117,6 +135,8 @@ Full detail in [ARCHITECTURE.md](./ARCHITECTURE.md). Summary:
 **Metrics endpoint**  GET /v1/metrics returns subscription counts by state, MRR, gross revenue this month, charge success rate, failed job count, queue depth. Real operational intelligence in one call.
 
 **Customer portal**  self-service pause, resume, cancel via portal token. No support ticket needed.
+
+**API ergonomics**  promo codes (`POST /v1/promo-codes`, applied by passing `promo_code` on checkout), team management (invite, role, remove, audit log), and session management (`GET/DELETE /v1/auth/sessions`) are all documented in the API Reference tab with a request and response example for every endpoint, not just a route list. The docs read like a reference a developer can integrate against at 2am without asking anyone a question.
 
 ### Nomba Integration Depth (20%)
 
