@@ -7,10 +7,12 @@ import {
   createPromoCode,
   deactivatePromoCode,
   getPlans,
+  getMe,
   type PromoCode,
   type Plan,
 } from "@/lib/api";
 import { formatKobo, formatDate } from "@/lib/utils";
+import { can, type Role } from "@/lib/permissions";
 
 function randomCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -252,6 +254,9 @@ export default function PromoCodesPage() {
     queryFn: getPromoCodes,
   });
   const { data: plansData } = useQuery({ queryKey: ["plans"], queryFn: getPlans });
+  const { data: meData } = useQuery({ queryKey: ["me"], queryFn: getMe });
+  const role = ((meData?.data?.member_role as Role) || "owner");
+  const canManagePromoCodes = can(role, "manage_promo_codes");
 
   const codes = data?.data ?? [];
   const plans = plansData?.data ?? [];
@@ -279,13 +284,15 @@ export default function PromoCodesPage() {
             Discounts customers can redeem at checkout
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 text-sm px-3 lg:px-4 py-2.5 rounded-lg font-bold text-white"
-          style={{ background: "#00B37E" }}
-        >
-          <i className="ti ti-plus" /> <span className="hidden sm:inline">Create promo code</span>
-        </button>
+        {canManagePromoCodes && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-1.5 text-sm px-3 lg:px-4 py-2.5 rounded-lg font-bold text-white"
+            style={{ background: "#00B37E" }}
+          >
+            <i className="ti ti-plus" /> <span className="hidden sm:inline">Create promo code</span>
+          </button>
+        )}
       </div>
 
       <div className="bg-white border rounded-xl" style={{ borderColor: "#EAECEF" }}>
@@ -366,7 +373,7 @@ export default function PromoCodesPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {p.is_active &&
+                        {p.is_active && canManagePromoCodes &&
                           (confirmDeactivateId === p.id ? (
                             <div className="flex gap-1.5">
                               <button
@@ -404,7 +411,7 @@ export default function PromoCodesPage() {
         )}
       </div>
 
-      {showCreate && <CreateModal plans={plans} onClose={() => setShowCreate(false)} />}
+      {showCreate && canManagePromoCodes && <CreateModal plans={plans} onClose={() => setShowCreate(false)} />}
     </div>
   );
 }

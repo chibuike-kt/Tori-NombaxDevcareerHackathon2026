@@ -206,12 +206,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, err := middleware.GenerateJWT(tenant.ID, sessionID)
+	accessToken, err := middleware.GenerateJWT(tenant.ID, sessionID, string(domain.MemberRoleOwner))
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}
-	refreshToken, err := middleware.GenerateRefreshToken(tenant.ID, sessionID)
+	refreshToken, err := middleware.GenerateRefreshToken(tenant.ID, sessionID, string(domain.MemberRoleOwner))
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -279,7 +279,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	h.tokens.ClearLoginFailures(r.Context(), body.Email)
 
+	// The tenant owner is backfilled as an "owner" member row at registration,
+	// so this lookup gives us the role to embed in the JWT without guessing.
+	role := string(domain.MemberRoleOwner)
 	if ownerMember, err := h.members.GetByEmail(r.Context(), tenant.ID, tenant.Email); err == nil {
+		role = string(ownerMember.Role)
 		if err := h.members.UpdateLastLogin(r.Context(), ownerMember.ID); err != nil {
 			log.Error().Err(err).Str("member_id", ownerMember.ID.String()).Msg("auth: failed to update member last_login_at")
 		}
@@ -291,12 +295,12 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, err := middleware.GenerateJWT(tenant.ID, sessionID)
+	accessToken, err := middleware.GenerateJWT(tenant.ID, sessionID, role)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}
-	refreshToken, err := middleware.GenerateRefreshToken(tenant.ID, sessionID)
+	refreshToken, err := middleware.GenerateRefreshToken(tenant.ID, sessionID, role)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -360,12 +364,12 @@ func (h *AuthHandler) loginAsMember(w http.ResponseWriter, r *http.Request, emai
 		return
 	}
 
-	accessToken, err := middleware.GenerateJWT(member.TenantID, sessionID)
+	accessToken, err := middleware.GenerateJWT(member.TenantID, sessionID, string(member.Role))
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}
-	refreshToken, err := middleware.GenerateRefreshToken(member.TenantID, sessionID)
+	refreshToken, err := middleware.GenerateRefreshToken(member.TenantID, sessionID, string(member.Role))
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -396,7 +400,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenantID, sessionID, err := middleware.ValidateRefreshToken(body.RefreshToken)
+	tenantID, sessionID, role, err := middleware.ValidateRefreshToken(body.RefreshToken)
 	if err != nil {
 		respond.Unauthorised(w, r, "invalid or expired refresh token")
 		return
@@ -407,12 +411,12 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, err := middleware.GenerateJWT(tenantID, sessionID)
+	accessToken, err := middleware.GenerateJWT(tenantID, sessionID, role)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}
-	newRefresh, err := middleware.GenerateRefreshToken(tenantID, sessionID)
+	newRefresh, err := middleware.GenerateRefreshToken(tenantID, sessionID, role)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -516,7 +520,16 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 		respond.Unauthorised(w, r, "not authenticated")
 		return
 	}
-	respond.JSON(w, r, http.StatusOK, tenant)
+
+	role := middleware.GetMemberRole(r.Context())
+	if role == "" {
+		role = string(domain.MemberRoleOwner)
+	}
+
+	respond.JSON(w, r, http.StatusOK, struct {
+		*domain.Tenant
+		MemberRole string `json:"member_role"`
+	}{Tenant: tenant, MemberRole: role})
 }
 
 func (h *AuthHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {

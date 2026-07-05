@@ -6,9 +6,11 @@ import {
   getRecoveryCenter,
   retrySubscriptionNow,
   sendPayLink,
+  getMe,
   type RecoveryItem,
 } from "@/lib/api";
 import { formatKobo, formatDateTime, avatarFor } from "@/lib/utils";
+import { can, type Role } from "@/lib/permissions";
 
 function railBadge(rail: string) {
   switch (rail) {
@@ -225,6 +227,10 @@ export default function RecoveryPage() {
   });
   const rc = data?.data;
 
+  const { data: meData } = useQuery({ queryKey: ["me"], queryFn: getMe });
+  const role = ((meData?.data?.member_role as Role) || "owner");
+  const canManageRecovery = can(role, "manage_recovery");
+
   const retry = useMutation({
     mutationFn: (id: string) => {
       setBusyId(id);
@@ -349,7 +355,7 @@ export default function RecoveryPage() {
             subtitle="Payment failed, recovery not yet scheduled"
             items={rc?.at_risk ?? []}
             accent="#DC2626"
-            showActions
+            showActions={canManageRecovery}
             onRetry={(id) => retry.mutate(id)}
             onPayLink={(id) => payLink.mutate(id)}
             busyId={busyId}
@@ -360,7 +366,7 @@ export default function RecoveryPage() {
             subtitle="In the recovery ladder, retry scheduled"
             items={rc?.recovering ?? []}
             accent="#D97706"
-            showActions
+            showActions={canManageRecovery}
             onRetry={(id) => retry.mutate(id)}
             onPayLink={(id) => payLink.mutate(id)}
             busyId={busyId}

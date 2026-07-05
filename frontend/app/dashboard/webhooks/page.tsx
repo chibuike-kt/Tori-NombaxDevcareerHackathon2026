@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, getMe } from "@/lib/api";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import { can, type Role } from "@/lib/permissions";
 
 interface Endpoint {
   id: string;
@@ -43,6 +44,10 @@ export default function WebhooksPage() {
 
   const endpoints = endpointsData?.data ?? [];
   const deliveries = deliveriesData?.data ?? [];
+
+  const { data: meData } = useQuery({ queryKey: ["me"], queryFn: getMe });
+  const role = ((meData?.data?.member_role as Role) || "owner");
+  const canManageWebhooks = can(role, "manage_webhooks");
 
   const create = useMutation({
     mutationFn: () =>
@@ -115,14 +120,16 @@ export default function WebhooksPage() {
             Manage endpoints and monitor delivery logs
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 text-sm px-3 lg:px-4 py-2.5 rounded-lg font-bold text-white"
-          style={{ background: "#00B37E" }}
-        >
-          <i className="ti ti-plus" />{" "}
-          <span className="hidden sm:inline">Add endpoint</span>
-        </button>
+        {canManageWebhooks && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1.5 text-sm px-3 lg:px-4 py-2.5 rounded-lg font-bold text-white"
+            style={{ background: "#00B37E" }}
+          >
+            <i className="ti ti-plus" />{" "}
+            <span className="hidden sm:inline">Add endpoint</span>
+          </button>
+        )}
       </div>
 
       {/* Signing secret */}
@@ -207,7 +214,7 @@ export default function WebhooksPage() {
       )}
 
       {/* Add endpoint form */}
-      {showForm && (
+      {showForm && canManageWebhooks && (
         <div
           className="bg-white border rounded-xl p-5 mb-4"
           style={{ borderColor: "#EAECEF" }}
@@ -286,13 +293,15 @@ export default function WebhooksPage() {
             >
               Add an endpoint to start receiving billing events on your server.
             </p>
-            <button
-              onClick={() => setShowForm(true)}
-              className="text-sm px-4 py-2 rounded-lg font-bold text-white"
-              style={{ background: "#0F1728" }}
-            >
-              Add endpoint
-            </button>
+            {canManageWebhooks && (
+              <button
+                onClick={() => setShowForm(true)}
+                className="text-sm px-4 py-2 rounded-lg font-bold text-white"
+                style={{ background: "#0F1728" }}
+              >
+                Add endpoint
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -348,7 +357,7 @@ export default function WebhooksPage() {
                       {formatDate(ep.created_at)}
                     </td>
                     <td className="px-4 py-3">
-                      {confirmDelete === ep.id ? (
+                      {canManageWebhooks && (confirmDelete === ep.id ? (
                         <div className="flex items-center gap-2">
                           <span
                             className="text-xs font-medium"
@@ -379,7 +388,7 @@ export default function WebhooksPage() {
                         >
                           Delete
                         </button>
-                      )}
+                      ))}
                     </td>
                   </tr>
                 ))}

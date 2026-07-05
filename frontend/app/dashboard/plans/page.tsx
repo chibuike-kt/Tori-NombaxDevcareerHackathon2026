@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getPlans, createPlan, deactivatePlan } from "@/lib/api";
+import { getPlans, createPlan, deactivatePlan, getMe } from "@/lib/api";
 import { formatKobo, formatDate } from "@/lib/utils";
+import { can, type Role } from "@/lib/permissions";
 
 function PlanIDRow({ id }: { id: string }) {
   const [copied, setCopied] = useState(false);
@@ -48,6 +49,9 @@ export default function PlansPage() {
     queryFn: getPlans,
   });
   const plans = data?.data ?? [];
+  const { data: meData } = useQuery({ queryKey: ["me"], queryFn: getMe });
+  const role = ((meData?.data?.member_role as Role) || "owner");
+  const canManagePlans = can(role, "manage_plans");
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState("");
   const [confirmDeactivateId, setConfirmDeactivateId] = useState<string | null>(
@@ -114,17 +118,19 @@ export default function PlansPage() {
             {plans.filter((p) => p.is_active).length} active pricing plans
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 text-sm px-3 lg:px-4 py-2.5 rounded-lg font-bold text-white"
-          style={{ background: "#00B37E" }}
-        >
-          <i className="ti ti-plus" />{" "}
-          <span className="hidden sm:inline">Create plan</span>
-        </button>
+        {canManagePlans && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1.5 text-sm px-3 lg:px-4 py-2.5 rounded-lg font-bold text-white"
+            style={{ background: "#00B37E" }}
+          >
+            <i className="ti ti-plus" />{" "}
+            <span className="hidden sm:inline">Create plan</span>
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {showForm && canManagePlans && (
         <div
           className="bg-white border rounded-xl p-5 mb-5"
           style={{ borderColor: "#EAECEF" }}
@@ -263,13 +269,15 @@ export default function PlansPage() {
           >
             Create your first billing plan to start subscriptions.
           </p>
-          <button
-            onClick={() => setShowForm(true)}
-            className="text-sm px-4 py-2 rounded-lg font-bold text-white"
-            style={{ background: "#0F1728" }}
-          >
-            Create plan
-          </button>
+          {canManagePlans && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="text-sm px-4 py-2 rounded-lg font-bold text-white"
+              style={{ background: "#0F1728" }}
+            >
+              Create plan
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -335,7 +343,7 @@ export default function PlansPage() {
               )}
               <PlanIDRow id={plan.id} />
 
-              {plan.is_active && (
+              {plan.is_active && canManagePlans && (
                 <>
                   {confirmDeactivateId === plan.id ? (
                     <div

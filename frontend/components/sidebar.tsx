@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { getMe } from "@/lib/api";
+import { can, type Role } from "@/lib/permissions";
 
 type NavItem = { href: string; label: string; icon: string };
 type NavSection = { label: string | null; items: NavItem[] };
@@ -68,6 +71,24 @@ function isNavActive(pathname: string, href: string): boolean {
 export function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [role, setRole] = useState<Role>("owner");
+
+  useEffect(() => {
+    getMe()
+      .then((res) => setRole((res.data.member_role as Role) || "owner"))
+      .catch(() => {});
+  }, []);
+
+  const visibleSections = sections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (item.href === "/dashboard/webhooks") return can(role, "view_webhooks");
+        if (item.href === "/dashboard/api-keys") return can(role, "view_api_keys");
+        return true;
+      }),
+    }))
+    .filter((section) => section.items.length > 0);
 
   const handleLogout = async () => {
     try {
@@ -125,7 +146,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
       </div>
 
       <nav className="flex-1 py-4 px-2 overflow-y-auto">
-        {sections.map((section, i) => (
+        {visibleSections.map((section, i) => (
           <div key={section.label ?? `section-${i}`} className={i > 0 ? "mt-4" : ""}>
             {section.label && (
               <div

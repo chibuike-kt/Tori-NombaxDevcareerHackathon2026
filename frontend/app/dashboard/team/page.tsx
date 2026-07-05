@@ -9,11 +9,13 @@ import {
   updateMemberRole,
   removeMember,
   revokeInvitation,
+  getMe,
   type Member,
   type Invitation,
   type AuditEntry,
 } from "@/lib/api";
 import { formatDateTime, avatarFor } from "@/lib/utils";
+import { can, type Role } from "@/lib/permissions";
 
 const ROLES = ["owner", "admin", "developer", "viewer"];
 
@@ -61,6 +63,10 @@ export default function TeamPage() {
     queryKey: ["audit-log"],
     queryFn: getAuditLog,
   });
+
+  const { data: meData } = useQuery({ queryKey: ["me"], queryFn: getMe });
+  const role = ((meData?.data?.member_role as Role) || "owner");
+  const canManageTeam = can(role, "manage_team");
 
 
 const members: Member[] = teamData?.data?.members ?? [];
@@ -121,18 +127,20 @@ const auditEntries: AuditEntry[] = Array.isArray(auditData?.data?.data)
             Invite members, assign roles and review workspace activity.
           </p>
         </div>
-        <button
-          onClick={() => setShowInvite(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white"
-          style={{ background: "#0F1728", cursor: "pointer" }}
-        >
-          <i className="ti ti-user-plus" style={{ fontSize: 16 }} />
-          Invite member
-        </button>
+        {canManageTeam && (
+          <button
+            onClick={() => setShowInvite(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white"
+            style={{ background: "#0F1728", cursor: "pointer" }}
+          >
+            <i className="ti ti-user-plus" style={{ fontSize: 16 }} />
+            Invite member
+          </button>
+        )}
       </div>
 
       {/* Invite modal */}
-      {showInvite && (
+      {showInvite && canManageTeam && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: "rgba(0,0,0,0.4)" }}
@@ -294,12 +302,12 @@ const auditEntries: AuditEntry[] = Array.isArray(auditData?.data?.data)
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      {m.role === "owner" ? (
+                      {m.role === "owner" || !canManageTeam ? (
                         <span
                           className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                           style={{ background: rb.bg, color: rb.color }}
                         >
-                          Owner
+                          {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
                         </span>
                       ) : (
                         <select
@@ -340,7 +348,7 @@ const auditEntries: AuditEntry[] = Array.isArray(auditData?.data?.data)
                       {m.last_login_at ? formatDateTime(m.last_login_at) : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      {m.role !== "owner" && (
+                      {m.role !== "owner" && canManageTeam && (
                         <button
                           onClick={() => remove.mutate(m.id)}
                           className="text-[11px] px-2 py-1 rounded-md hover:opacity-75 transition-opacity"
@@ -402,13 +410,15 @@ const auditEntries: AuditEntry[] = Array.isArray(auditData?.data?.data)
                       —
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => revoke.mutate(inv.id)}
-                        className="text-[11px] px-2 py-1 rounded-md hover:opacity-75 transition-opacity"
-                        style={{ color: "#DC2626", cursor: "pointer" }}
-                      >
-                        <i className="ti ti-trash" style={{ fontSize: 14 }} />
-                      </button>
+                      {canManageTeam && (
+                        <button
+                          onClick={() => revoke.mutate(inv.id)}
+                          className="text-[11px] px-2 py-1 rounded-md hover:opacity-75 transition-opacity"
+                          style={{ color: "#DC2626", cursor: "pointer" }}
+                        >
+                          <i className="ti ti-trash" style={{ fontSize: 14 }} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

@@ -12,11 +12,13 @@ import {
   resumeSubscription,
   recoverSubscription,
   createCheckout,
+  getMe,
   type Customer,
   type Plan,
 } from "@/lib/api";
 import { StatusPill } from "@/components/status-pill";
 import { formatKobo, formatDate, avatarFor } from "@/lib/utils";
+import { can, type Role } from "@/lib/permissions";
 
 export default function SubscriptionsPage() {
   const qc = useQueryClient();
@@ -47,6 +49,9 @@ export default function SubscriptionsPage() {
     queryKey: ["plans"],
     queryFn: getPlans,
   });
+  const { data: meData } = useQuery({ queryKey: ["me"], queryFn: getMe });
+  const role = ((meData?.data?.member_role as Role) || "owner");
+  const canManageSubs = can(role, "manage_subscriptions");
 
   const subs = subsData?.data ?? [];
   const customers = customersData?.data ?? [];
@@ -608,7 +613,7 @@ export default function SubscriptionsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1.5">
-                          {(sub.status === "ACTIVE" ||
+                          {canManageSubs && (sub.status === "ACTIVE" ||
                             sub.status === "GRACE_PERIOD") && (
                             <>
                               {sub.status === "ACTIVE" && (
@@ -639,7 +644,7 @@ export default function SubscriptionsPage() {
                               )}
                             </>
                           )}
-                          {sub.status === "PAUSED" && (
+                          {canManageSubs && sub.status === "PAUSED" && (
                             <button
                               onClick={() => resume.mutate(sub.id)}
                               className="text-[11px] px-2.5 py-1 rounded-md font-bold border"
@@ -651,7 +656,7 @@ export default function SubscriptionsPage() {
                               Resume
                             </button>
                           )}
-                          {(sub.status === "DUNNING" ||
+                          {canManageSubs && (sub.status === "DUNNING" ||
                             sub.status === "PAST_DUE") && (
                             <button
                               onClick={() => cancel.mutate(sub.id)}
@@ -665,7 +670,7 @@ export default function SubscriptionsPage() {
                             </button>
                           )}
 
-                          {sub.status === "SUSPENDED" && (
+                          {canManageSubs && sub.status === "SUSPENDED" && (
                             <button
                               onClick={() => recover.mutate(sub.id)}
                               className="text-[11px] px-2.5 py-1 rounded-md font-bold border hover:opacity-75 transition-opacity"

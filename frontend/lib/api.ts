@@ -363,6 +363,7 @@ export interface Tenant {
   api_key_hint?: string;
   is_active: boolean;
   created_at: string;
+  member_role: string;
   dunning_config?: {
     retry_intervals_days: number[];
     max_attempts: number;

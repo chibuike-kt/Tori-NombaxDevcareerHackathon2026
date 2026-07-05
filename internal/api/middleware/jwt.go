@@ -12,14 +12,18 @@ import (
 type Claims struct {
 	TenantID  uuid.UUID `json:"tenant_id"`
 	SessionID string    `json:"session_id,omitempty"`
+	Role      string    `json:"role,omitempty"`
 	jwt.RegisteredClaims
 }
 
-func GenerateJWT(tenantID uuid.UUID, sessionID string) (string, error) {
+// GenerateJWT issues a short-lived access token carrying the member's role,
+// so RequireRole checks never need a database lookup on the request path.
+func GenerateJWT(tenantID uuid.UUID, sessionID, role string) (string, error) {
 	secret := os.Getenv("JWT_SECRET")
 	claims := Claims{
 		TenantID:  tenantID,
 		SessionID: sessionID,
+		Role:      role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -29,11 +33,12 @@ func GenerateJWT(tenantID uuid.UUID, sessionID string) (string, error) {
 	return token.SignedString([]byte(secret))
 }
 
-func GenerateRefreshToken(tenantID uuid.UUID, sessionID string) (string, error) {
+func GenerateRefreshToken(tenantID uuid.UUID, sessionID, role string) (string, error) {
 	secret := os.Getenv("JWT_SECRET")
 	claims := Claims{
 		TenantID:  tenantID,
 		SessionID: sessionID,
+		Role:      role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -43,9 +48,10 @@ func GenerateRefreshToken(tenantID uuid.UUID, sessionID string) (string, error) 
 	return token.SignedString([]byte(secret))
 }
 
-// validateJWT returns the tenant ID and session ID embedded in the token.
-// SessionID is empty for tokens issued before session tracking existed.
-func validateJWT(tokenStr, secret string) (uuid.UUID, string, error) {
+// validateJWT returns the tenant ID, session ID, and role embedded in the
+// token. SessionID and Role are empty for tokens issued before those claims
+// existed.
+func validateJWT(tokenStr, secret string) (uuid.UUID, string, string, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -53,15 +59,15 @@ func validateJWT(tokenStr, secret string) (uuid.UUID, string, error) {
 		return []byte(secret), nil
 	})
 	if err != nil {
-		return uuid.Nil, "", err
+		return uuid.Nil, "", "", err
 	}
 
 	claims, ok := token.Claims.(*Claims)
 	if !ok || !token.Valid {
-		return uuid.Nil, "", fmt.Errorf("invalid token claims")
+		return uuid.Nil, "", "", fmt.Errorf("invalid token claims")
 	}
 
-	return claims.TenantID, claims.SessionID, nil
+	return claims.TenantID, claims.SessionID, claims.Role, nil
 }
 
 func GeneratePortalToken(customerID uuid.UUID) (string, error) {
@@ -76,7 +82,7 @@ func GeneratePortalToken(customerID uuid.UUID) (string, error) {
 	return token.SignedString([]byte(secret))
 }
 
-func ValidateRefreshToken(tokenStr string) (uuid.UUID, string, error) {
+func ValidateRefreshToken(tokenStr string) (uuid.UUID, string, string, error) {
 	secret := os.Getenv("JWT_SECRET")
 	return validateJWT(tokenStr, secret)
 }

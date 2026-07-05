@@ -54,6 +54,25 @@ func GetSessionID(ctx context.Context) string {
 	return ""
 }
 
+type memberRoleContextKey string
+
+const memberRoleKey memberRoleContextKey = "member_role"
+
+// WithMemberRole attaches the authenticated member's role to the context.
+func WithMemberRole(ctx context.Context, role string) context.Context {
+	return context.WithValue(ctx, memberRoleKey, role)
+}
+
+// GetMemberRole returns the role claim decoded from the request's JWT, or ""
+// if the request was not JWT-authenticated (e.g. a platform API key request,
+// or a token issued before role embedding existed).
+func GetMemberRole(ctx context.Context) string {
+	if role, ok := ctx.Value(memberRoleKey).(string); ok {
+		return role
+	}
+	return ""
+}
+
 // HashAPIKey produces the SHA-256 hex digest of a plaintext API key.
 func HashAPIKey(key string) string {
 	h := sha256.Sum256([]byte(key))
@@ -107,7 +126,7 @@ func JWTAuth(secret string, tenants domain.TenantRepository, tokens domain.Token
 				return
 			}
 
-			tenantID, sessionID, err := validateJWT(token, secret)
+			tenantID, sessionID, role, err := validateJWT(token, secret)
 			if err != nil {
 				respond.Unauthorised(w, r, "invalid token")
 				return
@@ -128,6 +147,7 @@ func JWTAuth(secret string, tenants domain.TenantRepository, tokens domain.Token
 
 			ctx := context.WithValue(r.Context(), tenantKey, tenant)
 			ctx = WithSessionID(ctx, sessionID)
+			ctx = WithMemberRole(ctx, role)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -156,4 +176,22 @@ func GetTenantEmail(ctx context.Context) string {
 		return t.Email
 	}
 	return ""
+}
+
+// RequireRole restricts a route to the given member roles. It must sit
+// behind JWTAuth, which decodes the role claim into the request context.
+func RequireRole(roles ...string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			role := GetMemberRole(r.Context())
+			for _, allowed := range roles {
+				if role == allowed {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+			respond.Error(w, r, http.StatusForbidden, "insufficient_permissions",
+				"your role does not have permission to perform this action")
+		})
+	}
 }

@@ -29,6 +29,15 @@ export function Topbar() {
         .toUpperCase()
     : "T";
 
+  const roleBadgeColors: Record<string, { bg: string; color: string }> = {
+    owner: { bg: "#E6F8F2", color: "#0F6E56" },
+    admin: { bg: "#EAF2FF", color: "#1D4ED8" },
+    developer: { bg: "#FEF3C7", color: "#B45309" },
+    viewer: { bg: "#F1F3F5", color: "#6B7280" },
+  };
+  const role = tenant?.member_role ?? "owner";
+  const roleColors = roleBadgeColors[role] ?? roleBadgeColors.owner;
+
   return (
     <header
       className="flex items-center justify-between px-6 py-3.5 bg-white border-b"
@@ -88,8 +97,18 @@ export function Topbar() {
             {initials}
           </div>
           <div className="leading-tight">
-            <div className="text-sm font-bold" style={{ color: "#0F1728" }}>
-              {tenant?.name ?? "Loading..."}
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-bold" style={{ color: "#0F1728" }}>
+                {tenant?.name ?? "Loading..."}
+              </span>
+              {tenant && (
+                <span
+                  className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase"
+                  style={{ background: roleColors.bg, color: roleColors.color }}
+                >
+                  {role}
+                </span>
+              )}
             </div>
             <div className="text-xs font-medium" style={{ color: "#9CA3AF" }}>
               {tenant?.email ?? ""}

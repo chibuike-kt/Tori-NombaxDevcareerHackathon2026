@@ -1,16 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   createAPIKey,
   rotateAPIKey,
   createTestAPIKey,
   revokeAPIKey,
   getAPIKeyHints,
+  getMe,
   type APIKeyInfo,
   type APIKeyReveal,
 } from "@/lib/api";
+import { can, type Role } from "@/lib/permissions";
 
 type Mode = "live" | "test";
 
@@ -98,6 +100,7 @@ function ModeKeyCard({
   generating,
   onRevoke,
   revoking,
+  canManage,
 }: {
   mode: Mode;
   info: APIKeyInfo;
@@ -105,6 +108,7 @@ function ModeKeyCard({
   generating: boolean;
   onRevoke: () => void;
   revoking: boolean;
+  canManage: boolean;
 }) {
   const [confirmingRevoke, setConfirmingRevoke] = useState(false);
   const accent = mode === "live" ? "#00B37E" : "#D97706";
@@ -131,29 +135,31 @@ function ModeKeyCard({
             {mode}
           </span>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={onGenerate}
-            disabled={generating}
-            className="text-xs px-3 py-1.5 rounded-lg font-bold border"
-            style={{ borderColor: "#E5E7EB", color: "#6B7280" }}
-          >
-            {generating
-              ? "Generating..."
-              : info.exists
-                ? "Regenerate"
-                : "Generate"}
-          </button>
-          {info.exists && !confirmingRevoke && (
+        {canManage && (
+          <div className="flex gap-2">
             <button
-              onClick={() => setConfirmingRevoke(true)}
+              onClick={onGenerate}
+              disabled={generating}
               className="text-xs px-3 py-1.5 rounded-lg font-bold border"
-              style={{ borderColor: "#FDCACA", color: "#DC2626" }}
+              style={{ borderColor: "#E5E7EB", color: "#6B7280" }}
             >
-              Revoke
+              {generating
+                ? "Generating..."
+                : info.exists
+                  ? "Regenerate"
+                  : "Generate"}
             </button>
-          )}
-        </div>
+            {info.exists && !confirmingRevoke && (
+              <button
+                onClick={() => setConfirmingRevoke(true)}
+                className="text-xs px-3 py-1.5 rounded-lg font-bold border"
+                style={{ borderColor: "#FDCACA", color: "#DC2626" }}
+              >
+                Revoke
+              </button>
+            )}
+          </div>
+        )}
       </div>
       <div className="p-5">
         {confirmingRevoke ? (
@@ -238,6 +244,9 @@ export default function APIKeysPage() {
   );
   const [reveal, setReveal] = useState<APIKeyReveal | null>(null);
   const [loading, setLoading] = useState(true);
+  const { data: meData } = useQuery({ queryKey: ["me"], queryFn: getMe });
+  const role = ((meData?.data?.member_role as Role) || "owner");
+  const canManageAPIKeys = can(role, "manage_api_keys");
 
   const load = () => {
     getAPIKeyHints()
@@ -309,6 +318,7 @@ export default function APIKeysPage() {
             generating={generateLive.isPending}
             onRevoke={() => revokeLive.mutate()}
             revoking={revokeLive.isPending}
+            canManage={canManageAPIKeys}
           />
           <ModeKeyCard
             mode="test"
@@ -317,6 +327,7 @@ export default function APIKeysPage() {
             generating={generateTest.isPending}
             onRevoke={() => revokeTest.mutate()}
             revoking={revokeTest.isPending}
+            canManage={canManageAPIKeys}
           />
         </>
       )}

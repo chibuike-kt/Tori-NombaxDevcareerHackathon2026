@@ -6,15 +6,19 @@ import {
   getEmailTemplates,
   updateEmailTemplate,
   sendTestEmailTemplate,
+  getMe,
   type EmailTemplateConfig,
 } from "@/lib/api";
+import { can, type Role } from "@/lib/permissions";
 
 function EventCard({
   template,
   onOpen,
+  canManage,
 }: {
   template: EmailTemplateConfig;
   onOpen: () => void;
+  canManage: boolean;
 }) {
   const qc = useQueryClient();
 
@@ -55,17 +59,19 @@ function EventCard({
         <span className="text-xs font-semibold" style={{ color: template.is_enabled ? "#0A7A56" : "#9CA3AF" }}>
           {template.is_enabled ? "Enabled" : "Disabled"}
         </span>
-        <button
-          onClick={() => toggleEnabled.mutate()}
-          disabled={toggleEnabled.isPending}
-          className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
-          style={{ background: template.is_enabled ? "#00B37E" : "#E5E7EB" }}
-        >
-          <span
-            className="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"
-            style={{ transform: template.is_enabled ? "translateX(18px)" : "translateX(3px)" }}
-          />
-        </button>
+        {canManage && (
+          <button
+            onClick={() => toggleEnabled.mutate()}
+            disabled={toggleEnabled.isPending}
+            className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+            style={{ background: template.is_enabled ? "#00B37E" : "#E5E7EB" }}
+          >
+            <span
+              className="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"
+              style={{ transform: template.is_enabled ? "translateX(18px)" : "translateX(3px)" }}
+            />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -74,9 +80,11 @@ function EventCard({
 function TemplatePanel({
   template,
   onClose,
+  canManage,
 }: {
   template: EmailTemplateConfig;
   onClose: () => void;
+  canManage: boolean;
 }) {
   const qc = useQueryClient();
   const [useDefault, setUseDefault] = useState(template.use_default);
@@ -131,24 +139,26 @@ function TemplatePanel({
         </div>
         <p className="text-xs font-medium mb-6" style={{ color: "#8A94A6" }}>{template.description}</p>
 
-        <div className="flex items-center rounded-lg p-1 gap-1 mb-5" style={{ background: "#F1F3F5" }}>
-          <button
-            onClick={() => setUseDefault(true)}
-            className="flex-1 text-xs font-bold px-3 py-2 rounded-md"
-            style={{ background: useDefault ? "#0F1728" : "transparent", color: useDefault ? "#fff" : "#6B7280" }}
-          >
-            Use default template
-          </button>
-          <button
-            onClick={() => setUseDefault(false)}
-            className="flex-1 text-xs font-bold px-3 py-2 rounded-md"
-            style={{ background: !useDefault ? "#0F1728" : "transparent", color: !useDefault ? "#fff" : "#6B7280" }}
-          >
-            Customize
-          </button>
-        </div>
+        {canManage && (
+          <div className="flex items-center rounded-lg p-1 gap-1 mb-5" style={{ background: "#F1F3F5" }}>
+            <button
+              onClick={() => setUseDefault(true)}
+              className="flex-1 text-xs font-bold px-3 py-2 rounded-md"
+              style={{ background: useDefault ? "#0F1728" : "transparent", color: useDefault ? "#fff" : "#6B7280" }}
+            >
+              Use default template
+            </button>
+            <button
+              onClick={() => setUseDefault(false)}
+              className="flex-1 text-xs font-bold px-3 py-2 rounded-md"
+              style={{ background: !useDefault ? "#0F1728" : "transparent", color: !useDefault ? "#fff" : "#6B7280" }}
+            >
+              Customize
+            </button>
+          </div>
+        )}
 
-        {!useDefault && (
+        {canManage && !useDefault && (
           <div className="space-y-3 mb-5">
             <div>
               <label className="text-xs font-semibold block mb-1.5" style={{ color: "#4B5563" }}>
@@ -200,22 +210,26 @@ function TemplatePanel({
         )}
 
         <div className="flex gap-2">
-          <button
-            onClick={() => save.mutate()}
-            disabled={save.isPending}
-            className="text-sm px-4 py-2.5 rounded-lg font-bold text-white"
-            style={{ background: save.isPending ? "#9CA3AF" : "#0F1728" }}
-          >
-            {save.isPending ? "Saving..." : "Save"}
-          </button>
-          <button
-            onClick={() => sendTest.mutate()}
-            disabled={sendTest.isPending}
-            className="text-sm px-4 py-2.5 rounded-lg font-bold border"
-            style={{ borderColor: "#E5E7EB", color: testSent ? "#00B37E" : "#6B7280" }}
-          >
-            {sendTest.isPending ? "Sending..." : testSent ? "Sent!" : "Send test email"}
-          </button>
+          {canManage && (
+            <button
+              onClick={() => save.mutate()}
+              disabled={save.isPending}
+              className="text-sm px-4 py-2.5 rounded-lg font-bold text-white"
+              style={{ background: save.isPending ? "#9CA3AF" : "#0F1728" }}
+            >
+              {save.isPending ? "Saving..." : "Save"}
+            </button>
+          )}
+          {canManage && (
+            <button
+              onClick={() => sendTest.mutate()}
+              disabled={sendTest.isPending}
+              className="text-sm px-4 py-2.5 rounded-lg font-bold border"
+              style={{ borderColor: "#E5E7EB", color: testSent ? "#00B37E" : "#6B7280" }}
+            >
+              {sendTest.isPending ? "Sending..." : testSent ? "Sent!" : "Send test email"}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -228,6 +242,9 @@ export default function EmailTemplatesPage() {
     queryFn: getEmailTemplates,
   });
   const [openEvent, setOpenEvent] = useState<string | null>(null);
+  const { data: meData } = useQuery({ queryKey: ["me"], queryFn: getMe });
+  const role = ((meData?.data?.member_role as Role) || "owner");
+  const canManageTemplates = can(role, "manage_email_templates");
 
   const templates = data?.data ?? [];
   const active = templates.find((t) => t.event_type === openEvent) ?? null;
@@ -250,12 +267,12 @@ export default function EmailTemplatesPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {templates.map((t) => (
-            <EventCard key={t.event_type} template={t} onOpen={() => setOpenEvent(t.event_type)} />
+            <EventCard key={t.event_type} template={t} onOpen={() => setOpenEvent(t.event_type)} canManage={canManageTemplates} />
           ))}
         </div>
       )}
 
-      {active && <TemplatePanel template={active} onClose={() => setOpenEvent(null)} />}
+      {active && <TemplatePanel template={active} onClose={() => setOpenEvent(null)} canManage={canManageTemplates} />}
     </div>
   );
 }
