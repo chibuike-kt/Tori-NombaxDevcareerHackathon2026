@@ -289,6 +289,39 @@ export const getSessions = () => api.get<{ data: Session[] }>("/v1/auth/sessions
 export const revokeSession = (id: string) =>
   api.delete<{ data: { status: string } }>(`/v1/auth/sessions/${id}`);
 
+// Promo codes
+export interface PromoCode {
+  id: string;
+  tenant_id: string;
+  code: string;
+  description: string;
+  discount_type: "percentage" | "fixed";
+  discount_value: number;
+  plan_id?: string;
+  max_uses?: number;
+  use_count: number;
+  expires_at?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreatePromoCodeRequest {
+  code: string;
+  description?: string;
+  discount_type: "percentage" | "fixed";
+  discount_value: number;
+  plan_id?: string;
+  max_uses?: number;
+  expires_at?: string;
+}
+
+export const getPromoCodes = () => api.get<{ data: PromoCode[] }>("/v1/promo-codes");
+export const createPromoCode = (body: CreatePromoCodeRequest) =>
+  api.post<{ data: PromoCode }>("/v1/promo-codes", body);
+export const deactivatePromoCode = (id: string) =>
+  api.delete<{ data: PromoCode }>(`/v1/promo-codes/${id}`);
+
 // Me
 export const getMe = () => api.get<{ data: Tenant }>("/v1/me");
 export const updateMe = (name: string, email: string) =>

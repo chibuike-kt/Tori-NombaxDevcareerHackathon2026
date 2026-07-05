@@ -37,6 +37,7 @@ type Deps struct {
 	Audit              domain.AuditRepository
 	APIKeys            domain.APIKeyRepository
 	Sessions           domain.SessionRepository
+	PromoCodes         domain.PromoCodeRepository
 }
 
 // maxBodySize limits request bodies to 1MB to prevent OOM attacks.
@@ -100,9 +101,10 @@ r.Get("/v1/status", systemHealthH.Check)
 	finopsH := handlers.NewFinOpsHandler(finopsSvc, deps.Subscriptions, deps.Customers, deps.Plans)
 	webhookH := handlers.NewWebhookHandler(deps.Webhooks, dispatcher)
 	healthH := handlers.NewHealthHandler(deps.Subscriptions, deps.Plans)
-	checkoutH := handlers.NewCheckoutHandler(deps.Customers, deps.Plans, deps.Subscriptions, deps.Jobs, deps.Payment)
+	checkoutH := handlers.NewCheckoutHandler(deps.Customers, deps.Plans, deps.Subscriptions, deps.Jobs, deps.Payment, deps.PromoCodes)
 	teamH := handlers.NewTeamHandler(deps.Members, deps.Invitations, deps.Audit, deps.Tenants, deps.EmailClient)
 	apiKeyH := handlers.NewAPIKeyHandler(deps.Tenants, deps.APIKeys)
+	promoCodeH := handlers.NewPromoCodeHandler(deps.PromoCodes, deps.Plans)
 
 	// Public routes — no auth
 	r.Post("/v1/auth/register", authH.Register)
@@ -151,6 +153,10 @@ r.Group(func(r chi.Router) {
 		r.Get("/v1/plans/{id}", planH.Get)
 		r.Patch("/v1/plans/{id}", planH.Update)
 		r.Delete("/v1/plans/{id}", planH.Deactivate)
+
+		r.Post("/v1/promo-codes", promoCodeH.Create)
+		r.Get("/v1/promo-codes", promoCodeH.List)
+		r.Delete("/v1/promo-codes/{id}", promoCodeH.Deactivate)
 
 		invoiceH := handlers.NewInvoiceHandler(deps.Invoices)
 		r.Get("/v1/invoices", invoiceH.List)

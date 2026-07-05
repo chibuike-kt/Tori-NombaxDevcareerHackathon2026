@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
@@ -19,11 +20,12 @@ import (
 )
 
 type CheckoutHandler struct {
-	customers domain.CustomerRepository
-	plans     domain.PlanRepository
-	subs      domain.SubscriptionRepository
-	jobs      domain.JobRepository
-	payment   payment.NombaClient
+	customers  domain.CustomerRepository
+	plans      domain.PlanRepository
+	subs       domain.SubscriptionRepository
+	jobs       domain.JobRepository
+	payment    payment.NombaClient
+	promoCodes domain.PromoCodeRepository
 }
 
 func NewCheckoutHandler(
@@ -32,13 +34,15 @@ func NewCheckoutHandler(
 	subs domain.SubscriptionRepository,
 	jobs domain.JobRepository,
 	paymentClient payment.NombaClient,
+	promoCodes domain.PromoCodeRepository,
 ) *CheckoutHandler {
 	return &CheckoutHandler{
-		customers: customers,
-		plans:     plans,
-		subs:      subs,
-		jobs:      jobs,
-		payment:   paymentClient,
+		customers:  customers,
+		plans:      plans,
+		subs:       subs,
+		jobs:       jobs,
+		payment:    paymentClient,
+		promoCodes: promoCodes,
 	}
 }
 
@@ -49,6 +53,7 @@ type checkoutRequest struct {
 	ExternalID     *string `json:"external_id"`
 	IdempotencyKey *string `json:"idempotency_key"`
 	CallbackURL    *string `json:"callback_url"`
+	PromoCode      string  `json:"promo_code,omitempty"`
 }
 
 type checkoutResponse struct {
@@ -57,6 +62,65 @@ type checkoutResponse struct {
 	CustomerCreated       bool                 `json:"customer_created"`
 	CheckoutURL           string               `json:"checkout_url,omitempty"`
 	RequiresPaymentMethod bool                 `json:"requires_payment_method"`
+	PromoApplied          bool                 `json:"promo_applied,omitempty"`
+	DiscountKobo          int64                `json:"discount_kobo,omitempty"`
+	OriginalAmountKobo    int64                `json:"original_amount_kobo,omitempty"`
+	FinalAmountKobo       int64                `json:"final_amount_kobo,omitempty"`
+}
+
+// minChargeKobo is the floor a discounted checkout amount can never drop
+// below — matches the ₦1 trial verification floor used elsewhere.
+const minChargeKobo = 100
+
+// validatePromoCode looks up and validates a promo code against a plan,
+// returning the promo and the discount in kobo it grants against the plan's
+// full price. A nil promo with no error means no code was provided.
+func (h *CheckoutHandler) validatePromoCode(w http.ResponseWriter, r *http.Request, tenantID uuid.UUID, plan *domain.Plan, rawCode string) (promo *domain.PromoCode, discountKobo int64, ok bool) {
+	if rawCode == "" {
+		return nil, 0, true
+	}
+
+	code := strings.ToUpper(strings.TrimSpace(rawCode))
+	p, err := h.promoCodes.GetByCode(r.Context(), tenantID, code)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			respond.BadRequest(w, r, "invalid_promo_code", "promo code does not exist")
+			return nil, 0, false
+		}
+		respond.InternalError(w, r, err)
+		return nil, 0, false
+	}
+
+	if !p.IsActive {
+		respond.BadRequest(w, r, "promo_code_inactive", "this promo code is no longer active")
+		return nil, 0, false
+	}
+	if p.ExpiresAt != nil && time.Now().UTC().After(*p.ExpiresAt) {
+		respond.BadRequest(w, r, "promo_code_expired", "this promo code has expired")
+		return nil, 0, false
+	}
+	if p.MaxUses != nil && p.UseCount >= *p.MaxUses {
+		respond.BadRequest(w, r, "promo_code_depleted", "this promo code has reached its usage limit")
+		return nil, 0, false
+	}
+	if p.PlanID != nil && *p.PlanID != plan.ID {
+		respond.BadRequest(w, r, "promo_code_plan_mismatch", "this promo code does not apply to the selected plan")
+		return nil, 0, false
+	}
+
+	if p.DiscountType == domain.DiscountTypePercentage {
+		discountKobo = plan.Amount * p.DiscountValue / 100
+	} else {
+		discountKobo = p.DiscountValue
+	}
+	if discountKobo > plan.Amount-minChargeKobo {
+		discountKobo = plan.Amount - minChargeKobo
+	}
+	if discountKobo < 0 {
+		discountKobo = 0
+	}
+
+	return p, discountKobo, true
 }
 
 func (h *CheckoutHandler) CreateCheckout(w http.ResponseWriter, r *http.Request) {
@@ -97,6 +161,11 @@ func (h *CheckoutHandler) CreateCheckout(w http.ResponseWriter, r *http.Request)
 	}
 	if !plan.IsActive {
 		respond.UnprocessableEntity(w, r, "plan_inactive", "this plan is no longer accepting new subscriptions")
+		return
+	}
+
+	promo, discountKobo, ok := h.validatePromoCode(w, r, tenantID, plan, req.PromoCode)
+	if !ok {
 		return
 	}
 
@@ -170,6 +239,12 @@ if plan.TrialPeriodDays > 0 {
 		return
 	}
 
+	if promo != nil {
+		if err := h.promoCodes.IncrementUseCount(r.Context(), promo.ID); err != nil {
+			log.Error().Err(err).Str("promo_code", promo.Code).Msg("checkout: failed to increment promo code use count")
+		}
+	}
+
 	// Enqueue trial expiry job so the worker charges the card when trial ends
 	if plan.TrialPeriodDays > 0 && trialEnd != nil {
 		payload, _ := json.Marshal(map[string]string{
@@ -194,9 +269,14 @@ if plan.TrialPeriodDays > 0 {
 	// The card is tokenised but the customer is not really charged the plan amount yet.
 	// The real first charge fires automatically via ExpireTrial when the trial ends.
 	// For no-trial plans, charge the full plan amount immediately — this IS the first payment.
+	// A promo code discounts this immediate charge; it is not (yet) threaded into the
+	// later ExpireTrial charge, since a trial's checkout amount is a flat verification
+	// fee rather than the plan price.
 	checkoutAmount := plan.Amount
 	if plan.TrialPeriodDays > 0 {
 			checkoutAmount = 100 // ₦1 card verification charge during trial — tokenises the card for recurring billing
+	} else if promo != nil {
+		checkoutAmount = plan.Amount - discountKobo
 	}
 
 	// Create Nomba checkout session
@@ -248,13 +328,21 @@ if plan.TrialPeriodDays > 0 {
 		Bool("requires_payment_method", checkoutURL != "").
 		Msg("checkout completed")
 
-	respond.JSON(w, r, http.StatusCreated, checkoutResponse{
+	resp := checkoutResponse{
 		Customer:              customer,
 		Subscription:          sub,
 		CustomerCreated:       customerCreated,
 		CheckoutURL:           checkoutURL,
 		RequiresPaymentMethod: checkoutURL != "",
-	})
+	}
+	if promo != nil {
+		resp.PromoApplied = true
+		resp.DiscountKobo = discountKobo
+		resp.OriginalAmountKobo = plan.Amount
+		resp.FinalAmountKobo = plan.Amount - discountKobo
+	}
+
+	respond.JSON(w, r, http.StatusCreated, resp)
 }
 
 func (h *CheckoutHandler) RegenerateCheckout(w http.ResponseWriter, r *http.Request) {

@@ -29,7 +29,10 @@ const sections: NavSection[] = [
   },
   {
     label: "Catalog",
-    items: [{ href: "/dashboard/plans", label: "Plans", icon: "ti-file-text" }],
+    items: [
+      { href: "/dashboard/plans", label: "Plans", icon: "ti-file-text" },
+      { href: "/dashboard/promo-codes", label: "Promo Codes", icon: "ti-discount" },
+    ],
   },
   {
     label: "Finance",

@@ -355,6 +355,30 @@ type MonthlyRevenueRow struct {
 	Refunded int64
 }
 
+type DiscountType string
+
+const (
+	DiscountTypePercentage DiscountType = "percentage"
+	DiscountTypeFixed      DiscountType = "fixed"
+)
+
+// PromoCode is a tenant-defined discount redeemable at checkout.
+type PromoCode struct {
+	ID            uuid.UUID    `json:"id"`
+	TenantID      uuid.UUID    `json:"tenant_id"`
+	Code          string       `json:"code"`
+	Description   string       `json:"description"`
+	DiscountType  DiscountType `json:"discount_type"`
+	DiscountValue int64        `json:"discount_value"`
+	PlanID        *uuid.UUID   `json:"plan_id,omitempty"`
+	MaxUses       *int         `json:"max_uses,omitempty"`
+	UseCount      int          `json:"use_count"`
+	ExpiresAt     *time.Time   `json:"expires_at,omitempty"`
+	IsActive      bool         `json:"is_active"`
+	CreatedAt     time.Time    `json:"created_at"`
+	UpdatedAt     time.Time    `json:"updated_at"`
+}
+
 // Session is an active login session, tracked in Redis and keyed by a
 // random session ID embedded in both the access and refresh JWTs.
 type Session struct {

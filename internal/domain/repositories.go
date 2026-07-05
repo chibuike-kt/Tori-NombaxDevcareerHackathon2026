@@ -164,6 +164,16 @@ type APIKeyRepository interface {
 	Delete(ctx context.Context, tenantID uuid.UUID, mode string) error
 }
 
+type PromoCodeRepository interface {
+	Create(ctx context.Context, tenantID uuid.UUID, code, description string, discountType DiscountType, discountValue int64, planID *uuid.UUID, maxUses *int, expiresAt *time.Time) (*PromoCode, error)
+	GetByCode(ctx context.Context, tenantID uuid.UUID, code string) (*PromoCode, error)
+	GetByID(ctx context.Context, id, tenantID uuid.UUID) (*PromoCode, error)
+	List(ctx context.Context, tenantID uuid.UUID) ([]*PromoCode, error)
+	IncrementUseCount(ctx context.Context, id uuid.UUID) error
+	Deactivate(ctx context.Context, id, tenantID uuid.UUID) (*PromoCode, error)
+	Delete(ctx context.Context, id, tenantID uuid.UUID) error
+}
+
 type MemberRepository interface {
 	Create(ctx context.Context, tenantID uuid.UUID, email, name string, role MemberRole, status MemberStatus, passwordHash *string) (*Member, error)
 	GetByID(ctx context.Context, id, tenantID uuid.UUID) (*Member, error)

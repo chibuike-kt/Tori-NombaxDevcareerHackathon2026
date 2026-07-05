@@ -129,6 +129,22 @@ type Plan struct {
 	CreatedAt       time.Time   `json:"created_at"`
 }
 
+type PromoCode struct {
+	ID            uuid.UUID          `json:"id"`
+	TenantID      uuid.UUID          `json:"tenant_id"`
+	Code          string             `json:"code"`
+	Description   pgtype.Text        `json:"description"`
+	DiscountType  string             `json:"discount_type"`
+	DiscountValue int64              `json:"discount_value"`
+	PlanID        pgtype.UUID        `json:"plan_id"`
+	MaxUses       pgtype.Int4        `json:"max_uses"`
+	UseCount      int32              `json:"use_count"`
+	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+	IsActive      bool               `json:"is_active"`
+	CreatedAt     time.Time          `json:"created_at"`
+	UpdatedAt     time.Time          `json:"updated_at"`
+}
+
 type ReconciliationRun struct {
 	ID              uuid.UUID       `json:"id"`
 	TenantID        uuid.UUID       `json:"tenant_id"`
