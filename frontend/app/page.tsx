@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { Reveal } from "@/components/reveal";
 import { Counter } from "@/components/counter";
-import { HeroFlowDiagram } from "@/components/hero-flow";
+import { ArchitectureDiagram } from "@/components/architecture-diagram";
+import { StatusBar } from "@/components/status-bar";
+import { ClassPayMock } from "@/components/classpay-mock";
 import { CodeEditor, CodeLine, tok } from "@/components/code-editor";
 
 const HEADLINE_WORDS = [
@@ -70,6 +72,16 @@ const FEATURES = [
     title: "Double-entry ledger",
     desc: "Append-only. Every charge, refund, and proration writes one immutable row. Nothing is edited.",
   },
+];
+
+const COMPARISON = [
+  { feature: "Subscription state machine", diy: "Weeks to build, easy to corrupt", tori: "9 states, pure function, unit tested" },
+  { feature: "Dunning retries", diy: "Blind exponential backoff", tori: "Payday-aligned: Day 3, 7, 14, 21" },
+  { feature: "Nigerian card failure handling", diy: "Generic error, silent churn", tori: "ISO-8583 failure codes classified" },
+  { feature: "Financial ledger", diy: "Usually an afterthought", tori: "Double-entry, append-only, immutable" },
+  { feature: "Test/live isolation", diy: "Environment variables and prayer", tori: "tori_test_ hits sandbox, tori_live_ hits production" },
+  { feature: "Recovery Command Center", diy: "Not built", tori: "At-risk, recovering, recovered — live" },
+  { feature: "Time to first subscription", diy: "Weeks", tori: "One API call" },
 ];
 
 const NUMBERS = [
@@ -209,6 +221,16 @@ export default function LandingPage() {
             <a href="#how" className="text-[15px] font-semibold" style={{ color: "#0F1728" }}>How it works</a>
             <a href="#features" className="text-[15px] font-semibold" style={{ color: "#0F1728" }}>Features</a>
             <Link href="/docs" className="text-[15px] font-semibold" style={{ color: "#0F1728" }}>Docs</Link>
+            <a
+              href="/openapi.json"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full"
+              style={{ background: "#E6F8F2", color: "#0F6E56" }}
+              title="Download the OpenAPI spec"
+            >
+              <i className="ti ti-file-code" style={{ fontSize: 12 }} /> API
+            </a>
           </div>
           <div className="flex items-center gap-3">
             <Link href="/login" className="text-[15px] font-semibold hidden sm:block" style={{ color: "#0F1728" }}>Log in</Link>
@@ -264,7 +286,7 @@ export default function LandingPage() {
         </div>
 
         <Reveal delay={100}>
-          <HeroFlowDiagram />
+          <ArchitectureDiagram />
         </Reveal>
       </section>
 
@@ -402,6 +424,47 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ClassPay case study */}
+      <section id="classpay" className="px-6 lg:px-10 py-12 lg:py-20" style={{ background: "#FAFAF8" }}>
+        <div className="section-container">
+          <Reveal>
+            <div className="text-sm font-bold uppercase tracking-wider mb-3" style={{ color: "#00B37E" }}>Case study</div>
+            <h2 className="text-3xl lg:text-4xl font-extrabold mb-12" style={{ color: "#0F1728", letterSpacing: "-0.02em" }}>
+              See it in production.
+            </h2>
+          </Reveal>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+            <Reveal>
+              <div className="flex items-center gap-2.5 mb-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "#E6F8F2" }}>
+                  <i className="ti ti-school" style={{ fontSize: 18, color: "#00B37E" }} />
+                </div>
+                <h3 className="text-xl font-extrabold" style={{ color: "#0F1728" }}>ClassPay</h3>
+              </div>
+              <p className="text-base mb-3" style={{ color: "#4B5563", lineHeight: 1.6 }}>
+                A school management SaaS that handles billing for hundreds of schools across Nigeria.
+              </p>
+              <p className="text-sm font-semibold mb-6" style={{ color: "#00B37E" }}>
+                Integration: 60 lines of code. Zero billing logic written.
+              </p>
+              <div className="grid grid-cols-3 gap-3 mb-8">
+                {["60 lines", "0 billing bugs", "₦0 in engineering time"].map((s) => (
+                  <div key={s} className="rounded-lg px-3 py-3 text-center bg-white border" style={{ borderColor: "#E5E7EB" }}>
+                    <span className="text-[13px] font-extrabold leading-tight" style={{ color: "#0F1728" }}>{s}</span>
+                  </div>
+                ))}
+              </div>
+              <a href="#classpay" className="inline-flex items-center gap-1.5 text-sm font-bold" style={{ color: "#00B37E" }}>
+                Try the demo <i className="ti ti-arrow-right" />
+              </a>
+            </Reveal>
+            <Reveal delay={120}>
+              <ClassPayMock />
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
       {/* Features grid */}
       <section id="features" className="px-6 lg:px-10 py-12 lg:py-20 section-container">
         <Reveal>
@@ -426,6 +489,64 @@ export default function LandingPage() {
             </Reveal>
           ))}
         </div>
+      </section>
+
+      {/* Built different — comparison table */}
+      <section className="px-6 lg:px-10 py-12 lg:py-20 section-container">
+        <Reveal>
+          <div className="text-sm font-bold uppercase tracking-wider mb-3" style={{ color: "#00B37E" }}>Built different</div>
+          <h2 className="text-3xl lg:text-4xl font-extrabold mb-10" style={{ color: "#0F1728", letterSpacing: "-0.02em" }}>
+            Built for the billing problem, not bolted onto it.
+          </h2>
+        </Reveal>
+        <Reveal delay={80}>
+          <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "#E5E7EB" }}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[640px]">
+                <thead>
+                  <tr>
+                    <th className="text-left px-5 py-4" style={{ background: "#F8FAFC" }} />
+                    <th className="text-left px-5 py-4 font-bold" style={{ color: "#94A3B8", background: "#F8FAFC" }}>
+                      Build it yourself
+                    </th>
+                    <th className="text-left px-5 py-4" style={{ background: "#F8FAFC" }}>
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold" style={{ color: "#0F1728", borderBottom: "2px solid #00B37E", paddingBottom: 2 }}>
+                          Tori
+                        </span>
+                        <span
+                          className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full"
+                          style={{ background: "#E6F8F2", color: "#00B37E" }}
+                        >
+                          Recommended
+                        </span>
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {COMPARISON.map((row, i) => (
+                    <tr key={row.feature} style={{ background: i % 2 === 1 ? "#F8FAFC" : "#fff" }}>
+                      <td className="px-5 py-4 font-semibold align-top" style={{ color: "#64748B" }}>{row.feature}</td>
+                      <td className="px-5 py-4 align-top" style={{ color: "#94A3B8" }}>
+                        <span className="flex items-start gap-1.5">
+                          {row.diy === "Not built" && <span style={{ color: "#DC2626" }}>✗</span>}
+                          <span>{row.diy}</span>
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 font-bold align-top" style={{ color: "#0F1728" }}>
+                        <span className="flex items-start gap-1.5">
+                          <span style={{ color: "#00B37E" }}>✓</span>
+                          <span>{row.tori}</span>
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Reveal>
       </section>
 
       {/* The numbers */}
@@ -483,6 +604,8 @@ export default function LandingPage() {
           </div>
         </Reveal>
       </section>
+
+      <StatusBar />
 
       <footer className="border-t" style={{ borderColor: "#E5E7EB" }}>
         <div className="section-container px-6 lg:px-10 py-10 grid grid-cols-2 lg:grid-cols-5 gap-8">

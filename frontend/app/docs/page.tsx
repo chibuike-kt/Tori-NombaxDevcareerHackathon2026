@@ -562,7 +562,10 @@ export default function DocsPage() {
         <div style={{ borderTop: "1px solid #F0F0F0" }}>
           <div className="max-w-6xl mx-auto px-6 py-5 flex flex-wrap gap-4 justify-between items-center">
             <span className="text-[13px]" style={{ color: "#9CA3AF" }}>2026 Tori · Built on Nomba · Nomba × DevCareer Hackathon 2026</span>
-            <div className="flex gap-4">
+            <div className="flex gap-4 items-center">
+              <a href="/openapi.json" download className="text-[13px] font-medium flex items-center gap-1.5" style={{ color: "#9CA3AF" }}>
+                <i className="ti ti-download" style={{ fontSize: 14 }} /> Download OpenAPI spec
+              </a>
               <a href="https://github.com/chibuike-kt" className="text-[13px] font-medium" style={{ color: "#9CA3AF" }}>GitHub</a>
               <a href="#" className="text-[13px] font-medium" style={{ color: "#9CA3AF" }}>Twitter</a>
             </div>
