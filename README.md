@@ -3,11 +3,13 @@
 > The managed subscriptions layer that Nomba does not ship.
 > Built for the **Nomba × DevCareer Hackathon 2026** by Kingsley Chibueze ([@chibuike_kt](https://twitter.com/chibuike_kt))
 
+[![License](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat&logo=go)](https://go.dev)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat&logo=next.js)](https://nextjs.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791?style=flat&logo=postgresql)](https://postgresql.org)
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat&logo=redis)](https://redis.io)
 [![Railway](https://img.shields.io/badge/Deployed-Railway-7B2FBE?style=flat)](https://railway.app)
+[![Built on Nomba](https://img.shields.io/badge/built%20on-Nomba-00B37E?style=flat)](https://nomba.com)
 
 ---
 
