@@ -89,6 +89,7 @@ deps := api.Deps{
     Jobs:               postgres.NewJobRepo(pool),
     Webhooks:           postgres.NewWebhookRepo(pool),
     Tokens:             tokenStore,
+    Sessions:           tokenStore,
     Payment:            paymentClient,
     EmailVerifications: postgres.NewEmailVerificationRepo(pool),
 		Members:     postgres.NewMemberRepo(pool),

@@ -36,6 +36,7 @@ type Deps struct {
 	Invitations        domain.InvitationRepository
 	Audit              domain.AuditRepository
 	APIKeys            domain.APIKeyRepository
+	Sessions           domain.SessionRepository
 }
 
 // maxBodySize limits request bodies to 1MB to prevent OOM attacks.
@@ -88,7 +89,7 @@ r.Get("/health", systemHealthH.Check)
 r.Get("/v1/status", systemHealthH.Check)
 
 	// Handlers
-	authH := handlers.NewAuthHandler(deps.Tenants, deps.Tokens, deps.EmailVerifications, deps.EmailClient, deps.Members, deps.APIKeys)
+	authH := handlers.NewAuthHandler(deps.Tenants, deps.Tokens, deps.Sessions, deps.EmailVerifications, deps.EmailClient, deps.Members, deps.APIKeys)
 	planH := handlers.NewPlanHandler(deps.Plans)
 	customerH := handlers.NewCustomerHandler(deps.Customers)
 	dispatcher := webhook.NewDispatcher(deps.Webhooks, deps.Jobs)
@@ -118,7 +119,7 @@ r.Group(func(r chi.Router) {
 
 	// Dashboard API — JWT auth + per-tenant rate limiting
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.JWTAuth(jwtSecret, deps.Tenants, deps.Tokens))
+		r.Use(middleware.JWTAuth(jwtSecret, deps.Tenants, deps.Tokens, deps.Sessions))
 		r.Use(tenantRateLimiter(300)) // 300 req/min per tenant
 
 		r.Get("/v1/me", authH.Me)
@@ -128,6 +129,8 @@ r.Group(func(r chi.Router) {
 
 		r.Post("/v1/auth/verify-email", authH.VerifyEmail)
 		r.Post("/v1/auth/resend-verification", authH.ResendVerification)
+		r.Get("/v1/auth/sessions", authH.ListSessions)
+		r.Delete("/v1/auth/sessions/{id}", authH.RevokeSession)
 
 		r.Post("/v1/checkout", checkoutH.CreateCheckout)
 

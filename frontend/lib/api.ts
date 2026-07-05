@@ -275,6 +275,20 @@ export const getAPIKeyHints = () =>
 export const revokeAPIKey = (mode: "live" | "test") =>
   api.delete<{ data: { status: string } }>(`/v1/api-keys/${mode}`);
 
+// Sessions
+export interface Session {
+  id: string;
+  ip_address: string;
+  user_agent: string;
+  created_at: string;
+  last_seen_at: string;
+  is_current: boolean;
+}
+
+export const getSessions = () => api.get<{ data: Session[] }>("/v1/auth/sessions");
+export const revokeSession = (id: string) =>
+  api.delete<{ data: { status: string } }>(`/v1/auth/sessions/${id}`);
+
 // Me
 export const getMe = () => api.get<{ data: Tenant }>("/v1/me");
 export const updateMe = (name: string, email: string) =>

@@ -355,6 +355,17 @@ type MonthlyRevenueRow struct {
 	Refunded int64
 }
 
+// Session is an active login session, tracked in Redis and keyed by a
+// random session ID embedded in both the access and refresh JWTs.
+type Session struct {
+	ID         string    `json:"id"`
+	TenantID   uuid.UUID `json:"tenant_id"`
+	IPAddress  string    `json:"ip_address"`
+	UserAgent  string    `json:"user_agent"`
+	CreatedAt  time.Time `json:"created_at"`
+	LastSeenAt time.Time `json:"last_seen_at"`
+}
+
 // SubscriptionTransition is an audit-trail row recorded automatically every
 // time a subscription's status changes.
 type SubscriptionTransition struct {

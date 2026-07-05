@@ -15,16 +15,19 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/email"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/crypto/argon2"
 )
 
 const maxLoginAttempts = 5
+const sessionTTL = 7 * 24 * time.Hour
 
 type AuthHandler struct {
 	tenants            domain.TenantRepository
 	tokens             domain.TokenRevoker
+	sessions           domain.SessionRepository
 	emailVerifications domain.EmailVerificationRepository
 	emailClient        *email.ResendClient
 	members            domain.MemberRepository
@@ -34,6 +37,7 @@ type AuthHandler struct {
 func NewAuthHandler(
 	tenants domain.TenantRepository,
 	tokens domain.TokenRevoker,
+	sessions domain.SessionRepository,
 	emailVerifications domain.EmailVerificationRepository,
 	emailClient *email.ResendClient,
 	members domain.MemberRepository,
@@ -42,11 +46,24 @@ func NewAuthHandler(
 	return &AuthHandler{
 		tenants:            tenants,
 		tokens:             tokens,
+		sessions:           sessions,
 		emailVerifications: emailVerifications,
 		emailClient:        emailClient,
 		members:            members,
 		apiKeys:            apiKeys,
 	}
+}
+
+// generateSessionID creates a random, opaque session identifier embedded in
+// both the access and refresh JWTs at issuance. It is not derived from the
+// token itself, so a session can be listed and revoked without ever storing
+// raw tokens.
+func generateSessionID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 // generateVerificationCode generates a cryptographically random 6-digit code.
@@ -178,15 +195,25 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	accessToken, err := middleware.GenerateJWT(tenant.ID)
+	sessionID, err := generateSessionID()
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}
-	refreshToken, err := middleware.GenerateRefreshToken(tenant.ID)
+
+	accessToken, err := middleware.GenerateJWT(tenant.ID, sessionID)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
+	}
+	refreshToken, err := middleware.GenerateRefreshToken(tenant.ID, sessionID)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	if err := h.sessions.Create(r.Context(), tenant.ID, sessionID, r.RemoteAddr, r.Header.Get("User-Agent"), sessionTTL); err != nil {
+		log.Error().Err(err).Str("tenant_id", tenant.ID.String()).Msg("auth: failed to create session record")
 	}
 
 	log.Info().
@@ -247,15 +274,31 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	h.tokens.ClearLoginFailures(r.Context(), body.Email)
 
-	accessToken, err := middleware.GenerateJWT(tenant.ID)
+	if ownerMember, err := h.members.GetByEmail(r.Context(), tenant.ID, tenant.Email); err == nil {
+		if err := h.members.UpdateLastLogin(r.Context(), ownerMember.ID); err != nil {
+			log.Error().Err(err).Str("member_id", ownerMember.ID.String()).Msg("auth: failed to update member last_login_at")
+		}
+	}
+
+	sessionID, err := generateSessionID()
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}
-	refreshToken, err := middleware.GenerateRefreshToken(tenant.ID)
+
+	accessToken, err := middleware.GenerateJWT(tenant.ID, sessionID)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
+	}
+	refreshToken, err := middleware.GenerateRefreshToken(tenant.ID, sessionID)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	if err := h.sessions.Create(r.Context(), tenant.ID, sessionID, r.RemoteAddr, r.Header.Get("User-Agent"), sessionTTL); err != nil {
+		log.Error().Err(err).Str("tenant_id", tenant.ID.String()).Msg("auth: failed to create session record")
 	}
 
 	respond.JSON(w, r, http.StatusOK, map[string]interface{}{
@@ -302,15 +345,29 @@ func (h *AuthHandler) loginAsMember(w http.ResponseWriter, r *http.Request, emai
 
 	h.tokens.ClearLoginFailures(r.Context(), emailAddr)
 
-	accessToken, err := middleware.GenerateJWT(member.TenantID)
+	if err := h.members.UpdateLastLogin(r.Context(), member.ID); err != nil {
+		log.Error().Err(err).Str("member_id", member.ID.String()).Msg("auth: failed to update member last_login_at")
+	}
+
+	sessionID, err := generateSessionID()
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}
-	refreshToken, err := middleware.GenerateRefreshToken(member.TenantID)
+
+	accessToken, err := middleware.GenerateJWT(member.TenantID, sessionID)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
+	}
+	refreshToken, err := middleware.GenerateRefreshToken(member.TenantID, sessionID)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	if err := h.sessions.Create(r.Context(), member.TenantID, sessionID, r.RemoteAddr, r.Header.Get("User-Agent"), sessionTTL); err != nil {
+		log.Error().Err(err).Str("tenant_id", member.TenantID.String()).Msg("auth: failed to create session record")
 	}
 
 	respond.JSON(w, r, http.StatusOK, map[string]interface{}{
@@ -334,21 +391,32 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenantID, err := middleware.ValidateRefreshToken(body.RefreshToken)
+	tenantID, sessionID, err := middleware.ValidateRefreshToken(body.RefreshToken)
 	if err != nil {
 		respond.Unauthorised(w, r, "invalid or expired refresh token")
 		return
 	}
 
-	accessToken, err := middleware.GenerateJWT(tenantID)
+	if sessionID != "" && !h.sessions.IsActive(r.Context(), tenantID, sessionID) {
+		respond.Unauthorised(w, r, "session has been revoked")
+		return
+	}
+
+	accessToken, err := middleware.GenerateJWT(tenantID, sessionID)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}
-	newRefresh, err := middleware.GenerateRefreshToken(tenantID)
+	newRefresh, err := middleware.GenerateRefreshToken(tenantID, sessionID)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
+	}
+
+	if sessionID != "" {
+		if err := h.sessions.Touch(r.Context(), tenantID, sessionID); err != nil {
+			log.Error().Err(err).Str("tenant_id", tenantID.String()).Msg("auth: failed to touch session")
+		}
 	}
 
 	respond.JSON(w, r, http.StatusOK, map[string]string{
@@ -372,9 +440,69 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tenantID := middleware.GetTenantID(r.Context())
+	if sessionID := middleware.GetSessionID(r.Context()); sessionID != "" {
+		if err := h.sessions.RevokeSession(r.Context(), tenantID, sessionID); err != nil {
+			log.Error().Err(err).Str("tenant_id", tenantID.String()).Msg("auth: failed to revoke session on logout")
+		}
+	}
+
 	respond.JSON(w, r, http.StatusOK, map[string]string{
 		"message": "logged out successfully",
 	})
+}
+
+// ListSessions handles GET /v1/auth/sessions — active login sessions for the
+// authenticated tenant, newest-active first.
+func (h *AuthHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	currentSessionID := middleware.GetSessionID(r.Context())
+
+	sessions, err := h.sessions.List(r.Context(), tenantID)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	type sessionResponse struct {
+		ID         string    `json:"id"`
+		IPAddress  string    `json:"ip_address"`
+		UserAgent  string    `json:"user_agent"`
+		CreatedAt  time.Time `json:"created_at"`
+		LastSeenAt time.Time `json:"last_seen_at"`
+		IsCurrent  bool      `json:"is_current"`
+	}
+
+	out := make([]sessionResponse, len(sessions))
+	for i, s := range sessions {
+		out[i] = sessionResponse{
+			ID:         s.ID,
+			IPAddress:  s.IPAddress,
+			UserAgent:  s.UserAgent,
+			CreatedAt:  s.CreatedAt,
+			LastSeenAt: s.LastSeenAt,
+			IsCurrent:  s.ID == currentSessionID,
+		}
+	}
+
+	respond.JSON(w, r, http.StatusOK, out)
+}
+
+// RevokeSession handles DELETE /v1/auth/sessions/{id}.
+func (h *AuthHandler) RevokeSession(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	sessionID := chi.URLParam(r, "id")
+	if sessionID == "" {
+		respond.BadRequest(w, r, "invalid_id", "session ID is required")
+		return
+	}
+
+	if err := h.sessions.RevokeSession(r.Context(), tenantID, sessionID); err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, map[string]string{"status": "revoked"})
 }
 
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {

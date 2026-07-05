@@ -117,6 +117,10 @@ func (r *MemberRepo) UpdateStatus(ctx context.Context, id, tenantID uuid.UUID, s
 	return memberFromRow(row), nil
 }
 
+func (r *MemberRepo) UpdateLastLogin(ctx context.Context, id uuid.UUID) error {
+	return r.q.UpdateMemberLastLogin(ctx, id)
+}
+
 func (r *MemberRepo) Delete(ctx context.Context, id, tenantID uuid.UUID) error {
 	return r.q.DeleteMember(ctx, db.DeleteMemberParams{ID: id, TenantID: tenantID})
 }

@@ -3,24 +3,63 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
-const nav = [
-  { href: "/dashboard", label: "Overview", icon: "ti-layout-dashboard" },
+type NavItem = { href: string; label: string; icon: string };
+type NavSection = { label: string | null; items: NavItem[] };
+
+const sections: NavSection[] = [
   {
-    href: "/dashboard/subscriptions",
-    label: "Subscriptions",
-    icon: "ti-refresh",
+    label: null,
+    items: [
+      { href: "/dashboard", label: "Overview", icon: "ti-layout-dashboard" },
+    ],
   },
-  { href: "/dashboard/health", label: "Billing health", icon: "ti-heartbeat" },
-  { href: "/dashboard/recovery", label: "Recovery", icon: "ti-refresh-alert" },
-  { href: "/dashboard/customers", label: "Customers", icon: "ti-users" },
-  { href: "/dashboard/plans", label: "Plans", icon: "ti-file-text" },
-  { href: "/dashboard/invoices", label: "Invoices", icon: "ti-receipt" },
-  { href: "/dashboard/finance", label: "Finance", icon: "ti-chart-bar" },
-  { href: "/dashboard/webhooks", label: "Webhooks", icon: "ti-webhook" },
-  { href: "/dashboard/api-keys", label: "API Keys", icon: "ti-key" },
-  { href: "/dashboard/settings", label: "Settings", icon: "ti-settings" },
-  { href: "/dashboard/team", label: "Team & Roles", icon: "ti-users-group" },
+  {
+    label: "Billing",
+    items: [
+      { href: "/dashboard/subscriptions", label: "Subscriptions", icon: "ti-refresh" },
+      { href: "/dashboard/health", label: "Billing health", icon: "ti-heartbeat" },
+      { href: "/dashboard/recovery", label: "Recovery", icon: "ti-refresh-alert" },
+    ],
+  },
+  {
+    label: "Customers",
+    items: [
+      { href: "/dashboard/customers", label: "Customers", icon: "ti-users" },
+    ],
+  },
+  {
+    label: "Catalog",
+    items: [{ href: "/dashboard/plans", label: "Plans", icon: "ti-file-text" }],
+  },
+  {
+    label: "Finance",
+    items: [
+      { href: "/dashboard/invoices", label: "Invoices", icon: "ti-receipt" },
+      { href: "/dashboard/finance", label: "Finance", icon: "ti-chart-bar" },
+    ],
+  },
+  {
+    label: "Developers",
+    items: [
+      { href: "/dashboard/webhooks", label: "Webhooks", icon: "ti-webhook" },
+      { href: "/dashboard/api-keys", label: "API Keys", icon: "ti-key" },
+      { href: "/docs", label: "Documentation", icon: "ti-book" },
+    ],
+  },
+  {
+    label: "Settings",
+    items: [
+      { href: "/dashboard/settings", label: "Settings", icon: "ti-settings" },
+      { href: "/dashboard/team", label: "Team & Roles", icon: "ti-users-group" },
+      { href: "/dashboard/security", label: "Security", icon: "ti-shield-lock" },
+    ],
+  },
 ];
+
+function isNavActive(pathname: string, href: string): boolean {
+  if (href === "/dashboard") return pathname === href;
+  return pathname === href || pathname.startsWith(href + "/");
+}
 
 export function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
@@ -98,47 +137,37 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
       </div>
 
       <nav className="flex-1 py-4 px-2 overflow-y-auto">
-        {nav.map(({ href, label, icon }) => {
-          const isExact = pathname === href;
-          const isActive =
-            href === "/dashboard"
-              ? isExact
-              : pathname === href || pathname.startsWith(href + "/");
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={handleNav}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm mb-0.5"
-              style={{
-                color: isActive ? "#00B37E" : "#4B5563",
-                background: isActive ? "#E6F8F2" : "transparent",
-                fontWeight: isActive ? 700 : 500,
-              }}
-            >
-              <i className={`ti ${icon}`} style={{ fontSize: 18 }} />
-              {label}
-            </Link>
-          );
-        })}
-
-        <div className="mt-3 pt-3 border-t" style={{ borderColor: "#F0F0F0" }}>
-          <Link
-            href="/docs"
-            onClick={handleNav}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm"
-            style={{
-              color: pathname.startsWith("/docs") ? "#00B37E" : "#4B5563",
-              background: pathname.startsWith("/docs")
-                ? "#E6F8F2"
-                : "transparent",
-              fontWeight: pathname.startsWith("/docs") ? 700 : 500,
-            }}
-          >
-            <i className="ti ti-book" style={{ fontSize: 18 }} />
-            Documentation
-          </Link>
-        </div>
+        {sections.map((section, i) => (
+          <div key={section.label ?? `section-${i}`} className={i > 0 ? "mt-4" : ""}>
+            {section.label && (
+              <div
+                className="px-3 mb-1.5 text-[10px] font-bold tracking-wider uppercase"
+                style={{ color: "#9CA3AF" }}
+              >
+                {section.label}
+              </div>
+            )}
+            {section.items.map(({ href, label, icon }) => {
+              const isActive = isNavActive(pathname, href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={handleNav}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm mb-0.5"
+                  style={{
+                    color: isActive ? "#00B37E" : "#4B5563",
+                    background: isActive ? "#E6F8F2" : "transparent",
+                    fontWeight: isActive ? 700 : 500,
+                  }}
+                >
+                  <i className={`ti ${icon}`} style={{ fontSize: 18 }} />
+                  {label}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       <div

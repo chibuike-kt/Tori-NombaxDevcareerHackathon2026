@@ -10,14 +10,16 @@ import (
 )
 
 type Claims struct {
-	TenantID uuid.UUID `json:"tenant_id"`
+	TenantID  uuid.UUID `json:"tenant_id"`
+	SessionID string    `json:"session_id,omitempty"`
 	jwt.RegisteredClaims
 }
 
-func GenerateJWT(tenantID uuid.UUID) (string, error) {
+func GenerateJWT(tenantID uuid.UUID, sessionID string) (string, error) {
 	secret := os.Getenv("JWT_SECRET")
 	claims := Claims{
-		TenantID: tenantID,
+		TenantID:  tenantID,
+		SessionID: sessionID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -27,10 +29,11 @@ func GenerateJWT(tenantID uuid.UUID) (string, error) {
 	return token.SignedString([]byte(secret))
 }
 
-func GenerateRefreshToken(tenantID uuid.UUID) (string, error) {
+func GenerateRefreshToken(tenantID uuid.UUID, sessionID string) (string, error) {
 	secret := os.Getenv("JWT_SECRET")
 	claims := Claims{
-		TenantID: tenantID,
+		TenantID:  tenantID,
+		SessionID: sessionID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -40,7 +43,9 @@ func GenerateRefreshToken(tenantID uuid.UUID) (string, error) {
 	return token.SignedString([]byte(secret))
 }
 
-func validateJWT(tokenStr, secret string) (uuid.UUID, error) {
+// validateJWT returns the tenant ID and session ID embedded in the token.
+// SessionID is empty for tokens issued before session tracking existed.
+func validateJWT(tokenStr, secret string) (uuid.UUID, string, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -48,15 +53,15 @@ func validateJWT(tokenStr, secret string) (uuid.UUID, error) {
 		return []byte(secret), nil
 	})
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, "", err
 	}
 
 	claims, ok := token.Claims.(*Claims)
 	if !ok || !token.Valid {
-		return uuid.Nil, fmt.Errorf("invalid token claims")
+		return uuid.Nil, "", fmt.Errorf("invalid token claims")
 	}
 
-	return claims.TenantID, nil
+	return claims.TenantID, claims.SessionID, nil
 }
 
 func GeneratePortalToken(customerID uuid.UUID) (string, error) {
@@ -71,7 +76,7 @@ func GeneratePortalToken(customerID uuid.UUID) (string, error) {
 	return token.SignedString([]byte(secret))
 }
 
-func ValidateRefreshToken(tokenStr string) (uuid.UUID, error) {
+func ValidateRefreshToken(tokenStr string) (uuid.UUID, string, error) {
 	secret := os.Getenv("JWT_SECRET")
 	return validateJWT(tokenStr, secret)
 }

@@ -16,6 +16,16 @@ type TokenRevoker interface {
 	ClearLoginFailures(ctx context.Context, email string)
 }
 
+// SessionRepository tracks active login sessions per tenant in Redis so they
+// can be listed and individually revoked from the dashboard.
+type SessionRepository interface {
+	Create(ctx context.Context, tenantID uuid.UUID, sessionID, ipAddress, userAgent string, ttl time.Duration) error
+	Touch(ctx context.Context, tenantID uuid.UUID, sessionID string) error
+	IsActive(ctx context.Context, tenantID uuid.UUID, sessionID string) bool
+	List(ctx context.Context, tenantID uuid.UUID) ([]*Session, error)
+	RevokeSession(ctx context.Context, tenantID uuid.UUID, sessionID string) error
+}
+
 type TenantRepository interface {
 	Create(ctx context.Context, name, email, apiKeyHash, webhookSecret string, config DunningConfig) (*Tenant, error)
 	SetPassword(ctx context.Context, id uuid.UUID, passwordHash string) error
@@ -162,6 +172,7 @@ type MemberRepository interface {
 	List(ctx context.Context, tenantID uuid.UUID) ([]*Member, error)
 	UpdateRole(ctx context.Context, id, tenantID uuid.UUID, role MemberRole) (*Member, error)
 	UpdateStatus(ctx context.Context, id, tenantID uuid.UUID, status MemberStatus) (*Member, error)
+	UpdateLastLogin(ctx context.Context, id uuid.UUID) error
 	Delete(ctx context.Context, id, tenantID uuid.UUID) error
 }
 

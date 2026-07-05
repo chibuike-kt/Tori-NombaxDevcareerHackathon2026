@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	apicontext "github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/context"
+	"github.com/rs/zerolog/log"
 )
 
 const apiVersion = "2026-06-01"
@@ -74,6 +75,7 @@ func BadRequest(w http.ResponseWriter, r *http.Request, code, message string) {
 }
 
 func InternalError(w http.ResponseWriter, r *http.Request, err error) {
+	log.Error().Err(err).Str("request_id", apicontext.GetRequestID(r.Context())).Msg("internal error")
 	Error(w, r, http.StatusInternalServerError, "internal_error", "an unexpected error occurred")
 }
 

@@ -36,6 +36,24 @@ func GetAPIKeyMode(ctx context.Context) string {
 	return "live"
 }
 
+type sessionIDContextKey string
+
+const sessionIDKey sessionIDContextKey = "session_id"
+
+// WithSessionID attaches the current request's session ID to the context.
+func WithSessionID(ctx context.Context, sessionID string) context.Context {
+	return context.WithValue(ctx, sessionIDKey, sessionID)
+}
+
+// GetSessionID returns the session ID for the current request, or "" if the
+// request was not authenticated via a session-tracked JWT.
+func GetSessionID(ctx context.Context) string {
+	if id, ok := ctx.Value(sessionIDKey).(string); ok {
+		return id
+	}
+	return ""
+}
+
 // HashAPIKey produces the SHA-256 hex digest of a plaintext API key.
 func HashAPIKey(key string) string {
 	h := sha256.Sum256([]byte(key))
@@ -73,7 +91,7 @@ func APIKeyAuth(tenants domain.TenantRepository, apiKeys domain.APIKeyRepository
 	}
 }
 
-func JWTAuth(secret string, tenants domain.TenantRepository, tokens domain.TokenRevoker) func(http.Handler) http.Handler {
+func JWTAuth(secret string, tenants domain.TenantRepository, tokens domain.TokenRevoker, sessions domain.SessionRepository) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			header := r.Header.Get("Authorization")
@@ -89,9 +107,16 @@ func JWTAuth(secret string, tenants domain.TenantRepository, tokens domain.Token
 				return
 			}
 
-			tenantID, err := validateJWT(token, secret)
+			tenantID, sessionID, err := validateJWT(token, secret)
 			if err != nil {
 				respond.Unauthorised(w, r, "invalid token")
+				return
+			}
+
+			// Empty sessionID means the token predates session tracking —
+			// let it through rather than force-logging out existing users.
+			if sessionID != "" && !sessions.IsActive(r.Context(), tenantID, sessionID) {
+				respond.Unauthorised(w, r, "session has been revoked")
 				return
 			}
 
@@ -102,6 +127,7 @@ func JWTAuth(secret string, tenants domain.TenantRepository, tokens domain.Token
 			}
 
 			ctx := context.WithValue(r.Context(), tenantKey, tenant)
+			ctx = WithSessionID(ctx, sessionID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
