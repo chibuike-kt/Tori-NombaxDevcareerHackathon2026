@@ -232,9 +232,11 @@ r.Group(func(r chi.Router) {
 		r.Get("/v1/platform/customers/{id}/portal-token", customerH.GeneratePortalToken)
 
 		r.Post("/v1/platform/plans", planH.Create)
+		r.Get("/v1/platform/plans", planH.List)
 		r.Get("/v1/platform/plans/{id}", planH.Get)
 
 		r.Post("/v1/platform/subscriptions", subH.Create)
+		r.Get("/v1/platform/subscriptions", subH.List)
 		r.Get("/v1/platform/subscriptions/{id}", subH.Get)
 		r.Post("/v1/platform/subscriptions/{id}/cancel", subH.Cancel)
 		r.Post("/v1/platform/subscriptions/{id}/pause", subH.Pause)
