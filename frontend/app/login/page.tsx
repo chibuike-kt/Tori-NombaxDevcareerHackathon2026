@@ -113,6 +113,49 @@ export default function LoginPage() {
             >
               {loading ? "Signing in..." : "Login"}
             </button>
+
+            <div className="flex items-center gap-3 my-1">
+              <div className="flex-1 h-px" style={{ background: "#E5E7EB" }} />
+              <span
+                className="text-xs font-medium"
+                style={{ color: "#C4CACD" }}
+              >
+                or
+              </span>
+              <div className="flex-1 h-px" style={{ background: "#E5E7EB" }} />
+            </div>
+            {/* Demo login */}
+            <button
+              onClick={async () => {
+                setEmail("dev@tori.ng");
+                setPassword("tori-dev-2026");
+                setLoading(true);
+                try {
+                  const res = await login("dev@tori.ng", "tori-dev-2026");
+                  if (!res.data.email_verified) {
+                    router.push("/verify-email");
+                    return;
+                  }
+                  localStorage.setItem("access_token", res.data.access_token);
+                  localStorage.setItem("refresh_token", res.data.refresh_token);
+                  router.push("/dashboard");
+                } catch {
+                  setError("Demo login failed");
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              className="w-full py-2.5 rounded-xl text-sm font-bold border-2 flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+              style={{
+                borderColor: "#00B37E",
+                color: "#00B37E",
+                background: "rgba(0,179,126,0.06)",
+                cursor: "pointer",
+              }}
+            >
+              <i className="ti ti-user" style={{ fontSize: 16 }} />
+              Use demo account
+            </button>
           </div>
         </div>
       </div>
