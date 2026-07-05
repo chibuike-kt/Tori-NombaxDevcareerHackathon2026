@@ -11,7 +11,7 @@ export type Block =
 
 export type Section = {
   id: string; label: string; icon: string;
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   endpoint?: string; group?: string; blocks: Block[];
 };
 export type Group = { group: string; items: Section[] };
@@ -1412,6 +1412,90 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
             ],
           },
           {
+            id: "ref-verify-email",
+            label: "Verify email",
+            icon: "ti-mail-check",
+            method: "POST",
+            endpoint: "/v1/auth/verify-email",
+            blocks: [
+              {
+                type: "p",
+                text: "Validates the 6-digit code emailed at registration and marks the tenant verified. Sends a welcome email on success.",
+              },
+              { type: "h2", text: "Headers", id: "verify-email-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Body", id: "verify-email-body" },
+              {
+                type: "param",
+                name: "code",
+                paramType: "string",
+                required: true,
+                description: "The 6-digit code emailed at registration",
+              },
+              { type: "h2", text: "Response", id: "verify-email-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Email verified",
+                body: `{ "data": { "email_verified": true, "message": "Email verified successfully. Welcome to Tori." }, "meta": { ... } }`,
+              },
+              {
+                type: "response",
+                status: 400,
+                description: "Code invalid, expired, or already used",
+                body: `{ "error": { "code": "code_expired", "message": "verification code has expired — request a new one" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
+            id: "ref-resend-verification",
+            label: "Resend verification code",
+            icon: "ti-mail-forward",
+            method: "POST",
+            endpoint: "/v1/auth/resend-verification",
+            blocks: [
+              {
+                type: "p",
+                text: "Generates a fresh 6-digit code and deletes any unused codes for this tenant. The frontend enforces a 60-second cooldown between calls.",
+              },
+              {
+                type: "h2",
+                text: "Headers",
+                id: "resend-verification-headers",
+              },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Response",
+                id: "resend-verification-response",
+              },
+              {
+                type: "response",
+                status: 200,
+                description: "New code sent",
+                body: `{ "data": { "message": "Verification email sent. Check your inbox." }, "meta": { ... } }`,
+              },
+              {
+                type: "response",
+                status: 422,
+                description: "Already verified",
+                body: `{ "error": { "code": "already_verified", "message": "email address is already verified" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
             id: "ref-logout",
             label: "Logout",
             icon: "ti-logout",
@@ -1539,6 +1623,91 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
                 type: "callout",
                 variant: "warn",
                 text: "Revoking your own current session logs you out on your next request. The dashboard hides the Revoke button on the session marked is_current for this reason, but the API itself does not block it.",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        group: "Account",
+        items: [
+          {
+            id: "ref-me-get",
+            label: "Get account",
+            icon: "ti-building",
+            method: "GET",
+            endpoint: "/v1/me",
+            blocks: [
+              {
+                type: "p",
+                text: "Returns the authenticated tenant's own account record.",
+              },
+              { type: "h2", text: "Headers", id: "me-get-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Response", id: "me-get-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Account returned",
+                body: `{
+  "data": {
+    "id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
+    "name": "ClassPay",
+    "email": "ops@classpay.ng",
+    "email_verified": true,
+    "created_at": "2026-06-26T00:00:00Z"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+            ],
+          },
+          {
+            id: "ref-me-update",
+            label: "Update account",
+            icon: "ti-edit",
+            method: "PATCH",
+            endpoint: "/v1/me",
+            blocks: [
+              {
+                type: "p",
+                text: "Update the tenant's business name or account email. Omit a field to leave it unchanged.",
+              },
+              { type: "h2", text: "Headers", id: "me-update-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Body", id: "me-update-body" },
+              {
+                type: "param",
+                name: "name",
+                paramType: "string",
+                required: false,
+                description: "New business name. Unchanged if omitted",
+              },
+              {
+                type: "param",
+                name: "email",
+                paramType: "string",
+                required: false,
+                description: "New account email. Unchanged if omitted",
+              },
+              { type: "h2", text: "Response", id: "me-update-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Account updated",
+                body: `{ "data": { "id": "2d9ff9ec-...", "name": "ClassPay Ltd", "email": "ops@classpay.ng" }, "meta": { ... } }`,
               },
             ],
           },
@@ -1867,6 +2036,81 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
                 description: "Validation failed",
                 body: `{ "error": { "code": "invalid_amount", "message": "amount must be a positive integer in kobo" }, "meta": { ... } }`,
               },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Also available at POST /v1/plans with Authorization: Bearer {access_token} for dashboard-side plan creation. Same handler, same response shape.",
+              },
+            ],
+          },
+          {
+            id: "ref-plans-update",
+            label: "Update plan",
+            icon: "ti-edit",
+            method: "PATCH",
+            endpoint: "/v1/plans/{plan_id}",
+            blocks: [
+              {
+                type: "p",
+                text: "Update a plan's name, description, amount, or trial length. Only affects new subscribers going forward — existing subscriptions keep the price they signed up at.",
+              },
+              { type: "h2", text: "Headers", id: "plans-update-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Path parameters", id: "plans-update-path" },
+              {
+                type: "param",
+                name: "plan_id",
+                paramType: "uuid",
+                required: true,
+                description: "The plan ID to update",
+              },
+              { type: "h2", text: "Body", id: "plans-update-body" },
+              {
+                type: "param",
+                name: "name",
+                paramType: "string",
+                required: false,
+                description: "New display name",
+              },
+              {
+                type: "param",
+                name: "description",
+                paramType: "string",
+                required: false,
+                description: "New description",
+              },
+              {
+                type: "param",
+                name: "amount",
+                paramType: "integer",
+                required: false,
+                description: "New amount in kobo",
+              },
+              {
+                type: "param",
+                name: "trial_period_days",
+                paramType: "integer",
+                required: false,
+                description: "New trial length in days",
+              },
+              { type: "h2", text: "Response", id: "plans-update-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Plan updated",
+                body: `{ "data": { "id": "afecaf33-...", "name": "Pro Plus", "amount": 2000000, "trial_period_days": 14 }, "meta": { ... } }`,
+              },
+              {
+                type: "callout",
+                variant: "warn",
+                text: "Changing amount only affects subscribers who sign up after this call. Existing subscriptions keep the price they were created with — there is no retroactive repricing.",
+              },
             ],
           },
           {
@@ -2062,6 +2306,114 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
                 description: "Email already exists",
                 body: `{ "error": { "code": "email_taken", "message": "a customer with this email already exists" }, "meta": { ... } }`,
               },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Also available at POST /v1/customers with Authorization: Bearer {access_token} for dashboard-side customer creation.",
+              },
+            ],
+          },
+          {
+            id: "ref-customers-update",
+            label: "Update customer",
+            icon: "ti-edit",
+            method: "PATCH",
+            endpoint: "/v1/customers/{customer_id}",
+            blocks: [
+              {
+                type: "p",
+                text: "Update a customer's name or email address.",
+              },
+              { type: "h2", text: "Headers", id: "customers-update-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Path parameters",
+                id: "customers-update-path",
+              },
+              {
+                type: "param",
+                name: "customer_id",
+                paramType: "uuid",
+                required: true,
+                description: "The customer ID",
+              },
+              { type: "h2", text: "Body", id: "customers-update-body" },
+              {
+                type: "param",
+                name: "email",
+                paramType: "string",
+                required: false,
+                description: "New email address",
+              },
+              {
+                type: "param",
+                name: "name",
+                paramType: "string",
+                required: false,
+                description: "New display name",
+              },
+              { type: "h2", text: "Response", id: "customers-update-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Customer updated",
+                body: `{ "data": { "id": "2c8e91c2-...", "email": "amaka@newdomain.ng", "name": "Amaka Obi" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
+            id: "ref-customers-archive",
+            label: "Archive customer",
+            icon: "ti-archive",
+            method: "POST",
+            endpoint: "/v1/customers/{customer_id}/archive",
+            blocks: [
+              {
+                type: "p",
+                text: "Archive a customer record. Does not touch their subscriptions — cancel those separately first if you want to stop billing them.",
+              },
+              {
+                type: "h2",
+                text: "Headers",
+                id: "customers-archive-headers",
+              },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Path parameters",
+                id: "customers-archive-path",
+              },
+              {
+                type: "param",
+                name: "customer_id",
+                paramType: "uuid",
+                required: true,
+                description: "The customer ID to archive",
+              },
+              {
+                type: "h2",
+                text: "Response",
+                id: "customers-archive-response",
+              },
+              {
+                type: "response",
+                status: 200,
+                description: "Customer archived",
+                body: `{ "data": { "status": "archived" }, "meta": { ... } }`,
+              },
             ],
           },
           {
@@ -2170,6 +2522,11 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
                 status: 404,
                 description: "Customer not found",
                 body: `{ "error": { "code": "not_found", "message": "the requested resource does not exist" }, "meta": { ... } }`,
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Also available at GET /v1/customers/{customer_id} with Authorization: Bearer {access_token} for dashboard use.",
               },
             ],
           },
@@ -2350,6 +2707,85 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
                 variant: "info",
                 text: "customer_created is true if a new customer was just created, false if an existing customer was matched by email. Use this to decide whether to send a welcome email.",
               },
+              {
+                type: "callout",
+                variant: "info",
+                text: "The identical flow is also available at POST /v1/checkout with Authorization: Bearer {access_token} — this is what the dashboard itself uses to start a subscription for a customer without going through the Platform API.",
+              },
+            ],
+          },
+          {
+            id: "ref-checkout-regenerate",
+            label: "Regenerate checkout URL",
+            icon: "ti-refresh-dot",
+            method: "POST",
+            endpoint: "/v1/platform/subscriptions/{subscription_id}/checkout",
+            blocks: [
+              {
+                type: "p",
+                text: "Generates a fresh Nomba checkout URL for a subscription that never got a payment method on file — for example the original checkout link expired before the customer used it. Only works while the subscription has no tokenKey yet.",
+              },
+              {
+                type: "h2",
+                text: "Headers",
+                id: "checkout-regenerate-headers",
+              },
+              {
+                type: "param",
+                name: "X-API-Key",
+                paramType: "string",
+                required: true,
+                description: "Your secret API key",
+              },
+              {
+                type: "h2",
+                text: "Path parameters",
+                id: "checkout-regenerate-path",
+              },
+              {
+                type: "param",
+                name: "subscription_id",
+                paramType: "uuid",
+                required: true,
+                description: "The subscription ID",
+              },
+              { type: "h2", text: "Body", id: "checkout-regenerate-body" },
+              {
+                type: "param",
+                name: "callback_url",
+                paramType: "string",
+                required: false,
+                description: "Where Nomba redirects after payment. Defaults to Tori's success page",
+              },
+              {
+                type: "h2",
+                text: "Response",
+                id: "checkout-regenerate-response",
+              },
+              {
+                type: "response",
+                status: 200,
+                description: "New checkout URL generated",
+                body: `{
+  "data": {
+    "checkout_url": "https://pay.nomba.com/sandbox/newlink...",
+    "requires_payment_method": true,
+    "subscription_id": "f6ffcc85-1642-46ef-9624-32fe545ea947"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+              {
+                type: "response",
+                status: 422,
+                description: "Subscription already has a payment method",
+                body: `{ "error": { "code": "already_has_payment_method", "message": "this subscription already has a payment method on file" }, "meta": { ... } }`,
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Also available at POST /v1/subscriptions/{subscription_id}/checkout with Authorization: Bearer {access_token} for dashboard use.",
+              },
             ],
           },
         ],
@@ -2357,6 +2793,78 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
       {
         group: "Subscriptions",
         items: [
+          {
+            id: "ref-subs-create",
+            label: "Create subscription",
+            icon: "ti-plus",
+            method: "POST",
+            endpoint: "/v1/platform/subscriptions",
+            blocks: [
+              {
+                type: "p",
+                text: "Creates a subscription directly for an existing customer and plan, without creating a Nomba checkout session. Use POST /v1/platform/checkout instead unless you already have a tokenised payment method for this customer from elsewhere and only need the billing record.",
+              },
+              { type: "h2", text: "Headers", id: "subs-create-headers" },
+              {
+                type: "param",
+                name: "X-API-Key",
+                paramType: "string",
+                required: true,
+                description: "Your secret API key",
+              },
+              {
+                type: "param",
+                name: "Content-Type",
+                paramType: "string",
+                required: true,
+                description: "application/json",
+              },
+              { type: "h2", text: "Body", id: "subs-create-body" },
+              {
+                type: "param",
+                name: "customer_id",
+                paramType: "uuid",
+                required: true,
+                description: "An existing customer's ID",
+              },
+              {
+                type: "param",
+                name: "plan_id",
+                paramType: "uuid",
+                required: true,
+                description: "The plan to subscribe the customer to",
+              },
+              {
+                type: "param",
+                name: "idempotency_key",
+                paramType: "string",
+                required: false,
+                description: "Prevents duplicate subscriptions on network retries",
+              },
+              { type: "h2", text: "Response", id: "subs-create-response" },
+              {
+                type: "response",
+                status: 201,
+                description: "Subscription created",
+                body: `{
+  "data": {
+    "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+    "customer_id": "2c8e91c2-...",
+    "plan_id": "afecaf33-...",
+    "status": "ACTIVE",
+    "current_period_start": "2026-06-26T00:00:00Z",
+    "current_period_end": "2026-07-26T00:00:00Z"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+              {
+                type: "callout",
+                variant: "warn",
+                text: "This does not tokenise a payment method. A subscription created this way has no tokenKey to charge at renewal unless one already exists on the customer from a prior checkout. For new signups, use POST /v1/platform/checkout, which handles both in one call.",
+              },
+            ],
+          },
           {
             id: "ref-subs-list",
             label: "List subscriptions",
@@ -2493,6 +3001,11 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
                 description: "Subscription not found",
                 body: `{ "error": { "code": "not_found", "message": "the requested resource does not exist" }, "meta": { ... } }`,
               },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Also available at GET /v1/subscriptions/{subscription_id} with Authorization: Bearer {access_token} for dashboard use.",
+              },
             ],
           },
           {
@@ -2535,6 +3048,11 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
                 description: "Already cancelled",
                 body: `{ "error": { "code": "invalid_transition", "message": "subscription is already cancelled" }, "meta": { ... } }`,
               },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Also available at POST /v1/subscriptions/{subscription_id}/cancel with Authorization: Bearer {access_token} for dashboard use. Accepts the same optional immediate body field.",
+              },
             ],
           },
           {
@@ -2569,6 +3087,11 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
                 description: "Invalid transition",
                 body: `{ "error": { "code": "invalid_transition", "message": "only active subscriptions can be paused" }, "meta": { ... } }`,
               },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Also available at POST /v1/subscriptions/{subscription_id}/pause with Authorization: Bearer {access_token} for dashboard use.",
+              },
             ],
           },
           {
@@ -2602,6 +3125,11 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
                 status: 422,
                 description: "Not paused",
                 body: `{ "error": { "code": "invalid_transition", "message": "only paused subscriptions can be resumed" }, "meta": { ... } }`,
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Also available at POST /v1/subscriptions/{subscription_id}/resume with Authorization: Bearer {access_token} for dashboard use.",
               },
             ],
           },
@@ -2847,6 +3375,98 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
                 description: "Not suspended",
                 body: `{ "error": { "code": "invalid_transition", "message": "only suspended subscriptions can be manually recovered" }, "meta": { ... } }`,
               },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Also available at POST /v1/platform/subscriptions/{subscription_id}/recover with an X-API-Key.",
+              },
+            ],
+          },
+          {
+            id: "ref-subs-refund",
+            label: "Issue refund",
+            icon: "ti-receipt-refund",
+            method: "POST",
+            endpoint: "/v1/subscriptions/{subscription_id}/refund",
+            blocks: [
+              {
+                type: "p",
+                text: "Refunds a subscription's most recent paid charge through Nomba and records a REFUND entry in the ledger. Looks up the Nomba transactionId from the subscription's paid invoice — you never need to know it yourself.",
+              },
+              { type: "h2", text: "Headers", id: "subs-refund-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "param",
+                name: "Content-Type",
+                paramType: "string",
+                required: true,
+                description: "application/json",
+              },
+              { type: "h2", text: "Body", id: "subs-refund-body" },
+              {
+                type: "param",
+                name: "amount",
+                paramType: "integer",
+                required: false,
+                description: "Kobo amount to refund. Omit for a full refund of the charge",
+              },
+              {
+                type: "param",
+                name: "reason",
+                paramType: "string",
+                required: true,
+                description: "Shown on the ledger entry — required for every refund",
+              },
+              {
+                type: "param",
+                name: "invoice_id",
+                paramType: "uuid",
+                required: false,
+                description: "Refund a specific invoice instead of the most recent paid one",
+              },
+              { type: "h2", text: "Response", id: "subs-refund-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Refund issued and recorded",
+                body: `{
+  "data": {
+    "refund": {
+      "subscription_id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+      "nomba_transaction_id": "WEB-ONLINE_C-abc123",
+      "amount_kobo": 1500000,
+      "amount_naira": "₦15000.00",
+      "reason": "Customer requested downgrade credit",
+      "ledger_entry_id": "a1b2c3d4-...",
+      "status": "refunded",
+      "note": "Card refunds take T+7 business days. Use bank transfer for instant refunds."
+    }
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+              {
+                type: "response",
+                status: 422,
+                description: "No Nomba transaction ID on record",
+                body: `{ "error": { "code": "no_charge_ref", "message": "no Nomba transaction ID found for this subscription — cannot process refund" }, "meta": { ... } }`,
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Also available at POST /v1/platform/subscriptions/{subscription_id}/refund with an X-API-Key.",
+              },
+              {
+                type: "callout",
+                variant: "warn",
+                text: "Card refunds through Nomba take T+7 business days to reach the customer. The ledger entry is written immediately regardless — the REFUND row reflects that a refund was issued, not that funds have already landed on the customer's card.",
+              },
             ],
           },
         ],
@@ -3042,6 +3662,111 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
             ],
           },
           {
+            id: "ref-ledger-get",
+            label: "Get ledger entry",
+            icon: "ti-file-text",
+            method: "GET",
+            endpoint: "/v1/ledger/{entry_id}",
+            blocks: [
+              {
+                type: "p",
+                text: "Fetch a single ledger entry by ID.",
+              },
+              { type: "h2", text: "Headers", id: "ledger-get-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Path parameters", id: "ledger-get-path" },
+              {
+                type: "param",
+                name: "entry_id",
+                paramType: "uuid",
+                required: true,
+                description: "The ledger entry ID",
+              },
+              { type: "h2", text: "Response", id: "ledger-get-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Ledger entry returned",
+                body: `{
+  "data": {
+    "id": "a1b2c3d4-...", "entry_type": "CHARGE", "direction": "DEBIT",
+    "amount": 1500000, "currency": "NGN",
+    "description": "Subscription renewal  month 1",
+    "subscription_id": "f6ffcc85-...", "customer_id": "2c8e91c2-...",
+    "idempotency_key": "renewal-f6ffcc85-2026-07",
+    "created_at": "2026-06-26T00:00:00Z"
+  },
+  "meta": { ... }
+}`,
+              },
+              {
+                type: "response",
+                status: 404,
+                description: "Entry not found",
+                body: `{ "error": { "code": "not_found", "message": "the requested resource does not exist" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
+            id: "ref-ledger-monthly",
+            label: "Monthly revenue",
+            icon: "ti-calendar-stats",
+            method: "GET",
+            endpoint: "/v1/ledger/monthly",
+            blocks: [
+              {
+                type: "p",
+                text: "Returns net revenue grouped by calendar month for a date range. Powers the monthly trend chart on the Finance dashboard page.",
+              },
+              { type: "h2", text: "Headers", id: "ledger-monthly-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Query parameters",
+                id: "ledger-monthly-query",
+              },
+              {
+                type: "param",
+                name: "from",
+                paramType: "string",
+                required: false,
+                description: "Start date YYYY-MM-DD. Defaults to 12 months ago",
+              },
+              {
+                type: "param",
+                name: "to",
+                paramType: "string",
+                required: false,
+                description: "End date YYYY-MM-DD. Defaults to today",
+              },
+              { type: "h2", text: "Response", id: "ledger-monthly-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Monthly breakdown returned, oldest first",
+                body: `{
+  "data": [
+    { "month": "2026-05", "gross_kobo": 12500000, "refunds_kobo": 0, "net_kobo": 12500000 },
+    { "month": "2026-06", "gross_kobo": 18750000, "refunds_kobo": 750000, "net_kobo": 18000000 }
+  ],
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+            ],
+          },
+          {
             id: "ref-ledger-summary",
             label: "Ledger summary",
             icon: "ti-chart-pie",
@@ -3164,6 +3889,68 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
                 type: "callout",
                 variant: "warn",
                 text: "The webhook secret is shown exactly once. If you lose it, delete the endpoint and create a new one.",
+              },
+            ],
+          },
+          {
+            id: "ref-webhooks-update",
+            label: "Update endpoint",
+            icon: "ti-edit",
+            method: "PATCH",
+            endpoint: "/v1/webhooks/endpoints/{endpoint_id}",
+            blocks: [
+              {
+                type: "p",
+                text: "Change an endpoint's URL, its subscribed events, or toggle it active. Toggling is how you manually re-enable an endpoint the circuit breaker disabled after 10 consecutive failures.",
+              },
+              { type: "h2", text: "Headers", id: "webhooks-update-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Path parameters",
+                id: "webhooks-update-path",
+              },
+              {
+                type: "param",
+                name: "endpoint_id",
+                paramType: "uuid",
+                required: true,
+                description: "The webhook endpoint's ID",
+              },
+              { type: "h2", text: "Body", id: "webhooks-update-body" },
+              {
+                type: "param",
+                name: "url",
+                paramType: "string",
+                required: false,
+                description: "New destination URL",
+              },
+              {
+                type: "param",
+                name: "events",
+                paramType: "array",
+                required: false,
+                description: `New list of subscribed event types. ["*"] for all events`,
+              },
+              {
+                type: "param",
+                name: "is_active",
+                paramType: "boolean",
+                required: false,
+                description: "Set false to pause deliveries, true to re-enable after a circuit-breaker trip",
+              },
+              { type: "h2", text: "Response", id: "webhooks-update-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Endpoint updated",
+                body: `{ "data": { "id": "ep_abc123-...", "url": "https://yourapp.ng/webhooks/tori-v2", "is_active": true }, "meta": { ... } }`,
               },
             ],
           },
@@ -3845,6 +4632,392 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
         ],
       },
       {
+        group: "Email Templates",
+        items: [
+          {
+            id: "ref-email-templates-list",
+            label: "List templates",
+            icon: "ti-mail",
+            method: "GET",
+            endpoint: "/v1/email-templates",
+            blocks: [
+              {
+                type: "p",
+                text: "Returns all 7 supported billing email events with their current configuration. Events you have not customised come back with use_default: true and Tori's built-in copy rendered with sample data, so the response is always ready to preview.",
+              },
+              {
+                type: "h2",
+                text: "Headers",
+                id: "email-templates-list-headers",
+              },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Response",
+                id: "email-templates-list-response",
+              },
+              {
+                type: "response",
+                status: 200,
+                description: "All 7 templates returned",
+                body: `{
+  "data": [
+    {
+      "event_type": "subscription.activated",
+      "label": "Welcome email",
+      "description": "Sent when a subscription activates: welcome, you're subscribed",
+      "is_enabled": true,
+      "use_default": true,
+      "subject": "Welcome to Pro",
+      "html_body": "<html>...</html>"
+    },
+    {
+      "event_type": "payment.succeeded",
+      "label": "Payment receipt",
+      "description": "Receipt with the amount charged and the next billing date",
+      "is_enabled": true,
+      "use_default": false,
+      "subject": "Your ClassPay receipt",
+      "html_body": "<html>...</html>"
+    }
+  ],
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+              {
+                type: "table",
+                headers: ["event_type", "Fires when"],
+                rows: [
+                  ["subscription.activated", "Trial ends and charge succeeds, or no-trial checkout completes"],
+                  ["payment.succeeded", "Any charge goes through — renewal, dunning recovery, or first payment"],
+                  ["payment.failed", "A charge attempt fails"],
+                  ["dunning.started", "The first dunning retry is scheduled"],
+                  ["payment.action_required", "Recovery escalates to a manual pay link"],
+                  ["subscription.cancelled", "A subscription is permanently cancelled"],
+                  ["trial.ending_soon", "3 days before a trial's trial_end, handled by its own scheduled job rather than the webhook dispatcher"],
+                ],
+              },
+            ],
+          },
+          {
+            id: "ref-email-templates-update",
+            label: "Update template",
+            icon: "ti-edit",
+            method: "PUT",
+            endpoint: "/v1/email-templates/{event_type}",
+            blocks: [
+              {
+                type: "p",
+                text: "Configure one event's email: switch it between Tori's default copy and your own subject and HTML body, and enable or disable it entirely.",
+              },
+              {
+                type: "h2",
+                text: "Headers",
+                id: "email-templates-update-headers",
+              },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "param",
+                name: "Content-Type",
+                paramType: "string",
+                required: true,
+                description: "application/json",
+              },
+              {
+                type: "h2",
+                text: "Path parameters",
+                id: "email-templates-update-path",
+              },
+              {
+                type: "param",
+                name: "event_type",
+                paramType: "string",
+                required: true,
+                description: "One of the 7 supported event types, e.g. payment.succeeded",
+              },
+              { type: "h2", text: "Body", id: "email-templates-update-body" },
+              {
+                type: "param",
+                name: "use_default",
+                paramType: "boolean",
+                required: true,
+                description: "true to use Tori's built-in copy for this event, false to use subject and html_body below",
+              },
+              {
+                type: "param",
+                name: "subject",
+                paramType: "string",
+                required: false,
+                description: "Required when use_default is false. Supports {{customer_email}}, {{plan_name}}, {{amount}}, {{next_billing_date}}, {{pay_link}}, {{product_name}}",
+              },
+              {
+                type: "param",
+                name: "html_body",
+                paramType: "string",
+                required: false,
+                description: "Required when use_default is false. Same placeholders as subject",
+              },
+              {
+                type: "param",
+                name: "is_enabled",
+                paramType: "boolean",
+                required: true,
+                description: "false stops this event from sending an email at all, default or custom",
+              },
+              {
+                type: "h2",
+                text: "Response",
+                id: "email-templates-update-response",
+              },
+              {
+                type: "response",
+                status: 200,
+                description: "Template saved",
+                body: `{
+  "data": {
+    "event_type": "payment.succeeded",
+    "is_enabled": true,
+    "use_default": false,
+    "subject": "Your ClassPay receipt",
+    "html_body": "<html>...</html>"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+              {
+                type: "response",
+                status: 400,
+                description: "Custom copy missing subject or body",
+                body: `{ "error": { "code": "missing_field", "message": "subject and html_body are required when use_default is false" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
+            id: "ref-email-templates-test",
+            label: "Send test email",
+            icon: "ti-send",
+            method: "POST",
+            endpoint: "/v1/email-templates/{event_type}/test",
+            blocks: [
+              {
+                type: "p",
+                text: "Sends the configured template — default or custom, whichever is active — to your own tenant email, with sample billing data filled in. Useful for previewing exactly what a customer will see before you go live with custom copy.",
+              },
+              {
+                type: "h2",
+                text: "Headers",
+                id: "email-templates-test-headers",
+              },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Path parameters",
+                id: "email-templates-test-path",
+              },
+              {
+                type: "param",
+                name: "event_type",
+                paramType: "string",
+                required: true,
+                description: "One of the 7 supported event types",
+              },
+              {
+                type: "h2",
+                text: "Response",
+                id: "email-templates-test-response",
+              },
+              {
+                type: "response",
+                status: 200,
+                description: "Test email sent",
+                body: `{ "data": { "status": "sent", "sent_to": "ops@classpay.ng" }, "meta": { ... } }`,
+              },
+              {
+                type: "callout",
+                variant: "warn",
+                text: "Sent via Resend to your own tenant email address. On the Resend free tier this only delivers to the account owner's verified address — sending to arbitrary customer addresses requires a verified sending domain.",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        group: "Customer Portal",
+        items: [
+          {
+            id: "ref-portal-get",
+            label: "Get portal data",
+            icon: "ti-user-circle",
+            method: "GET",
+            endpoint: "/v1/portal",
+            blocks: [
+              {
+                type: "p",
+                text: "Returns the customer and all of their non-cancelled subscriptions, each enriched with its plan. This is what the /portal page on your dashboard calls with the token generated by GET /v1/platform/customers/{customer_id}/portal-token.",
+              },
+              { type: "h2", text: "Query parameters", id: "portal-get-query" },
+              {
+                type: "param",
+                name: "token",
+                paramType: "string",
+                required: true,
+                description: "The portal token, passed as ?token=... or as an Authorization: Bearer header",
+              },
+              { type: "h2", text: "Response", id: "portal-get-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Portal data returned",
+                body: `{
+  "data": {
+    "customer": { "id": "2c8e91c2-...", "email": "amaka@startup.ng", "name": "Amaka Obi" },
+    "subscriptions": [
+      {
+        "id": "f6ffcc85-...", "status": "ACTIVE",
+        "current_period_end": "2026-07-26T00:00:00Z",
+        "plan": { "id": "afecaf33-...", "name": "Pro", "amount": 1500000, "interval": "monthly" }
+      }
+    ]
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+              {
+                type: "response",
+                status: 401,
+                description: "Token invalid or expired",
+                body: `{ "error": { "code": "unauthorised", "message": "invalid or expired portal token" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
+            id: "ref-portal-cancel",
+            label: "Cancel via portal",
+            icon: "ti-x",
+            method: "POST",
+            endpoint: "/v1/portal/subscriptions/{subscription_id}/cancel",
+            blocks: [
+              {
+                type: "p",
+                text: "Customer self-service cancel. Always cancels at period end — access continues until current_period_end, matching how the dashboard's own cancel endpoint behaves for customer-initiated cancellations.",
+              },
+              { type: "h2", text: "Query parameters", id: "portal-cancel-query" },
+              {
+                type: "param",
+                name: "token",
+                paramType: "string",
+                required: true,
+                description: "The customer's portal token",
+              },
+              {
+                type: "h2",
+                text: "Path parameters",
+                id: "portal-cancel-path",
+              },
+              {
+                type: "param",
+                name: "subscription_id",
+                paramType: "uuid",
+                required: true,
+                description: "Must belong to the customer in the token",
+              },
+              { type: "h2", text: "Response", id: "portal-cancel-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Cancellation scheduled at period end",
+                body: `{ "data": { "id": "f6ffcc85-...", "status": "ACTIVE", "cancel_at_period_end": true }, "meta": { ... } }`,
+              },
+              {
+                type: "response",
+                status: 401,
+                description: "Subscription belongs to a different customer",
+                body: `{ "error": { "code": "unauthorised", "message": "subscription does not belong to this customer" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
+            id: "ref-portal-pause",
+            label: "Pause via portal",
+            icon: "ti-player-pause",
+            method: "POST",
+            endpoint: "/v1/portal/subscriptions/{subscription_id}/pause",
+            blocks: [
+              {
+                type: "p",
+                text: "Customer self-service pause. Same rules as the operator pause endpoint — only active subscriptions can be paused.",
+              },
+              { type: "h2", text: "Query parameters", id: "portal-pause-query" },
+              {
+                type: "param",
+                name: "token",
+                paramType: "string",
+                required: true,
+                description: "The customer's portal token",
+              },
+              { type: "h2", text: "Response", id: "portal-pause-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Subscription paused",
+                body: `{ "data": { "id": "f6ffcc85-...", "status": "PAUSED" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
+            id: "ref-portal-resume",
+            label: "Resume via portal",
+            icon: "ti-player-play",
+            method: "POST",
+            endpoint: "/v1/portal/subscriptions/{subscription_id}/resume",
+            blocks: [
+              {
+                type: "p",
+                text: "Customer self-service resume of a paused subscription.",
+              },
+              { type: "h2", text: "Query parameters", id: "portal-resume-query" },
+              {
+                type: "param",
+                name: "token",
+                paramType: "string",
+                required: true,
+                description: "The customer's portal token",
+              },
+              { type: "h2", text: "Response", id: "portal-resume-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Subscription resumed",
+                body: `{ "data": { "id": "f6ffcc85-...", "status": "ACTIVE" }, "meta": { ... } }`,
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "All three portal actions verify the subscription's customer_id matches the customer_id embedded in the portal token before making any change — a customer can never act on someone else's subscription even with a guessed subscription ID.",
+              },
+            ],
+          },
+        ],
+      },
+      {
         group: "Billing Health",
         items: [
           {
@@ -3944,6 +5117,244 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
       {
         group: "Finance",
         items: [
+          {
+            id: "ref-finance-mrr",
+            label: "MRR",
+            icon: "ti-currency-naira",
+            method: "GET",
+            endpoint: "/v1/finance/mrr",
+            blocks: [
+              {
+                type: "p",
+                text: "Monthly recurring revenue for a given calendar month, computed from ledger CHARGE entries.",
+              },
+              { type: "h2", text: "Headers", id: "finance-mrr-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Query parameters", id: "finance-mrr-query" },
+              {
+                type: "param",
+                name: "period",
+                paramType: "string",
+                required: false,
+                description: "Month in YYYY-MM format. Defaults to the current month",
+              },
+              { type: "h2", text: "Response", id: "finance-mrr-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "MRR returned",
+                body: `{ "data": { "mrr_kobo": 17500000, "currency": "NGN", "period": "2026-07" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
+            id: "ref-finance-arr",
+            label: "ARR",
+            icon: "ti-chart-line",
+            method: "GET",
+            endpoint: "/v1/finance/arr",
+            blocks: [
+              {
+                type: "p",
+                text: "Annual recurring revenue — MRR for the given month multiplied by 12.",
+              },
+              { type: "h2", text: "Headers", id: "finance-arr-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Query parameters", id: "finance-arr-query" },
+              {
+                type: "param",
+                name: "period",
+                paramType: "string",
+                required: false,
+                description: "Month in YYYY-MM format. Defaults to the current month",
+              },
+              { type: "h2", text: "Response", id: "finance-arr-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "ARR returned",
+                body: `{ "data": { "arr_kobo": 210000000, "currency": "NGN", "period": "2026-07" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
+            id: "ref-finance-churn",
+            label: "Churn rate",
+            icon: "ti-trending-down",
+            method: "GET",
+            endpoint: "/v1/finance/churn",
+            blocks: [
+              {
+                type: "p",
+                text: "Percentage of subscriptions cancelled in a date range, against active plus cancelled subscriptions in that range.",
+              },
+              { type: "h2", text: "Headers", id: "finance-churn-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Query parameters",
+                id: "finance-churn-query",
+              },
+              {
+                type: "param",
+                name: "from",
+                paramType: "string",
+                required: false,
+                description: "Start date YYYY-MM-DD. Defaults to 1 month ago",
+              },
+              {
+                type: "param",
+                name: "to",
+                paramType: "string",
+                required: false,
+                description: "End date YYYY-MM-DD. Defaults to today",
+              },
+              { type: "h2", text: "Response", id: "finance-churn-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Churn rate returned",
+                body: `{ "data": { "churn_rate_pct": 4.2, "cancelled_count": 3, "period": "2026-06-05 to 2026-07-05" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
+            id: "ref-finance-dunning-recovery",
+            label: "Dunning recovery",
+            icon: "ti-rotate-clockwise",
+            method: "GET",
+            endpoint: "/v1/finance/dunning-recovery",
+            blocks: [
+              {
+                type: "p",
+                text: "Total kobo successfully charged during a date range — the revenue the dunning engine brought back that would otherwise have been lost to a failed first attempt.",
+              },
+              {
+                type: "h2",
+                text: "Headers",
+                id: "finance-dunning-recovery-headers",
+              },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Query parameters",
+                id: "finance-dunning-recovery-query",
+              },
+              {
+                type: "param",
+                name: "from",
+                paramType: "string",
+                required: false,
+                description: "Start date YYYY-MM-DD. Defaults to 1 month ago",
+              },
+              {
+                type: "param",
+                name: "to",
+                paramType: "string",
+                required: false,
+                description: "End date YYYY-MM-DD. Defaults to today",
+              },
+              {
+                type: "h2",
+                text: "Response",
+                id: "finance-dunning-recovery-response",
+              },
+              {
+                type: "response",
+                status: 200,
+                description: "Recovered revenue returned",
+                body: `{ "data": { "recovered_kobo": 4250000, "currency": "NGN" }, "meta": { ... } }`,
+              },
+            ],
+          },
+          {
+            id: "ref-finance-revenue-report",
+            label: "Revenue report",
+            icon: "ti-report-money",
+            method: "GET",
+            endpoint: "/v1/finance/revenue-report",
+            blocks: [
+              {
+                type: "p",
+                text: "Gross revenue, refunds, credits, and net revenue for a date range — the same aggregation behind the Finance dashboard's headline numbers.",
+              },
+              {
+                type: "h2",
+                text: "Headers",
+                id: "finance-revenue-report-headers",
+              },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              {
+                type: "h2",
+                text: "Query parameters",
+                id: "finance-revenue-report-query",
+              },
+              {
+                type: "param",
+                name: "from",
+                paramType: "string",
+                required: false,
+                description: "Start date YYYY-MM-DD. Defaults to 1 month ago",
+              },
+              {
+                type: "param",
+                name: "to",
+                paramType: "string",
+                required: false,
+                description: "End date YYYY-MM-DD. Defaults to today",
+              },
+              {
+                type: "h2",
+                text: "Response",
+                id: "finance-revenue-report-response",
+              },
+              {
+                type: "response",
+                status: 200,
+                description: "Revenue report returned",
+                body: `{
+  "data": {
+    "gross_revenue_kobo": 91500000,
+    "refunds_kobo": 750000,
+    "credits_kobo": 0,
+    "net_revenue_kobo": 90750000,
+    "currency": "NGN"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+            ],
+          },
           {
             id: "ref-recovery-center",
             label: "Recovery Command Center",
@@ -4163,6 +5574,51 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
                 type: "callout",
                 variant: "info",
                 text: "Also available at GET /health (no version prefix). Both return identical responses.",
+              },
+            ],
+          },
+          {
+            id: "ref-metrics",
+            label: "Metrics",
+            icon: "ti-chart-bar",
+            method: "GET",
+            endpoint: "/v1/metrics",
+            blocks: [
+              {
+                type: "p",
+                text: "Operational intelligence for the authenticated tenant in one call: subscription counts by state, MRR, this month's revenue, charge success rate, and worker queue health. Requires a JWT, unlike the unauthenticated status check.",
+              },
+              { type: "h2", text: "Headers", id: "metrics-headers" },
+              {
+                type: "param",
+                name: "Authorization",
+                paramType: "string",
+                required: true,
+                description: "Bearer {access_token}",
+              },
+              { type: "h2", text: "Response", id: "metrics-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Metrics returned",
+                body: `{
+  "data": {
+    "period": { "from": "2026-07-01", "to": "2026-08-01" },
+    "subscriptions": {
+      "total": 14, "by_status": { "ACTIVE": 13, "PAST_DUE": 1 },
+      "active": 13, "trialing": 0, "pending_payment": 0,
+      "dunning": 1, "suspended": 0, "cancelled": 0
+    },
+    "revenue": {
+      "mrr_kobo": 5000, "mrr_naira": 50,
+      "gross_this_month": 422500, "refunds_this_month": 0, "net_this_month": 422500
+    },
+    "billing": { "charge_success_rate_pct": 92.86, "at_risk_count": 1 },
+    "worker": { "queue_depth": 0, "failed_jobs_count": 0 },
+    "generated_at": "2026-07-05T09:00:00Z"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
               },
             ],
           },

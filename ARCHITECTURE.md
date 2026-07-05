@@ -137,7 +137,9 @@ Billing health: portfolio score, per-subscription health score, churn prediction
 
 Webhooks: register endpoint (max 5), list, update, delete, delivery log, manual retry.
 
-API keys: create, get hint, rotate.
+API keys: create, get hint, rotate, revoke — separate live and test keys, `POST /v1/api-keys/test` creates the sandbox-routed one.
+
+Email templates: list all 7 supported billing events with current configuration, update one to custom or default copy, send a test send to the tenant's own address.
 
 Observability: GET /v1/metrics (subscription counts by state, MRR, charge success rate, queue depth, failed jobs).
 
@@ -398,6 +400,14 @@ Each tenant has at most one `live` key and one `test` key at a time, stored as s
 
 Both keys are generated automatically at tenant registration. Revoking one (`DELETE /v1/api-keys/{mode}`) does not affect the other. The dashboard's Live/Test toggle in the header only changes what the operator dashboard displays. It has no effect on which key a deployed server actually uses, since that is determined entirely by which key is present on the request, not by any flag in the request body.
 
+### Sandbox webhook simulation
+
+In plain terms: Nomba's sandbox does not reliably fire a `payment_success` webhook back to Tori, so without help a test-mode checkout would sit in `PENDING_PAYMENT` forever and a developer could never actually see their integration activate.
+
+When a checkout is created with a `tori_test_` key, the checkout handler enqueues a `simulate_webhook` job scheduled 3 seconds in the future, right after the real Nomba sandbox checkout session is created. The job carries `subscription_id`, `tenant_id`, `amount_kobo`, `plan_name`, and `customer_email` — the same fields a real `payment_success` webhook would need. `Handlers.SimulateWebhook` then runs the identical activation path a real webhook would trigger: it generates a fake `tok_test_<8 random hex bytes>` token via `crypto/rand`, stores it on the subscription, moves the subscription from `PENDING_PAYMENT` to `ACTIVE`, creates the invoice, records the ledger `CHARGE` entry, and fires the same `subscription.activated` and `payment.succeeded` outbound webhooks a live tenant integration would receive.
+
+This only runs when the checkout's API key resolves to `mode: test` on the request context — a `tori_live_` checkout never enqueues this job, and nothing distinguishes a simulated activation from a real one in the database except the `tok_test_` prefix on the stored token. The worker logs the fixed message `billing: simulating payment_success webhook for test mode checkout` so this behavior is always visible and searchable in logs, not a silent shortcut.
+
 ---
 
 ## 8. Dunning engine
@@ -520,6 +530,26 @@ The tenant's own account is itself a `members` row with role `owner`, backfilled
 Login checks the `tenants` table first, the account owner path. If no tenant matches the email, it falls back to a cross-tenant lookup on `members` by email, and issues a JWT scoped to that member's `tenant_id`. An invited teammate logs in through the exact same `POST /v1/auth/login` endpoint as the owner; there is no separate member login endpoint.
 
 Every invite, role change, and removal writes a row to `audit_log` with the actor's email, the action, the target, the IP address, and a timestamp, surfaced at `GET /v1/team/audit-log`.
+
+---
+
+## Merchant email templates
+
+In plain terms: a merchant's own customers get billing emails too — a welcome email when their subscription activates, a receipt when a charge succeeds, a warning when one fails — branded to the merchant's product, not Tori's.
+
+The `email_templates` table (one row per `tenant_id` + `event_type`, unique together) lets a tenant either accept Tori's default copy for an event or write their own subject and HTML body. Seven event types are supported: `subscription.activated`, `payment.succeeded`, `payment.failed`, `dunning.started`, `payment.action_required`, `subscription.cancelled`, and `trial.ending_soon`. Each row also carries `is_enabled`, so a merchant can turn an event's email off entirely without deleting their customization.
+
+Default templates live in `internal/email/merchant_templates.go` as Go functions, not database rows — a tenant who never touches this feature still gets branded, correctly-formatted emails from day one. All seven share a `merchantShell` wrapper that headers the email with the *tenant's own product name*, not "Tori", and footers it "Powered by Tori" — the customer receiving the email should recognize the product they signed up for, not the billing infrastructure behind it. Custom templates support six placeholders via `strings.NewReplacer`: `{{customer_email}}`, `{{plan_name}}`, `{{amount}}`, `{{next_billing_date}}`, `{{pay_link}}`, `{{product_name}}`.
+
+`GET /v1/email-templates` returns all seven events with their current configuration in one call — customized events show `use_default: false` with the tenant's own subject/body, everything else shows Tori's default rendered with sample data so the response is always preview-ready. `PUT /v1/email-templates/{event_type}` saves a customization or reverts to default. `POST /v1/email-templates/{event_type}/test` sends whichever version is currently active to the tenant's own account email, so they can proof it before it goes out to a real customer.
+
+Delivery is wired into the same place every other outbound side effect lives: `webhook.Dispatcher.Dispatch()`. A `WithMerchantEmail(...)` builder method (mirroring the `WithEmailTemplates(...)` pattern on `billing.Handlers`) adds customer/subscription/plan/tenant lookups and an email client to the dispatcher without changing its required constructor signature. After every dispatch, `maybeSendMerchantEmail` checks whether the event type is one of the six dispatcher-driven events (`trial.ending_soon` is excluded — it has no webhook event and is handled entirely by its own scheduled job, described below), extracts `customer_id` from the event's generic payload via a JSON round-trip, and sends the configured or default template if the tenant hasn't disabled that event.
+
+### Trial ending soon notification
+
+A trial subscription enqueues a `trial_ending_soon` job at checkout time, scheduled for exactly 3 days before `trial_end` — right alongside the existing `expire_trial` job that fires the real charge at `trial_end` itself. If a trial is shorter than 3 days, the warn time lands in the past and the job simply runs on the worker's next poll instead of waiting.
+
+`Handlers.TrialEndingSoon` looks up the tenant's `trial.ending_soon` template configuration once, before doing anything else, and captures the result in a `hasCustomTemplate` bool immediately — this was deliberate after a bug caught by `go vet` during development, where reusing the same `err` variable across several subsequent `GetByID` calls meant the template lookup's error state was silently overwritten by the time it was checked, and a tenant with no customization (the common case) would nil-pointer panic. It sends the tenant's custom copy or Tori's default warning the customer their trial is ending and a real charge is coming, using the same `MerchantEmailVars` and `DefaultMerchantTemplate`/`RenderMerchantTemplate` machinery as every other merchant email.
 
 ---
 
@@ -694,6 +724,8 @@ At 1,000 subscribers with monthly billing, 80+ jobs could fire on the same day. 
 | `checkout_abandoned` | Worker startup (daily) | Finds PENDING_PAYMENT/TRIALING subs >24hr with no tokenKey, moves to PAST_DUE |
 | `webhook_deliver` | On every billing event | Async webhook delivery to developer endpoint |
 | `reconciliation` | Worker startup (nightly) | Fetches Nomba transactions, matches against ledger |
+| `simulate_webhook` | 3 seconds after a test-mode checkout | Simulates Nomba's payment_success webhook — activates subscription, creates invoice, records ledger entry, fires outbound webhooks, exactly like a real webhook would |
+| `trial_ending_soon` | 3 days before trial_end | Sends the tenant's configured (or default) trial-ending-soon email to the customer |
 
 ### Dead letter
 
@@ -802,6 +834,10 @@ Inbound Nomba webhook signature verification is enforced only when `NOMBA_WEBHOO
 ### Portal tokens expire after one hour with no refresh
 
 Customer self-service portal tokens are scoped JWTs valid for one hour. There is no refresh mechanism — a customer whose token expires mid-session must be issued a new one by the developer. For a hackathon demo this is acceptable; a production deployment would add a refresh flow or lengthen the token lifetime.
+
+### Resend's sandbox restricts merchant emails to the account owner's address
+
+Merchant email templates, trial-ending-soon notices, and test-mode webhook simulation all send real emails through Resend. Until a tenant verifies their own sending domain with Resend, Resend's API only delivers to the email address that owns the Resend account — sending to an arbitrary customer address returns a 403. This is a Resend account restriction, not a Tori bug: in production, a merchant who verifies their domain can send merchant emails to any customer address. During development and demos, this surfaces as merchant emails "succeeding" on the Tori side (the send was attempted and logged) but not actually landing for test customer addresses outside the verified domain.
 
 ### Promo codes on trial plans are validated but not applied to the ₦1 verification charge
 

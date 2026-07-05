@@ -108,6 +108,8 @@ r.Get("/v1/status", systemHealthH.Check)
 	apiKeyH := handlers.NewAPIKeyHandler(deps.Tenants, deps.APIKeys)
 	promoCodeH := handlers.NewPromoCodeHandler(deps.PromoCodes, deps.Plans)
 	emailTemplateH := handlers.NewEmailTemplateHandler(deps.EmailTemplates, deps.Tenants, deps.EmailClient)
+	planChangeH := handlers.NewPlanChangeHandler(deps.Subscriptions, deps.Plans, ledgerSvc)
+	refundH := handlers.NewRefundHandler(deps.Subscriptions, deps.Invoices, ledgerSvc, deps.Payment)
 
 	// Public routes — no auth
 	r.Post("/v1/auth/register", authH.Register)
@@ -185,17 +187,9 @@ r.Group(func(r chi.Router) {
 		r.Post("/v1/subscriptions/{id}/resume", subH.Resume)
 		r.Post("/v1/subscriptions/{id}/recover", subH.Recover)
 		r.Get("/v1/subscriptions/{id}/transitions", subH.ListTransitions)
-		ledgerSvcForPlanChange := ledger.NewService(deps.Ledger)
-		planChangeH := handlers.NewPlanChangeHandler(deps.Subscriptions, deps.Plans, ledgerSvcForPlanChange)
 		r.Patch("/v1/subscriptions/{id}/plan", planChangeH.ChangePlan)
 		r.Post("/v1/subscriptions/{id}/checkout", checkoutH.RegenerateCheckout)
-		refundH := handlers.NewRefundHandler(deps.Subscriptions, deps.Invoices, ledgerSvc, deps.Payment)
 		r.Post("/v1/subscriptions/{id}/refund", refundH.IssueRefund)
-
-		// In Platform API group — add after platform subscription routes
-		r.Patch("/v1/platform/subscriptions/{id}/plan", planChangeH.ChangePlan)
-		r.Post("/v1/platform/subscriptions/{id}/checkout", checkoutH.RegenerateCheckout)
-		r.Post("/v1/platform/subscriptions/{id}/refund", refundH.IssueRefund)
 		r.Post("/v1/subscriptions/{id}/retry-now", subH.RetryNow)
 		r.Post("/v1/subscriptions/{id}/send-pay-link", subH.SendPayLink)
 
@@ -246,6 +240,9 @@ r.Group(func(r chi.Router) {
 		r.Post("/v1/platform/subscriptions/{id}/pause", subH.Pause)
 		r.Post("/v1/platform/subscriptions/{id}/resume", subH.Resume)
 		r.Post("/v1/platform/subscriptions/{id}/recover", subH.Recover)
+		r.Patch("/v1/platform/subscriptions/{id}/plan", planChangeH.ChangePlan)
+		r.Post("/v1/platform/subscriptions/{id}/checkout", checkoutH.RegenerateCheckout)
+		r.Post("/v1/platform/subscriptions/{id}/refund", refundH.IssueRefund)
 	})
 		nombaWebhookH := handlers.NewNombaWebhookHandler(
     deps.Subscriptions, deps.Tokens, deps.Plans, deps.Invoices,

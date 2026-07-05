@@ -49,6 +49,9 @@ Your product  →  Tori API  →  Nomba  →  Customer bank
 - Promo codes with percentage or fixed discounts, plan-specific codes, use limits, and expiry
 - Team management: roles (owner, admin, developer, viewer), email invites, an admin action audit log
 - Session management: every login tracked with device and IP, instant revocation from the dashboard
+- Merchant-branded email templates: 7 billing events, default or fully custom subject/HTML per event, sent to the merchant's own customers under their own product name
+- Trial-ending-soon notice sent 3 days before a trial converts to a real charge
+- Sandbox webhook simulation: a test-mode checkout self-activates 3 seconds after checkout, since Nomba's sandbox does not reliably deliver a payment_success webhook — no more subscriptions stuck in PENDING_PAYMENT while testing
 - An append-only double-entry ledger that MRR, ARR, churn, and revenue forecasts are computed from
 - Signed outbound webhooks with retry and a circuit breaker, and nightly reconciliation against Nomba
 
@@ -84,6 +87,7 @@ The Nigerian-specific design decisions throughout the codebase show this was not
 
 **Edge cases handled**:
 - Subscription starts as PENDING_PAYMENT  activates only after payment_success webhook confirms real payment
+- Nomba sandbox does not reliably deliver payment_success  a test-mode checkout enqueues a simulate_webhook job that runs the identical activation path (invoice, ledger entry, outbound webhooks) 3 seconds later, gated strictly on the tori_test_ key prefix so live mode is never affected
 - Checkout abandoned after 24 hours  background worker moves to PAST_DUE, skips seeded subscriptions
 - Expired checkout URL  regenerate endpoint at POST /v1/platform/subscriptions/{id}/checkout
 - Duplicate payment_success webhooks  Redis requestId dedup with 24-hour TTL
@@ -122,7 +126,7 @@ Full detail in [ARCHITECTURE.md](./ARCHITECTURE.md). Summary:
 
 ### Product UX & Clarity (15%)
 
-**Dashboard**  8 pages of real data: overview, subscriptions with PENDING_PAYMENT status and filter, billing health with churn prediction, customers, plans, invoices, finance (MRR, ARR, churn, dunning recovery, revenue forecast, monthly trend charts with Refresh button), webhooks, API keys, settings.
+**Dashboard**  overview, subscriptions with PENDING_PAYMENT status and filter, billing health with churn prediction, customers, plans, promo codes, invoices, finance (MRR, ARR, churn, dunning recovery, revenue forecast, monthly trend charts with Refresh button), the Recovery Command Center (at-risk/recovering/recovered pipeline with retry-now and send-pay-link actions), webhooks, API keys, email templates (per-event default-or-custom copy with live iframe preview and send-test), team (roles, invites, audit log), security (active sessions with instant revocation), settings.
 
 **Docs**  Nomba-style two-column API reference. HTTP method badges in sidebar. Per-endpoint Headers, Body params, and Response sections with status code badges. Four tabs: Documentation, API Reference, Developer Resources, Changelog.
 
@@ -138,7 +142,7 @@ Full detail in [ARCHITECTURE.md](./ARCHITECTURE.md). Summary:
 
 **Customer portal**  self-service pause, resume, cancel via portal token. No support ticket needed.
 
-**API ergonomics**  promo codes (`POST /v1/promo-codes`, applied by passing `promo_code` on checkout), team management (invite, role, remove, audit log), and session management (`GET/DELETE /v1/auth/sessions`) are all documented in the API Reference tab with a request and response example for every endpoint, not just a route list. The docs read like a reference a developer can integrate against at 2am without asking anyone a question.
+**API ergonomics**  promo codes (`POST /v1/promo-codes`, applied by passing `promo_code` on checkout), team management (invite, role, remove, audit log), session management (`GET/DELETE /v1/auth/sessions`), and merchant email templates (`GET /v1/email-templates`, `PUT /v1/email-templates/{event_type}`, `POST /v1/email-templates/{event_type}/test`) are all documented in the API Reference tab with a request and response example for every endpoint, not just a route list. Every route registered in the router — dashboard and Platform API variants alike — has a matching reference entry, cross-referenced where the same action is reachable both ways. The docs read like a reference a developer can integrate against at 2am without asking anyone a question.
 
 ### Nomba Integration Depth (20%)
 
@@ -591,7 +595,8 @@ internal/
                 suspend, abandoned checkout, invoice generation
   domain/       Domain models, repository interfaces, sentinel errors
   dunning/      Nigerian failure classifier, retry decision engine
-  email/        Resend client, verification and welcome email templates
+  email/        Resend client, verification/welcome emails, merchant-branded
+                billing email templates (7 events, default or custom per tenant)
   finops/       MRR, ARR, churn rate, dunning recovery, revenue reporting
   ledger/       Ledger service  charge, refund, proration, trial events
   payment/      NombaClient  checkout, tokenised card, refund, reconciliation

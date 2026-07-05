@@ -25,6 +25,7 @@ function MethodBadge({ method }: { method: string }) {
   const colors: Record<string, [string, string]> = {
     GET:    ["#E3F7EF", "#00703C"],
     POST:   ["#FFF0E6", "#C05A00"],
+    PUT:    ["#F3E8FF", "#6B21A8"],
     PATCH:  ["#EEF2FF", "#3730A3"],
     DELETE: ["#FEE2E2", "#991B1B"],
   };
@@ -251,10 +252,10 @@ function DocsSidebar({
 // ─── Section content ──────────────────────────────────────────────────────────
 function SectionContent({ section }: { section: Section & { groupLabel: string } }) {
   const methodBgColor: Record<string, string> = {
-    GET: "#E3F7EF", POST: "#FFF0E6", PATCH: "#EEF2FF", DELETE: "#FEE2E2",
+    GET: "#E3F7EF", POST: "#FFF0E6", PUT: "#F3E8FF", PATCH: "#EEF2FF", DELETE: "#FEE2E2",
   };
   const methodFgColor: Record<string, string> = {
-    GET: "#00703C", POST: "#C05A00", PATCH: "#3730A3", DELETE: "#991B1B",
+    GET: "#00703C", POST: "#C05A00", PUT: "#6B21A8", PATCH: "#3730A3", DELETE: "#991B1B",
   };
 
   // Split blocks for two-column layout on API pages
