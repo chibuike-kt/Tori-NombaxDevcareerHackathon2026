@@ -105,23 +105,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         className="px-5 py-5 border-b flex items-center gap-2 flex-shrink-0"
         style={{ borderColor: "#F0F0F0" }}
       >
-        <div
-          className="w-8 h-8 rounded-md flex items-center justify-center"
-          style={{ background: "#0F1728" }}
-        >
-          <svg viewBox="0 0 14 14" className="w-4 h-4">
-            <path
-              d="M7 1L11.5 3.75V8.25L7 11L2.5 8.25V3.75L7 1Z"
-              fill="#00B37E"
-            />
-          </svg>
-        </div>
-        <span
-          className="text-xl font-extrabold tracking-tight"
-          style={{ color: "#0F1728" }}
-        >
-          Tori
-        </span>
+        <img src="/logo-light.svg" alt="Tori" className="h-7 w-auto" />
         <span
           className="text-xs font-bold px-1.5 py-0.5 rounded ml-1"
           style={{ background: "#E6F8F2", color: "#0F6E56" }}

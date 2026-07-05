@@ -65,23 +65,7 @@ export default function DashboardLayout({
             <i className="ti ti-menu-2" style={{ fontSize: 22 }} />
           </button>
           <div className="flex items-center gap-2">
-            <div
-              className="w-7 h-7 rounded-md flex items-center justify-center"
-              style={{ background: "#0F1728" }}
-            >
-              <svg viewBox="0 0 14 14" className="w-3.5 h-3.5">
-                <path
-                  d="M7 1L11.5 3.75V8.25L7 11L2.5 8.25V3.75L7 1Z"
-                  fill="#00B37E"
-                />
-              </svg>
-            </div>
-            <span
-              className="text-lg font-extrabold"
-              style={{ color: "#0F1728" }}
-            >
-              Tori
-            </span>
+            <img src="/logo-light.svg" alt="Tori" className="h-6 w-auto" />
           </div>
         </div>
         <main className="flex-1 overflow-y-auto">{children}</main>

@@ -19,23 +19,7 @@ export function AuthNav({
       style={{ borderColor: "#F0F0F0" }}
     >
       <Link href="/" className="flex items-center gap-2">
-        <div
-          className="w-8 h-8 rounded-md flex items-center justify-center"
-          style={{ background: "#0F1728" }}
-        >
-          <svg viewBox="0 0 14 14" className="w-4 h-4">
-            <path
-              d="M7 1L11.5 3.75V8.25L7 11L2.5 8.25V3.75L7 1Z"
-              fill="#00B37E"
-            />
-          </svg>
-        </div>
-        <span
-          className="text-2xl font-extrabold tracking-tight"
-          style={{ color: "#0F1728" }}
-        >
-          Tori
-        </span>
+        <img src="/logo-light.svg" alt="Tori" className="h-8 w-auto" />
       </Link>
       <div className="flex items-center gap-5">
         {rightText && (

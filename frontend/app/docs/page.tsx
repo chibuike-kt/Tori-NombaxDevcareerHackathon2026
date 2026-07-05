@@ -387,10 +387,7 @@ export default function DocsPage() {
             <i className="ti ti-menu-2" style={{ fontSize: 20 }} />
           </button>
           <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-            <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ background: "#0F1728" }}>
-              <svg viewBox="0 0 14 14" className="w-3.5 h-3.5"><path d="M7 1L11.5 3.75V8.25L7 11L2.5 8.25V3.75L7 1Z" fill="#00B37E" /></svg>
-            </div>
-            <span className="text-xl font-extrabold tracking-tight" style={{ color: "#0F1728" }}>Tori</span>
+            <img src="/logo-light.svg" alt="Tori" className="h-7 w-auto" />
           </Link>
           <div className="flex-1 max-w-md mx-4 hidden lg:flex items-center gap-2 rounded-lg px-3 py-2 border" style={{ background: "#F8F9FA", borderColor: "#E5E7EB" }}>
             <i className="ti ti-search" style={{ fontSize: 14, color: "#9CA3AF" }} />
@@ -499,10 +496,7 @@ export default function DocsPage() {
         <div className="max-w-6xl mx-auto px-6 py-10 grid grid-cols-2 lg:grid-cols-5 gap-8">
           <div className="col-span-2 lg:col-span-1">
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ background: "#0F1728" }}>
-                <svg viewBox="0 0 14 14" className="w-3.5 h-3.5"><path d="M7 1L11.5 3.75V8.25L7 11L2.5 8.25V3.75L7 1Z" fill="#00B37E" /></svg>
-              </div>
-              <span className="text-lg font-extrabold tracking-tight" style={{ color: "#0F1728" }}>Tori</span>
+              <img src="/logo-light.svg" alt="Tori" className="h-6 w-auto" />
             </div>
             <p className="text-[13px]" style={{ color: "#6B7280" }}>Recurring billing infrastructure for Nomba.</p>
           </div>
