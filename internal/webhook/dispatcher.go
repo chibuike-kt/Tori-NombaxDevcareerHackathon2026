@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/email"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
@@ -31,6 +32,15 @@ type Dispatcher struct {
 	repo   domain.WebhookRepository
 	jobs   domain.JobRepository
 	client *http.Client
+
+	// Merchant email dependencies. All may be nil (e.g. in tests), in which
+	// case merchant emails are silently skipped.
+	customers      domain.CustomerRepository
+	subs           domain.SubscriptionRepository
+	plans          domain.PlanRepository
+	tenants        domain.TenantRepository
+	emailTemplates domain.EmailTemplateRepository
+	emailClient    *email.ResendClient
 }
 
 func NewDispatcher(repo domain.WebhookRepository, jobs domain.JobRepository) *Dispatcher {
@@ -39,6 +49,26 @@ func NewDispatcher(repo domain.WebhookRepository, jobs domain.JobRepository) *Di
 		jobs:   jobs,
 		client: &http.Client{Timeout: 30 * time.Second},
 	}
+}
+
+// WithMerchantEmail wires the dependencies needed to send a merchant-configured
+// email to the tenant's customer after a webhook event fires. Returns the same
+// Dispatcher for chaining.
+func (d *Dispatcher) WithMerchantEmail(
+	customers domain.CustomerRepository,
+	subs domain.SubscriptionRepository,
+	plans domain.PlanRepository,
+	tenants domain.TenantRepository,
+	emailTemplates domain.EmailTemplateRepository,
+	emailClient *email.ResendClient,
+) *Dispatcher {
+	d.customers = customers
+	d.subs = subs
+	d.plans = plans
+	d.tenants = tenants
+	d.emailTemplates = emailTemplates
+	d.emailClient = emailClient
+	return d
 }
 
 // Dispatch sends an event to all active endpoints subscribed to the event type.
@@ -73,7 +103,117 @@ func (d *Dispatcher) Dispatch(ctx context.Context, tenantID uuid.UUID, eventType
 				Msg("webhook delivery failed")
 		}
 	}
+
+	d.maybeSendMerchantEmail(ctx, tenantID, eventType, data)
+
 	return nil
+}
+
+// merchantEmailEvents are the event types that fire through Dispatch and can
+// carry a merchant email. trial.ending_soon is scheduled by its own job and
+// sent directly by that job's handler, not through Dispatch.
+var merchantEmailEvents = map[domain.WebhookEventType]bool{
+	domain.EventSubscriptionActivated: true,
+	domain.EventPaymentSucceeded:      true,
+	domain.EventPaymentFailed:         true,
+	domain.EventDunningStarted:        true,
+	domain.EventPaymentActionRequired: true,
+	domain.EventSubscriptionCancelled: true,
+}
+
+// maybeSendMerchantEmail sends the tenant's configured (or default) email
+// template to the affected customer, if the tenant has enabled one for this
+// event type. Failures are logged, never propagated — a merchant email is
+// never allowed to block or fail webhook delivery.
+func (d *Dispatcher) maybeSendMerchantEmail(ctx context.Context, tenantID uuid.UUID, eventType domain.WebhookEventType, data interface{}) {
+	if d.emailClient == nil || d.emailTemplates == nil || d.customers == nil || d.tenants == nil {
+		return
+	}
+	if !merchantEmailEvents[eventType] {
+		return
+	}
+
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return
+	}
+	var probe map[string]interface{}
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		return
+	}
+
+	customerIDStr, _ := probe["customer_id"].(string)
+	if customerIDStr == "" {
+		return
+	}
+	customerID, err := uuid.Parse(customerIDStr)
+	if err != nil {
+		return
+	}
+
+	isEnabled := true
+	useDefault := true
+	var customSubject, customHTML string
+	if tmpl, err := d.emailTemplates.Get(ctx, tenantID, string(eventType)); err == nil {
+		isEnabled = tmpl.IsEnabled
+		useDefault = tmpl.UseDefault
+		customSubject = tmpl.Subject
+		customHTML = tmpl.HTMLBody
+	}
+	if !isEnabled {
+		return
+	}
+
+	customer, err := d.customers.GetByIDNoTenant(ctx, customerID)
+	if err != nil {
+		return
+	}
+	tenant, err := d.tenants.GetByID(ctx, tenantID)
+	if err != nil {
+		return
+	}
+
+	vars := email.MerchantEmailVars{
+		CustomerEmail: customer.Email,
+		ProductName:   tenant.Name,
+	}
+	if payLink, ok := probe["pay_link"].(string); ok {
+		vars.PayLink = payLink
+	}
+
+	// Enrich with plan/period context when a subscription is identifiable.
+	subIDStr, _ := probe["id"].(string)
+	if subIDStr == "" {
+		subIDStr, _ = probe["subscription_id"].(string)
+	}
+	if d.subs != nil && d.plans != nil && subIDStr != "" {
+		if subID, err := uuid.Parse(subIDStr); err == nil {
+			if sub, err := d.subs.GetByIDNoTenant(ctx, subID); err == nil {
+				vars.NextBillingDate = sub.CurrentPeriodEnd.Format("Jan 2, 2006")
+				if plan, err := d.plans.GetByID(ctx, sub.PlanID, tenantID); err == nil {
+					vars.PlanName = plan.Name
+					vars.AmountKobo = plan.Amount
+				}
+			}
+		}
+	}
+
+	var subject, html string
+	if useDefault {
+		var ok bool
+		subject, html, ok = email.DefaultMerchantTemplate(string(eventType), vars)
+		if !ok {
+			return
+		}
+	} else {
+		subject = email.RenderMerchantTemplate(customSubject, vars)
+		html = email.RenderMerchantTemplate(customHTML, vars)
+	}
+
+	if err := d.emailClient.Send(ctx, customer.Email, subject, html); err != nil {
+		log.Error().Err(err).Str("event_type", string(eventType)).Str("tenant_id", tenantID.String()).
+			Msg("webhook: failed to send merchant-configured email")
+	}
 }
 
 func (d *Dispatcher) deliver(ctx context.Context, endpoint *domain.WebhookEndpoint, tenantID uuid.UUID, eventType string, payload []byte) error {

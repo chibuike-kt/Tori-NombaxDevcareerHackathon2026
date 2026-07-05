@@ -10,6 +10,7 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/billing"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/dunning"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/email"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/ledger"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/payment"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/postgres"
@@ -42,6 +43,8 @@ func main() {
 	jobRepo := postgres.NewJobRepo(pool)
 	webhookRepo := postgres.NewWebhookRepo(pool)
 	invoicesRepo := postgres.NewInvoiceRepo(pool)
+	emailTemplateRepo := postgres.NewEmailTemplateRepo(pool)
+	emailClient := email.NewResendClient()
 
 	ledgerSvc := ledger.NewService(ledgerRepo)
 
@@ -80,7 +83,8 @@ handlers := billing.NewHandlers(
 	worker.Register(domain.JobSuspendSubscription, handlers.SuspendSubscription)
 	worker.Register(domain.JobTypeGraceRetry, handlers.GraceRetry)
 	worker.Register(domain.JobCheckoutAbandoned, handlers.CheckAbandonedCheckouts)
-	webhookDispatcher := webhook.NewDispatcher(webhookRepo, jobRepo)
+	webhookDispatcher := webhook.NewDispatcher(webhookRepo, jobRepo).
+		WithMerchantEmail(customerRepo, subsRepo, planRepo, tenantRepo, emailTemplateRepo, emailClient)
 	worker.Register(domain.JobWebhookDeliver, webhookDispatcher.HandleWebhookDeliver)
 	worker.Register(domain.JobCancelAtPeriodEnd, handlers.CancelAtPeriodEnd)
 	worker.Register(domain.JobSimulateWebhook, handlers.SimulateWebhook)

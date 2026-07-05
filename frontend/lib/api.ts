@@ -125,6 +125,8 @@ export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "POST", body: JSON.stringify(body) }),
+  put: <T>(path: string, body: unknown) =>
+    request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
   patch: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
@@ -321,6 +323,32 @@ export const createPromoCode = (body: CreatePromoCodeRequest) =>
   api.post<{ data: PromoCode }>("/v1/promo-codes", body);
 export const deactivatePromoCode = (id: string) =>
   api.delete<{ data: PromoCode }>(`/v1/promo-codes/${id}`);
+
+// Email templates
+export interface EmailTemplateConfig {
+  event_type: string;
+  label: string;
+  description: string;
+  is_enabled: boolean;
+  use_default: boolean;
+  subject: string;
+  html_body: string;
+}
+
+export const getEmailTemplates = () =>
+  api.get<{ data: EmailTemplateConfig[] }>("/v1/email-templates");
+
+export const updateEmailTemplate = (
+  eventType: string,
+  body: { subject: string; html_body: string; is_enabled: boolean; use_default: boolean },
+) =>
+  api.put<{ data: EmailTemplateConfig }>(`/v1/email-templates/${eventType}`, body);
+
+export const sendTestEmailTemplate = (eventType: string) =>
+  api.post<{ data: { status: string; sent_to: string } }>(
+    `/v1/email-templates/${eventType}/test`,
+    {},
+  );
 
 // Me
 export const getMe = () => api.get<{ data: Tenant }>("/v1/me");

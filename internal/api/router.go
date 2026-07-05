@@ -38,6 +38,7 @@ type Deps struct {
 	APIKeys            domain.APIKeyRepository
 	Sessions           domain.SessionRepository
 	PromoCodes         domain.PromoCodeRepository
+	EmailTemplates     domain.EmailTemplateRepository
 }
 
 // maxBodySize limits request bodies to 1MB to prevent OOM attacks.
@@ -93,7 +94,8 @@ r.Get("/v1/status", systemHealthH.Check)
 	authH := handlers.NewAuthHandler(deps.Tenants, deps.Tokens, deps.Sessions, deps.EmailVerifications, deps.EmailClient, deps.Members, deps.APIKeys)
 	planH := handlers.NewPlanHandler(deps.Plans)
 	customerH := handlers.NewCustomerHandler(deps.Customers)
-	dispatcher := webhook.NewDispatcher(deps.Webhooks, deps.Jobs)
+	dispatcher := webhook.NewDispatcher(deps.Webhooks, deps.Jobs).
+		WithMerchantEmail(deps.Customers, deps.Subscriptions, deps.Plans, deps.Tenants, deps.EmailTemplates, deps.EmailClient)
 	subH := handlers.NewSubscriptionHandler(deps.Subscriptions, deps.Plans, deps.Customers, dispatcher, deps.Jobs)
 	ledgerSvc := ledger.NewService(deps.Ledger)
 	ledgerH := handlers.NewLedgerHandler(ledgerSvc)
@@ -105,6 +107,7 @@ r.Get("/v1/status", systemHealthH.Check)
 	teamH := handlers.NewTeamHandler(deps.Members, deps.Invitations, deps.Audit, deps.Tenants, deps.EmailClient)
 	apiKeyH := handlers.NewAPIKeyHandler(deps.Tenants, deps.APIKeys)
 	promoCodeH := handlers.NewPromoCodeHandler(deps.PromoCodes, deps.Plans)
+	emailTemplateH := handlers.NewEmailTemplateHandler(deps.EmailTemplates, deps.Tenants, deps.EmailClient)
 
 	// Public routes — no auth
 	r.Post("/v1/auth/register", authH.Register)
@@ -157,6 +160,10 @@ r.Group(func(r chi.Router) {
 		r.Post("/v1/promo-codes", promoCodeH.Create)
 		r.Get("/v1/promo-codes", promoCodeH.List)
 		r.Delete("/v1/promo-codes/{id}", promoCodeH.Deactivate)
+
+		r.Get("/v1/email-templates", emailTemplateH.List)
+		r.Put("/v1/email-templates/{event_type}", emailTemplateH.Update)
+		r.Post("/v1/email-templates/{event_type}/test", emailTemplateH.SendTest)
 
 		invoiceH := handlers.NewInvoiceHandler(deps.Invoices)
 		r.Get("/v1/invoices", invoiceH.List)

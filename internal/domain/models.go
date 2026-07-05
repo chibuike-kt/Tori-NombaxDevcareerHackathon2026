@@ -380,6 +380,22 @@ type PromoCode struct {
 	UpdatedAt     time.Time    `json:"updated_at"`
 }
 
+// EmailTemplate is a tenant's override of the default merchant-to-customer
+// email sent at a given billing event. When UseDefault is true, the default
+// template built into internal/email/merchant_templates.go is used instead
+// of Subject/HTMLBody.
+type EmailTemplate struct {
+	ID         uuid.UUID `json:"id"`
+	TenantID   uuid.UUID `json:"tenant_id"`
+	EventType  string    `json:"event_type"`
+	Subject    string    `json:"subject"`
+	HTMLBody   string    `json:"html_body"`
+	IsEnabled  bool      `json:"is_enabled"`
+	UseDefault bool      `json:"use_default"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
 // Session is an active login session, tracked in Redis and keyed by a
 // random session ID embedded in both the access and refresh JWTs.
 type Session struct {

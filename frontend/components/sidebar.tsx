@@ -46,6 +46,7 @@ const sections: NavSection[] = [
     items: [
       { href: "/dashboard/webhooks", label: "Webhooks", icon: "ti-webhook" },
       { href: "/dashboard/api-keys", label: "API Keys", icon: "ti-key" },
+      { href: "/dashboard/email-templates", label: "Email Templates", icon: "ti-mail" },
       { href: "/docs", label: "Documentation", icon: "ti-book" },
     ],
   },

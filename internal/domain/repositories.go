@@ -164,6 +164,12 @@ type APIKeyRepository interface {
 	Delete(ctx context.Context, tenantID uuid.UUID, mode string) error
 }
 
+type EmailTemplateRepository interface {
+	Get(ctx context.Context, tenantID uuid.UUID, eventType string) (*EmailTemplate, error)
+	List(ctx context.Context, tenantID uuid.UUID) ([]*EmailTemplate, error)
+	Upsert(ctx context.Context, tenantID uuid.UUID, eventType, subject, htmlBody string, isEnabled, useDefault bool) (*EmailTemplate, error)
+}
+
 type PromoCodeRepository interface {
 	Create(ctx context.Context, tenantID uuid.UUID, code, description string, discountType DiscountType, discountValue int64, planID *uuid.UUID, maxUses *int, expiresAt *time.Time) (*PromoCode, error)
 	GetByCode(ctx context.Context, tenantID uuid.UUID, code string) (*PromoCode, error)

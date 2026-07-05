@@ -97,6 +97,7 @@ deps := api.Deps{
 		Audit:       postgres.NewAuditRepo(pool),
 		APIKeys:     postgres.NewAPIKeyRepo(pool),
 		PromoCodes:  postgres.NewPromoCodeRepo(pool),
+		EmailTemplates: postgres.NewEmailTemplateRepo(pool),
     EmailClient:        email.NewResendClient(),
 		Pool: pool,
 }

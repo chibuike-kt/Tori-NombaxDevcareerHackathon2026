@@ -47,6 +47,18 @@ type Customer struct {
 	CreatedAt       time.Time   `json:"created_at"`
 }
 
+type EmailTemplate struct {
+	ID         uuid.UUID `json:"id"`
+	TenantID   uuid.UUID `json:"tenant_id"`
+	EventType  string    `json:"event_type"`
+	Subject    string    `json:"subject"`
+	HtmlBody   string    `json:"html_body"`
+	IsEnabled  bool      `json:"is_enabled"`
+	UseDefault bool      `json:"use_default"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
 type EmailVerification struct {
 	ID        uuid.UUID          `json:"id"`
 	TenantID  uuid.UUID          `json:"tenant_id"`
