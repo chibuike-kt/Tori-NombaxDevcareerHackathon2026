@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { Reveal } from "@/components/reveal";
 import { Counter } from "@/components/counter";
-import { useInView } from "@/lib/use-in-view";
+import { HeroFlowDiagram } from "@/components/hero-flow";
+import { CodeEditor, CodeLine, tok } from "@/components/code-editor";
 
 const HEADLINE_WORDS = [
   "The",
@@ -72,33 +73,125 @@ const FEATURES = [
 ];
 
 const NUMBERS = [
-  { to: 9, label: "subscription states" },
-  { to: 4, label: "recovery rails" },
-  { to: 21, label: "dunning schedule days" },
-  { to: 1, label: "API call to start" },
+  { to: 9, label: "subscription states", icon: "ti-git-branch" },
+  { to: 4, label: "recovery rails", icon: "ti-alt-route" },
+  { to: 21, label: "dunning schedule days", icon: "ti-calendar-time" },
+  { to: 1, label: "API call to start", icon: "ti-bolt" },
 ];
 
+const INTEGRATION_CODE = `// The entire ClassPay billing integration
+const res = await fetch('https://api.tori.ng/v1/platform/checkout', {
+  method: 'POST',
+  headers: {
+    'X-API-Key': process.env.TORI_API_KEY,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: customer.email,
+    plan_id: 'plan_basic_monthly',
+    external_id: customer.id,
+    callback_url: 'https://classpay.ng/success',
+  }),
+});
+
+const { checkout_url } = await res.json();
+// Redirect customer to checkout_url
+// Everything else — dunning, renewals, webhooks — is handled by Tori`;
+
 function IntegrationSnippet() {
-  const { ref, visible } = useInView<HTMLPreElement>(0.3);
-  const lines = [
-    "const res = await fetch('https://api.tori.ng/v1/platform/checkout', {",
-    "  method: 'POST',",
-    "  headers: { 'X-API-Key': process.env.TORI_API_KEY },",
-    "  body: JSON.stringify({ email, plan_id, external_id: userId }),",
-    "});",
-  ];
   return (
-    <pre
-      ref={ref}
-      className={`reveal-lines rounded-2xl p-6 text-sm font-mono leading-relaxed overflow-x-auto ${visible ? "is-visible" : ""}`}
-      style={{ background: "#0F1728", color: "#E5E7EB" }}
-    >
-      {lines.map((line, i) => (
-        <div key={i} style={{ transitionDelay: `${i * 90}ms` }}>
-          {line}
-        </div>
-      ))}
-    </pre>
+    <CodeEditor filename="integration.js" code={INTEGRATION_CODE}>
+      <CodeLine n={1}>
+        <span style={{ color: tok.comment }}>{"// The entire billing integration"}</span>
+      </CodeLine>
+      <CodeLine n={2}>
+        <span style={{ color: tok.keyword }}>const</span>
+        <span style={{ color: tok.plain }}> res = </span>
+        <span style={{ color: tok.keyword }}>await</span>
+        <span style={{ color: tok.plain }}> </span>
+        <span style={{ color: tok.fn }}>fetch</span>
+        <span style={{ color: tok.plain }}>(</span>
+        <span style={{ color: tok.string }}>&apos;https://api.tori.ng/v1/platform/checkout&apos;</span>
+        <span style={{ color: tok.plain }}>, {"{"}</span>
+      </CodeLine>
+      <CodeLine n={3}>
+        <span style={{ color: tok.prop }}>  method</span>
+        <span style={{ color: tok.plain }}>: </span>
+        <span style={{ color: tok.string }}>&apos;POST&apos;</span>
+        <span style={{ color: tok.plain }}>,</span>
+      </CodeLine>
+      <CodeLine n={4}>
+        <span style={{ color: tok.prop }}>  headers</span>
+        <span style={{ color: tok.plain }}>: {"{"}</span>
+      </CodeLine>
+      <CodeLine n={5}>
+        <span style={{ color: tok.string }}>    &apos;X-API-Key&apos;</span>
+        <span style={{ color: tok.plain }}>: process</span>
+        <span style={{ color: tok.prop }}>.env</span>
+        <span style={{ color: tok.prop }}>.TORI_API_KEY</span>
+        <span style={{ color: tok.plain }}>,</span>
+      </CodeLine>
+      <CodeLine n={6}>
+        <span style={{ color: tok.string }}>    &apos;Content-Type&apos;</span>
+        <span style={{ color: tok.plain }}>: </span>
+        <span style={{ color: tok.string }}>&apos;application/json&apos;</span>
+        <span style={{ color: tok.plain }}>,</span>
+      </CodeLine>
+      <CodeLine n={7}>
+        <span style={{ color: tok.plain }}>  {"}"},</span>
+      </CodeLine>
+      <CodeLine n={8}>
+        <span style={{ color: tok.prop }}>  body</span>
+        <span style={{ color: tok.plain }}>: JSON</span>
+        <span style={{ color: tok.fn }}>.stringify</span>
+        <span style={{ color: tok.plain }}>({"{"}</span>
+      </CodeLine>
+      <CodeLine n={9}>
+        <span style={{ color: tok.prop }}>    email</span>
+        <span style={{ color: tok.plain }}>: customer</span>
+        <span style={{ color: tok.prop }}>.email</span>
+        <span style={{ color: tok.plain }}>,</span>
+      </CodeLine>
+      <CodeLine n={10}>
+        <span style={{ color: tok.prop }}>    plan_id</span>
+        <span style={{ color: tok.plain }}>: </span>
+        <span style={{ color: tok.string }}>&apos;plan_basic_monthly&apos;</span>
+        <span style={{ color: tok.plain }}>,</span>
+      </CodeLine>
+      <CodeLine n={11}>
+        <span style={{ color: tok.prop }}>    external_id</span>
+        <span style={{ color: tok.plain }}>: customer</span>
+        <span style={{ color: tok.prop }}>.id</span>
+        <span style={{ color: tok.plain }}>,</span>
+      </CodeLine>
+      <CodeLine n={12}>
+        <span style={{ color: tok.prop }}>    callback_url</span>
+        <span style={{ color: tok.plain }}>: </span>
+        <span style={{ color: tok.string }}>&apos;https://your-url.com/success&apos;</span>
+        <span style={{ color: tok.plain }}>,</span>
+      </CodeLine>
+      <CodeLine n={13}>
+        <span style={{ color: tok.plain }}>  {"}"}),</span>
+      </CodeLine>
+      <CodeLine n={14}>
+        <span style={{ color: tok.plain }}>{"}"});</span>
+      </CodeLine>
+      <CodeLine n={15}> </CodeLine>
+      <CodeLine n={16}>
+        <span style={{ color: tok.keyword }}>const</span>
+        <span style={{ color: tok.plain }}> {"{"} checkout_url {"}"} = </span>
+        <span style={{ color: tok.keyword }}>await</span>
+        <span style={{ color: tok.plain }}> res</span>
+        <span style={{ color: tok.fn }}>.json</span>
+        <span style={{ color: tok.plain }}>();</span>
+      </CodeLine>
+      <CodeLine n={17}>
+        <span style={{ color: tok.comment }}>{"// Redirect customer to checkout_url"}</span>
+      </CodeLine>
+      <CodeLine n={18}>
+        <span style={{ color: tok.comment }}>{"// Everything else — dunning, renewals, webhooks — is handled by Tori"}</span>
+      </CodeLine>
+    </CodeEditor>
   );
 }
 
@@ -107,7 +200,7 @@ export default function LandingPage() {
     <div style={{ background: "#fff", minHeight: "100vh" }}>
       {/* Nav */}
       <nav className="border-b" style={{ borderColor: "#F0F0F0" }}>
-        <div className="flex items-center px-6 py-4 max-w-6xl mx-auto">
+        <div className="section-container flex items-center px-6 lg:px-10 py-4">
           <div className="mr-auto lg:mr-10">
             <img src="/logo-light.svg" alt="Tori" className="h-8 w-auto" />
           </div>
@@ -125,7 +218,7 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="px-6 lg:px-10 pt-16 pb-14 max-w-5xl mx-auto text-center">
+      <section className="px-6 lg:px-10 py-12 lg:py-20 section-container text-center">
         <div
           className="animate-fade-up inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold mb-8"
           style={{ background: "#E6F8F2", color: "#0F6E56", animationDelay: "0ms" }}
@@ -134,7 +227,7 @@ export default function LandingPage() {
         </div>
 
         <h1
-          className="text-4xl lg:text-6xl font-extrabold mb-6"
+          className="text-4xl lg:text-[80px] font-extrabold mb-6 max-w-4xl mx-auto"
           style={{ color: "#0F1728", letterSpacing: "-0.03em", lineHeight: 1.08 }}
         >
           {HEADLINE_WORDS.map((word, i) => (
@@ -159,7 +252,7 @@ export default function LandingPage() {
         </p>
 
         <div
-          className="animate-fade-up flex flex-wrap gap-3 justify-center"
+          className="animate-fade-up flex flex-wrap gap-3 justify-center mb-14"
           style={{ animationDelay: "800ms" }}
         >
           <Link href="/signup" className="flex items-center gap-2 px-6 py-3.5 rounded-lg text-white font-bold text-[15px]" style={{ background: "#0F1728" }}>
@@ -169,10 +262,14 @@ export default function LandingPage() {
             View docs
           </Link>
         </div>
+
+        <Reveal delay={100}>
+          <HeroFlowDiagram />
+        </Reveal>
       </section>
 
       {/* The problem */}
-      <section id="problem" className="px-6 lg:px-10 py-16 lg:py-20 max-w-5xl mx-auto">
+      <section id="problem" className="px-6 lg:px-10 py-12 lg:py-20 section-container">
         <Reveal>
           <div className="text-sm font-bold uppercase tracking-wider mb-3" style={{ color: "#00B37E" }}>The problem</div>
           <h2 className="text-3xl lg:text-4xl font-extrabold mb-10" style={{ color: "#0F1728", letterSpacing: "-0.02em" }}>
@@ -244,36 +341,69 @@ export default function LandingPage() {
       </section>
 
       {/* How it works */}
-      <section id="how" className="px-6 lg:px-10 py-16 lg:py-20 border-t" style={{ borderColor: "#F0F0F0", background: "#FAFAF8" }}>
-        <div className="max-w-5xl mx-auto">
+      <section id="how" className="px-6 lg:px-10 py-12 lg:py-20" style={{ background: "#FAFAF8" }}>
+        <div className="section-container">
           <Reveal>
             <div className="text-sm font-bold uppercase tracking-wider mb-3" style={{ color: "#00B37E" }}>How it works</div>
-            <h2 className="text-3xl lg:text-4xl font-extrabold mb-10" style={{ color: "#0F1728", letterSpacing: "-0.02em" }}>
+            <h2 className="text-3xl lg:text-4xl font-extrabold mb-12" style={{ color: "#0F1728", letterSpacing: "-0.02em" }}>
               From first charge to recovered revenue
             </h2>
           </Reveal>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+
+          {/* Desktop: connected horizontal flow with arrows between steps */}
+          <div className="hidden lg:flex items-start">
             {HOW_IT_WORKS.map((step, i) => (
-              <Reveal key={step.title} delay={i * 100}>
-                <div className="h-full bg-white rounded-2xl p-5 border" style={{ borderColor: "#E5E7EB" }}>
-                  <div
-                    className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 text-sm font-extrabold text-white"
-                    style={{ background: "#0F1728" }}
-                  >
-                    {i + 1}
+              <div key={step.title} className="flex items-start flex-1">
+                <Reveal delay={i * 120} className="flex-1">
+                  <div className="text-center px-3">
+                    <div
+                      className="w-12 h-12 rounded-full mx-auto mb-4 flex items-center justify-center text-base font-extrabold text-white"
+                      style={{ background: "#0F1728" }}
+                    >
+                      {i + 1}
+                    </div>
+                    <i className={`ti ${step.icon} block mb-2`} style={{ fontSize: 24, color: "#00B37E" }} />
+                    <h3 className="text-sm font-extrabold mb-1.5" style={{ color: "#0F1728" }}>{step.title}</h3>
+                    <p className="text-sm font-medium leading-relaxed" style={{ color: "#6B7280" }}>{step.desc}</p>
                   </div>
-                  <i className={`ti ${step.icon} block mb-2`} style={{ fontSize: 22, color: "#00B37E" }} />
-                  <h3 className="text-sm font-extrabold mb-1.5" style={{ color: "#0F1728" }}>{step.title}</h3>
-                  <p className="text-sm font-medium leading-relaxed" style={{ color: "#6B7280" }}>{step.desc}</p>
-                </div>
-              </Reveal>
+                </Reveal>
+                {i < HOW_IT_WORKS.length - 1 && (
+                  <div className="flex-shrink-0 pt-3">
+                    <i className="ti ti-arrow-right step-arrow block" style={{ fontSize: 26, color: "#00B37E" }} />
+                  </div>
+                )}
+              </div>
             ))}
+          </div>
+
+          {/* Mobile / tablet: vertical stack with a connecting line */}
+          <div className="lg:hidden relative">
+            <div className="absolute left-5 top-3 bottom-3 w-px" style={{ background: "#BBF7D0" }} />
+            <div className="space-y-9">
+              {HOW_IT_WORKS.map((step, i) => (
+                <Reveal key={step.title} delay={i * 100}>
+                  <div className="flex gap-4">
+                    <div
+                      className="relative z-10 flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-extrabold text-white"
+                      style={{ background: "#0F1728" }}
+                    >
+                      {i + 1}
+                    </div>
+                    <div className="pt-1">
+                      <i className={`ti ${step.icon} block mb-1.5`} style={{ fontSize: 20, color: "#00B37E" }} />
+                      <h3 className="text-sm font-extrabold mb-1" style={{ color: "#0F1728" }}>{step.title}</h3>
+                      <p className="text-sm font-medium leading-relaxed" style={{ color: "#6B7280" }}>{step.desc}</p>
+                    </div>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
       {/* Features grid */}
-      <section id="features" className="px-6 lg:px-10 py-16 lg:py-20 max-w-5xl mx-auto">
+      <section id="features" className="px-6 lg:px-10 py-12 lg:py-20 section-container">
         <Reveal>
           <div className="text-sm font-bold uppercase tracking-wider mb-3" style={{ color: "#00B37E" }}>Everything built in</div>
           <h2 className="text-3xl lg:text-4xl font-extrabold mb-10" style={{ color: "#0F1728", letterSpacing: "-0.02em" }}>
@@ -283,15 +413,15 @@ export default function LandingPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {FEATURES.map((f, i) => (
             <Reveal key={f.title} delay={i * 70}>
-              <div
-                className="h-full bg-white rounded-2xl p-5 border transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
-                style={{ borderColor: "#E5E7EB" }}
-              >
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3" style={{ background: "#E6F8F2", color: "#00B37E" }}>
-                  <i className={`ti ${f.icon}`} style={{ fontSize: 20 }} />
+              <div className="feature-card h-full rounded-2xl p-6">
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
+                  style={{ background: "#F0FDF9" }}
+                >
+                  <i className={`ti ${f.icon}`} style={{ fontSize: 24, color: "#00B37E" }} />
                 </div>
-                <h3 className="text-sm font-extrabold mb-1.5" style={{ color: "#0F1728" }}>{f.title}</h3>
-                <p className="text-sm font-medium leading-relaxed" style={{ color: "#6B7280" }}>{f.desc}</p>
+                <h3 className="text-base font-bold mb-1.5" style={{ color: "#0F1728" }}>{f.title}</h3>
+                <p className="text-sm" style={{ color: "#64748B", lineHeight: 1.6 }}>{f.desc}</p>
               </div>
             </Reveal>
           ))}
@@ -299,21 +429,22 @@ export default function LandingPage() {
       </section>
 
       {/* The numbers */}
-      <section className="px-6 lg:px-10 py-14 border-t border-b" style={{ borderColor: "#F0F0F0", background: "#0F1728" }}>
-        <div className="max-w-5xl mx-auto flex flex-wrap justify-center gap-10 lg:gap-16">
-          {NUMBERS.map((n) => (
-            <div key={n.label} className="text-center">
-              <div className="text-4xl font-extrabold" style={{ color: "#00B37E", letterSpacing: "-0.02em" }}>
+      <section className="px-6 lg:px-10 py-12 lg:py-20" style={{ background: "#0F1728" }}>
+        <div className="section-container flex flex-wrap justify-center gap-10 lg:gap-16">
+          {NUMBERS.map((n, i) => (
+            <Reveal key={n.label} delay={i * 90} className="text-center">
+              <i className={`ti ${n.icon} block mb-3`} style={{ fontSize: 28, color: "#00B37E" }} />
+              <div className="text-[72px] leading-none font-black" style={{ color: "#00B37E", letterSpacing: "-0.02em" }}>
                 <Counter to={n.to} />
               </div>
-              <div className="text-sm mt-1.5 font-medium" style={{ color: "#9CA3AF" }}>{n.label}</div>
-            </div>
+              <div className="text-sm mt-3 font-medium" style={{ color: "#9CA3AF" }}>{n.label}</div>
+            </Reveal>
           ))}
         </div>
       </section>
 
       {/* Integration snippet */}
-      <section className="px-6 lg:px-10 py-16 lg:py-20 max-w-5xl mx-auto">
+      <section className="px-6 lg:px-10 py-12 lg:py-20 section-container">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
           <Reveal>
             <div className="text-sm font-bold uppercase tracking-wider mb-3" style={{ color: "#00B37E" }}>Integration</div>
@@ -334,7 +465,7 @@ export default function LandingPage() {
       </section>
 
       {/* CTA */}
-      <section className="mx-4 lg:mx-10 my-4 lg:my-8 rounded-2xl p-10 lg:p-14 text-center max-w-5xl xl:mx-auto" style={{ background: "#0F1728" }}>
+      <section className="mx-4 lg:mx-10 mb-8 rounded-2xl p-10 lg:p-14 text-center max-w-5xl xl:mx-auto" style={{ background: "#0F1728" }}>
         <Reveal>
           <h2 className="text-3xl lg:text-4xl font-extrabold mb-4 text-white" style={{ letterSpacing: "-0.02em" }}>
             Built on Nomba. Built for Nigeria.
@@ -353,8 +484,8 @@ export default function LandingPage() {
         </Reveal>
       </section>
 
-      <footer className="border-t mt-8" style={{ borderColor: "#E5E7EB" }}>
-        <div className="px-6 lg:px-10 py-10 max-w-6xl mx-auto grid grid-cols-2 lg:grid-cols-5 gap-8">
+      <footer className="border-t" style={{ borderColor: "#E5E7EB" }}>
+        <div className="section-container px-6 lg:px-10 py-10 grid grid-cols-2 lg:grid-cols-5 gap-8">
           <div className="col-span-2">
             <div className="mb-3">
               <img src="/logo-light.svg" alt="Tori" className="h-7 w-auto" />
@@ -375,11 +506,13 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
-        <div className="border-t px-6 lg:px-10 py-5 flex flex-wrap gap-4 justify-between items-center max-w-6xl mx-auto" style={{ borderColor: "#E5E7EB" }}>
-          <span className="text-sm font-medium" style={{ color: "#9CA3AF" }}>2026 Tori · Built on Nomba</span>
-          <div className="flex gap-5">
-            <a href="https://github.com/chibuike-kt" className="text-sm font-semibold" style={{ color: "#6B7280" }}>GitHub</a>
-            <a href="https://twitter.com/chibuike_kt" className="text-sm font-semibold" style={{ color: "#6B7280" }}>Twitter</a>
+        <div className="border-t px-6 lg:px-10 py-5" style={{ borderColor: "#E5E7EB" }}>
+          <div className="section-container flex flex-wrap gap-4 justify-between items-center">
+            <span className="text-sm font-medium" style={{ color: "#9CA3AF" }}>2026 Tori · Built on Nomba</span>
+            <div className="flex gap-5">
+              <a href="https://github.com/chibuike-kt" className="text-sm font-semibold" style={{ color: "#6B7280" }}>GitHub</a>
+              <a href="https://twitter.com/chibuike_kt" className="text-sm font-semibold" style={{ color: "#6B7280" }}>Twitter</a>
+            </div>
           </div>
         </div>
       </footer>
