@@ -94,3 +94,13 @@ lint:
 
 clean:
 	rm -rf bin/
+
+## ── Smoke test ───────────────────────────────────────────────────────────────
+
+smoke:
+	bash scripts/smoke_test.sh
+
+## ── Seed ─────────────────────────────────────────────────────────────────────
+
+seed:
+	go run cmd/seed/main.go
