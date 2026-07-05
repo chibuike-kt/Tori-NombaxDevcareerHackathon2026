@@ -3,6 +3,70 @@
 import Link from "next/link";
 import { useState, useMemo } from "react";
 import { TABS, type Block, type Section, type Group } from "@/lib/docs-data";
+import { highlightLine } from "@/lib/highlight";
+
+// ─── IDE-style code block ──────────────────────────────────────────────────────
+// Shared by the "code" and "response" block types — window chrome, a centered
+// filename tab, line numbers, syntax-highlighted spans, and copy-to-clipboard.
+function IDECodeBlock({ code, lang, filename }: { code: string; lang?: string; filename?: string }) {
+  const [copied, setCopied] = useState(false);
+  const lines = code.split("\n");
+  const tab = filename ?? (lang ? lang.toUpperCase() : "CODE");
+
+  async function onCopy() {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard API unavailable — fail silently, no crash
+    }
+  }
+
+  return (
+    <div className="rounded-xl overflow-hidden mb-5" style={{ background: "#1E2736" }}>
+      <div
+        className="flex items-center px-4 py-2.5 relative flex-shrink-0"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        <div className="flex gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#FF5F56" }} />
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#FFBD2E" }} />
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#27C93F" }} />
+        </div>
+        <div
+          className="absolute left-1/2 -translate-x-1/2 text-[11px] font-medium font-mono"
+          style={{ color: "#8B98AB" }}
+        >
+          {tab}
+        </div>
+        <button
+          onClick={onCopy}
+          className="ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-md transition-colors duration-200 flex items-center gap-1"
+          style={{
+            color: copied ? "#00B37E" : "#8B98AB",
+            background: copied ? "rgba(0,179,126,0.12)" : "transparent",
+          }}
+        >
+          <i className={`ti ${copied ? "ti-check" : "ti-copy"}`} style={{ fontSize: 12 }} />
+          {copied ? "Copied!" : "Copy"}
+        </button>
+      </div>
+      <pre className="text-[13px] font-mono leading-[1.7] py-3 m-0">
+        {lines.map((line, i) => (
+          <div key={i} className="px-4 flex">
+            <span className="select-none pr-4 text-right flex-shrink-0" style={{ color: "#4A5568", minWidth: 32 }}>
+              {i + 1}
+            </span>
+            <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", flex: 1 }}>
+              {line ? highlightLine(line, lang, `l${i}`) : " "}
+            </span>
+          </div>
+        ))}
+      </pre>
+    </div>
+  );
+}
 
 // ─── Inline code renderer ────────────────────────────────────────────────────
 function InlineText({ text }: { text: string }) {
@@ -54,25 +118,7 @@ function BlockRenderer({ block }: { block: Block }) {
       return <h3 className="text-[11px] font-extrabold uppercase tracking-widest mt-6 mb-3" style={{ color: "#9CA3AF" }}>{block.text}</h3>;
 
     case "code":
-      return (
-        <div className="rounded-xl mb-5 overflow-hidden border" style={{ borderColor: "#1E2A3A" }}>
-          {block.lang && (
-            <div className="flex items-center justify-between px-4 py-2" style={{ background: "#162030" }}>
-              <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#6B8BAE" }}>{block.lang}</span>
-              <button
-                onClick={() => navigator.clipboard?.writeText(block.code)}
-                className="text-[11px] font-semibold flex items-center gap-1 hover:text-white transition-colors"
-                style={{ color: "#6B8BAE" }}
-              >
-                <i className="ti ti-copy" style={{ fontSize: 13 }} /> Copy
-              </button>
-            </div>
-          )}
-          <pre className="px-4 py-4 overflow-x-auto text-[13px] font-mono leading-relaxed" style={{ background: "#0F1728", color: "#E2E8F0" }}>
-            <code>{block.code}</code>
-          </pre>
-        </div>
-      );
+      return <IDECodeBlock code={block.code} lang={block.lang} />;
 
     case "callout": {
       const cfg = {
@@ -158,13 +204,7 @@ function BlockRenderer({ block }: { block: Block }) {
             <span className="text-[11px] font-extrabold px-2 py-0.5 rounded" style={{ background: bg, color: fg }}>{block.status}</span>
             <span className="text-[13px] font-semibold" style={{ color: "#6B7280" }}>{block.description}</span>
           </div>
-          {block.body && (
-            <div className="rounded-xl overflow-hidden border" style={{ borderColor: "#1E2A3A" }}>
-              <pre className="px-4 py-4 overflow-x-auto text-[13px] font-mono leading-relaxed" style={{ background: "#0F1728", color: "#E2E8F0" }}>
-                <code>{block.body}</code>
-              </pre>
-            </div>
-          )}
+          {block.body && <IDECodeBlock code={block.body} lang="json" filename="response.json" />}
         </div>
       );
     }
@@ -339,6 +379,7 @@ export default function DocsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const activeTab = TABS.find(t => t.id === activeTabId) ?? TABS[0];
+  const isApiReference = activeTabId === "api-reference";
 
   // Find active section and its group label without spreading in useMemo
   const activeSectionData = useMemo(() => {
@@ -447,7 +488,7 @@ export default function DocsPage() {
       )}
 
       {/* Body */}
-      <div className="flex" style={{ maxWidth: 1400, margin: "0 auto" }}>
+      <div className="flex" style={{ maxWidth: isApiReference ? 1600 : 1400, margin: "0 auto" }}>
         {/* Desktop sidebar */}
         <aside
           className="hidden lg:block flex-shrink-0 border-r overflow-y-auto pt-6 pb-8"
@@ -462,34 +503,37 @@ export default function DocsPage() {
           />
         </aside>
 
-        {/* Main content */}
+        {/* Main content — full width on API Reference since it has no TOC sidebar */}
         <main className="flex-1 min-w-0 px-6 lg:px-10 py-8">
           <SectionContent section={sectionWithGroup} />
         </main>
 
-        {/* TOC */}
-        <aside
-          className="hidden xl:block flex-shrink-0 pt-8 px-6 overflow-y-auto"
-          style={{ width: 200, height: "calc(100vh - 106px)", position: "sticky", top: 106 }}
-        >
-          {toc.length > 0 && (
-            <>
-              <p className="text-[10px] font-extrabold uppercase tracking-widest mb-3 flex items-center gap-1.5" style={{ color: "#9CA3AF" }}>
-                <i className="ti ti-list" /> On this page
-              </p>
-              {toc.map(h => (
-                <a
-                  key={h.id}
-                  href={`#${h.id}`}
-                  className="block text-[13px] py-1.5 font-medium"
-                  style={{ color: "#6B7280" }}
-                >
-                  {h.text}
-                </a>
-              ))}
-            </>
-          )}
-        </aside>
+        {/* TOC — Introduction, Getting Started, and Changelog only. API Reference's
+            request/response code blocks need the width more than an in-page TOC does. */}
+        {!isApiReference && (
+          <aside
+            className="hidden xl:block flex-shrink-0 pt-8 px-6 overflow-y-auto"
+            style={{ width: 200, height: "calc(100vh - 106px)", position: "sticky", top: 106 }}
+          >
+            {toc.length > 0 && (
+              <>
+                <p className="text-[10px] font-extrabold uppercase tracking-widest mb-3 flex items-center gap-1.5" style={{ color: "#9CA3AF" }}>
+                  <i className="ti ti-list" /> On this page
+                </p>
+                {toc.map(h => (
+                  <a
+                    key={h.id}
+                    href={`#${h.id}`}
+                    className="block text-[13px] py-1.5 font-medium"
+                    style={{ color: "#6B7280" }}
+                  >
+                    {h.text}
+                  </a>
+                ))}
+              </>
+            )}
+          </aside>
+        )}
       </div>
 
       {/* Footer */}
