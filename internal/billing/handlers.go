@@ -2,6 +2,8 @@ package billing
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -400,6 +402,112 @@ func (h *Handlers) CancelAtPeriodEnd(ctx context.Context, payload json.RawMessag
 	log.Info().
 		Str("sub_id", subID.String()).
 		Msg("billing: subscription cancelled at period end")
+
+	return nil
+}
+
+// simulateWebhookPayload is the job payload enqueued by the checkout handler
+// when a test-mode (tori_test_) key creates a checkout — Nomba's sandbox does
+// not reliably fire a real payment_success webhook back to us.
+type simulateWebhookPayload struct {
+	SubscriptionID string `json:"subscription_id"`
+	TenantID       string `json:"tenant_id"`
+	AmountKobo     int64  `json:"amount_kobo"`
+	PlanName       string `json:"plan_name"`
+	CustomerEmail  string `json:"customer_email"`
+}
+
+// randomHex returns n random bytes hex-encoded, used for the fake tokenKey
+// stored on simulated test-mode subscriptions.
+func randomHex(n int) string {
+	b := make([]byte, n)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// SimulateWebhook activates a PENDING_PAYMENT subscription created with a
+// test-mode API key, mirroring what the real Nomba payment_success webhook
+// handler does: store a token key, activate the subscription, create an
+// invoice, record the ledger charge, and fire outbound webhooks. Live-mode
+// checkouts never enqueue this job — only test-mode ones do.
+func (h *Handlers) SimulateWebhook(ctx context.Context, payload json.RawMessage) error {
+	var p simulateWebhookPayload
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return fmt.Errorf("unmarshal payload: %w", err)
+	}
+
+	subID, err := uuid.Parse(p.SubscriptionID)
+	if err != nil {
+		return fmt.Errorf("invalid subscription_id: %w", err)
+	}
+	tenantID, err := uuid.Parse(p.TenantID)
+	if err != nil {
+		return fmt.Errorf("invalid tenant_id: %w", err)
+	}
+
+	log.Info().
+		Str("sub_id", subID.String()).
+		Str("customer_email", p.CustomerEmail).
+		Str("plan_name", p.PlanName).
+		Int64("amount_kobo", p.AmountKobo).
+		Msg("billing: simulating payment_success webhook for test mode checkout")
+
+	sub, err := h.subs.GetByID(ctx, subID, tenantID)
+	if err != nil {
+		return fmt.Errorf("get subscription: %w", err)
+	}
+
+	if sub.Status != domain.StatusPendingPayment {
+		log.Info().Str("sub_id", subID.String()).Str("status", string(sub.Status)).
+			Msg("billing: simulated webhook skipped — subscription no longer pending payment")
+		return nil
+	}
+
+	plan, err := h.plans.GetByID(ctx, sub.PlanID, tenantID)
+	if err != nil {
+		return fmt.Errorf("get plan: %w", err)
+	}
+
+	// Fake token key so the subscription can renew normally in test mode too.
+	fakeToken := "tok_test_" + randomHex(8)
+	if _, err := h.subs.UpdateTokenKey(ctx, subID, tenantID, fakeToken); err != nil {
+		log.Error().Err(err).Str("sub_id", subID.String()).Msg("billing: failed to store simulated token key")
+	}
+
+	now := time.Now().UTC()
+	periodEnd := nextPeriodEnd(now, plan)
+	if _, err := h.subs.UpdateAfterRenewal(ctx, subID, tenantID, domain.StatusActive, now, periodEnd); err != nil {
+		return fmt.Errorf("activate simulated subscription: %w", err)
+	}
+
+	h.createInvoiceForCharge(ctx, sub, plan, fmt.Sprintf("sim-%s", subID))
+
+	webhookData := map[string]interface{}{
+		"id":          sub.ID,
+		"customer_id": sub.CustomerID,
+		"plan_id":     sub.PlanID,
+		"status":      domain.StatusActive,
+		"amount_kobo": plan.Amount,
+		"currency":    plan.Currency,
+	}
+	for _, evt := range []domain.WebhookEventType{domain.EventSubscriptionActivated, domain.EventPaymentSucceeded} {
+		wpayload, _ := json.Marshal(map[string]interface{}{
+			"tenant_id":  tenantID.String(),
+			"event_type": string(evt),
+			"data":       webhookData,
+		})
+		if _, err := h.jobs.Enqueue(ctx, &tenantID, domain.JobWebhookDeliver, wpayload, time.Now(), 5); err != nil {
+			log.Error().Err(err).Str("sub_id", subID.String()).Str("event_type", string(evt)).
+				Msg("billing: failed to enqueue simulated webhook delivery")
+		}
+	}
+
+	log.Info().
+		Str("sub_id", subID.String()).
+		Str("token_key", fakeToken).
+		Str("plan", plan.Name).
+		Int64("amount_kobo", plan.Amount).
+		Msg("billing: simulated payment_success — subscription activated")
 
 	return nil
 }

@@ -318,6 +318,23 @@ if plan.TrialPeriodDays > 0 {
 						return "full plan amount charged immediately"
 				}()).
 				Msg("checkout: Nomba checkout session created")
+
+		// Test-mode key: simulate the payment_success webhook after a short delay,
+		// since Nomba's sandbox does not reliably fire one back to us.
+		if middleware.GetAPIKeyMode(r.Context()) == "test" {
+			simPayload, _ := json.Marshal(map[string]interface{}{
+				"subscription_id": sub.ID.String(),
+				"tenant_id":       tenantID.String(),
+				"amount_kobo":     checkoutAmount,
+				"plan_name":       plan.Name,
+				"customer_email":  customer.Email,
+			})
+			if _, err := h.jobs.Enqueue(r.Context(), &tenantID, domain.JobSimulateWebhook, simPayload, time.Now().Add(3*time.Second), 3); err != nil {
+				log.Error().Err(err).Str("sub_id", sub.ID.String()).Msg("checkout: failed to enqueue simulated webhook for test mode")
+			} else {
+				log.Info().Str("sub_id", sub.ID.String()).Msg("billing: simulating payment_success webhook for test mode checkout")
+			}
+		}
 	}
 
 	log.Info().

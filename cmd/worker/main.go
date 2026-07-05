@@ -83,6 +83,7 @@ handlers := billing.NewHandlers(
 	webhookDispatcher := webhook.NewDispatcher(webhookRepo, jobRepo)
 	worker.Register(domain.JobWebhookDeliver, webhookDispatcher.HandleWebhookDeliver)
 	worker.Register(domain.JobCancelAtPeriodEnd, handlers.CancelAtPeriodEnd)
+	worker.Register(domain.JobSimulateWebhook, handlers.SimulateWebhook)
 
 	// Reconciliation service
 reconSvc := reconciliation.NewService(pool, paymentClient, ledgerRepo)
