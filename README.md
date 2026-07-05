@@ -198,6 +198,18 @@ An account stops being a single login the moment a tenant invites someone. Three
 
 Every login is tracked as a session in Redis (`ip_address`, `user_agent`, `created_at`, `last_seen_at`), keyed by a random `session_id` embedded in both the access and refresh JWTs. `JWTAuth` middleware checks session liveness on every single request, not just at login, so revoking a session from `GET/DELETE /v1/auth/sessions` is instant: the very next request bearing that session's token is rejected, even though the JWT itself hasn't expired yet.
 
+**Role permissions enforced at both API and UI layer:**
+
+| Capability | Owner | Admin | Developer | Viewer |
+|------------|-------|-------|-----------|--------|
+| View subscriptions, customers, invoices, finance | ✓ | ✓ | ✓ | ✓ |
+| Cancel, pause, resume subscriptions | ✓ | ✓ | ✗ | ✗ |
+| Manage plans and promo codes | ✓ | ✓ | ✗ | ✗ |
+| Manage webhooks and API keys | ✓ | ✓ | ✓ | ✗ |
+| Manage team members | ✓ | ✗ | ✗ | ✗ |
+
+Role is embedded in the JWT at login — no database hit required on the request path. `RequireRole` middleware enforces permissions on every sensitive route. The frontend gates all mutating buttons with the same permission matrix via `lib/permissions.ts`.
+
 ### Outbound webhooks
 
 Every billing event fires a signed webhook: HMAC-SHA256 over the raw payload, sent in an `X-Tori-Signature` header, verified with a timing-safe comparison (`hmac.Equal`) rather than a naive string comparison that would leak timing information. Delivery is enqueued as a job rather than sent inline from the request path, so a slow or dead endpoint on the integrator's side never blocks the request that triggered the event; if the job can't be enqueued for some reason, delivery falls back to synchronous rather than silently dropping the event.

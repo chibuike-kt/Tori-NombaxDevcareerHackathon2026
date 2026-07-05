@@ -906,6 +906,8 @@ At rest: Railway managed PostgreSQL and Redis use AES-256 encryption at rest. Ap
 | PII in logs | Email masking in all log statements |
 | Card data | Never stored — tokenKey only |
 | Encryption at rest | Railway AES-256 on PostgreSQL and Redis |
+| Role-based access control | JWT carries role claim, RequireRole middleware on all mutating routes, enforced at both API and UI layer |
+| Permission matrix | 4 roles (owner/admin/developer/viewer), 10 capability groups, consistent between backend middleware and frontend can() function |
 
 ---
 
