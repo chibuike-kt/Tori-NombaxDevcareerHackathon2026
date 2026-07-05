@@ -6,6 +6,7 @@ import {
   createAPIKey,
   rotateAPIKey,
   createTestAPIKey,
+  revokeAPIKey,
   getAPIKeyHints,
   type APIKeyInfo,
   type APIKeyReveal,
@@ -13,34 +14,102 @@ import {
 
 type Mode = "live" | "test";
 
-function ModeKeyCard({
-  mode,
-  hint,
-  loading,
-  onGenerate,
-  generating,
-  revealed,
-  onDismissReveal,
+function RevealModal({
+  reveal,
+  onClose,
 }: {
-  mode: Mode;
-  hint: APIKeyInfo | null;
-  loading: boolean;
-  onGenerate: () => void;
-  generating: boolean;
-  revealed: APIKeyReveal | null;
-  onDismissReveal: () => void;
+  reveal: APIKeyReveal;
+  onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const accent = mode === "live" ? "#00B37E" : "#D97706";
-  const accentBg = mode === "live" ? "#E6F8F2" : "#FEF3C7";
-  const label = mode === "live" ? "Live key" : "Test key";
+  const accent = reveal.mode === "live" ? "#00B37E" : "#D97706";
 
   const copy = () => {
-    if (!revealed) return;
-    navigator.clipboard.writeText(revealed.key);
+    navigator.clipboard.writeText(reveal.key);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(15,23,40,0.5)" }}
+    >
+      <div
+        className="bg-white rounded-xl border max-w-lg w-full p-6"
+        style={{ borderColor: "#EAECEF" }}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <div
+            className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{ background: accent }}
+          >
+            <i className="ti ti-key text-white" style={{ fontSize: 20 }} />
+          </div>
+          <div>
+            <p className="text-sm font-extrabold" style={{ color: "#0F1728" }}>
+              Your new {reveal.mode} key
+            </p>
+            <p className="text-xs font-bold uppercase" style={{ color: accent }}>
+              {reveal.mode}
+            </p>
+          </div>
+        </div>
+        <p
+          className="text-xs font-bold mb-4 rounded-lg px-3 py-2"
+          style={{ background: "#FDECEC", color: "#DC2626" }}
+        >
+          Copy this key now. This key won&apos;t be shown again.
+        </p>
+        <div
+          className="flex items-center gap-2 bg-white rounded-lg px-3 py-2.5 border mb-4"
+          style={{ borderColor: "#E5E7EB" }}
+        >
+          <code
+            className="text-xs font-mono flex-1 break-all min-w-0"
+            style={{ color: "#0F1728" }}
+          >
+            {reveal.key}
+          </code>
+          <button
+            onClick={copy}
+            className="text-xs font-bold px-3 py-1.5 rounded-md flex-shrink-0"
+            style={{ background: copied ? "#0F1728" : accent, color: "white" }}
+          >
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+        <button
+          onClick={onClose}
+          className="w-full text-sm px-4 py-2.5 rounded-lg font-bold text-white"
+          style={{ background: "#0F1728" }}
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ModeKeyCard({
+  mode,
+  info,
+  onGenerate,
+  generating,
+  onRevoke,
+  revoking,
+}: {
+  mode: Mode;
+  info: APIKeyInfo;
+  onGenerate: () => void;
+  generating: boolean;
+  onRevoke: () => void;
+  revoking: boolean;
+}) {
+  const [confirmingRevoke, setConfirmingRevoke] = useState(false);
+  const accent = mode === "live" ? "#00B37E" : "#D97706";
+  const accentBg = mode === "live" ? "#E6F8F2" : "#FEF3C7";
+  const label = mode === "live" ? "Live key" : "Test key";
 
   return (
     <div
@@ -62,64 +131,64 @@ function ModeKeyCard({
             {mode}
           </span>
         </div>
-        <button
-          onClick={onGenerate}
-          disabled={generating}
-          className="text-xs px-3 py-1.5 rounded-lg font-bold border"
-          style={{ borderColor: "#E5E7EB", color: "#6B7280" }}
-        >
-          {generating ? "Generating..." : hint ? "Regenerate" : "Generate"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={onGenerate}
+            disabled={generating}
+            className="text-xs px-3 py-1.5 rounded-lg font-bold border"
+            style={{ borderColor: "#E5E7EB", color: "#6B7280" }}
+          >
+            {generating
+              ? "Generating..."
+              : info.exists
+                ? "Regenerate"
+                : "Generate"}
+          </button>
+          {info.exists && !confirmingRevoke && (
+            <button
+              onClick={() => setConfirmingRevoke(true)}
+              className="text-xs px-3 py-1.5 rounded-lg font-bold border"
+              style={{ borderColor: "#FDCACA", color: "#DC2626" }}
+            >
+              Revoke
+            </button>
+          )}
+        </div>
       </div>
       <div className="p-5">
-        {revealed && (
+        {confirmingRevoke ? (
           <div
-            className="rounded-xl border p-4 mb-4"
-            style={{ borderColor: accent, background: accentBg }}
+            className="rounded-lg p-4"
+            style={{ background: "#FFF8E1", border: "1px solid #FDE68A" }}
           >
-            <p
-              className="text-xs font-extrabold mb-0.5"
-              style={{ color: "#0F1728" }}
-            >
-              Copy this key now
+            <p className="text-sm font-bold mb-1" style={{ color: "#0F1728" }}>
+              Revoke the {mode} key?
             </p>
-            <p className="text-xs font-medium mb-3" style={{ color: "#374151" }}>
-              This is the only time this key will be shown. Tori stores only a
-              hash.
+            <p className="text-xs font-medium mb-3" style={{ color: "#6B7280" }}>
+              Requests using this key will stop working immediately.
             </p>
-            <div
-              className="flex items-center gap-2 bg-white rounded-lg px-3 py-2.5 border"
-              style={{ borderColor: "#E5E7EB" }}
-            >
-              <code
-                className="text-xs font-mono flex-1 break-all min-w-0"
-                style={{ color: "#0F1728" }}
-              >
-                {revealed.key}
-              </code>
+            <div className="flex gap-2">
               <button
-                onClick={copy}
-                className="text-xs font-bold px-3 py-1.5 rounded-md flex-shrink-0"
-                style={{ background: copied ? "#0F1728" : accent, color: "white" }}
+                onClick={() => {
+                  onRevoke();
+                  setConfirmingRevoke(false);
+                }}
+                disabled={revoking}
+                className="text-xs px-3 py-1.5 rounded-lg font-bold border"
+                style={{ borderColor: "#FDCACA", color: "#DC2626" }}
               >
-                {copied ? "Copied" : "Copy"}
+                {revoking ? "Revoking..." : "Confirm revoke"}
               </button>
               <button
-                onClick={onDismissReveal}
-                className="flex-shrink-0"
-                style={{ color: "#6B7280" }}
+                onClick={() => setConfirmingRevoke(false)}
+                className="text-xs px-3 py-1.5 rounded-lg font-bold border"
+                style={{ borderColor: "#E5E7EB", color: "#6B7280" }}
               >
-                <i className="ti ti-x" style={{ fontSize: 16 }} />
+                Cancel
               </button>
             </div>
           </div>
-        )}
-
-        {loading ? (
-          <div className="text-sm font-medium" style={{ color: "#8A94A6" }}>
-            Loading...
-          </div>
-        ) : hint ? (
+        ) : info.exists ? (
           <div className="flex items-center gap-3">
             <div
               className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -132,7 +201,7 @@ function ModeKeyCard({
                 className="text-sm font-mono font-semibold truncate"
                 style={{ color: "#0F1728" }}
               >
-                {hint.hint}
+                {info.hint}
               </code>
               <p className="text-xs font-medium mt-0.5" style={{ color: "#8A94A6" }}>
                 Only the prefix and suffix are shown. Regenerating invalidates
@@ -149,7 +218,7 @@ function ModeKeyCard({
               <i className="ti ti-key-off" style={{ fontSize: 22 }} />
             </div>
             <p className="text-sm font-bold" style={{ color: "#0F1728" }}>
-              No {mode} key yet
+              No key generated yet
             </p>
           </div>
         )}
@@ -158,15 +227,16 @@ function ModeKeyCard({
   );
 }
 
+const EMPTY_HINTS = {
+  live: { hint: null, exists: false },
+  test: { hint: null, exists: false },
+} as const;
+
 export default function APIKeysPage() {
-  const [hints, setHints] = useState<{ live: APIKeyInfo | null; test: APIKeyInfo | null }>({
-    live: null,
-    test: null,
-  });
-  const [revealed, setRevealed] = useState<{ live: APIKeyReveal | null; test: APIKeyReveal | null }>({
-    live: null,
-    test: null,
-  });
+  const [hints, setHints] = useState<{ live: APIKeyInfo; test: APIKeyInfo }>(
+    EMPTY_HINTS,
+  );
+  const [reveal, setReveal] = useState<APIKeyReveal | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = () => {
@@ -181,19 +251,31 @@ export default function APIKeysPage() {
   }, []);
 
   const generateLive = useMutation({
-    mutationFn: () => (hints.live ? rotateAPIKey() : createAPIKey("Default")),
+    mutationFn: () => (hints.live.exists ? rotateAPIKey() : createAPIKey("Default")),
     onSuccess: (res) => {
-      setRevealed((r) => ({ ...r, live: res.data }));
-      setHints((h) => ({ ...h, live: { hint: res.data.hint, created_at: new Date().toISOString() } }));
+      setReveal(res.data);
+      setHints((h) => ({ ...h, live: { hint: res.data.hint, exists: true } }));
     },
   });
 
   const generateTest = useMutation({
     mutationFn: () => createTestAPIKey(),
     onSuccess: (res) => {
-      setRevealed((r) => ({ ...r, test: res.data }));
-      setHints((h) => ({ ...h, test: { hint: res.data.hint, created_at: new Date().toISOString() } }));
+      setReveal(res.data);
+      setHints((h) => ({ ...h, test: { hint: res.data.hint, exists: true } }));
     },
+  });
+
+  const revokeLive = useMutation({
+    mutationFn: () => revokeAPIKey("live"),
+    onSuccess: () =>
+      setHints((h) => ({ ...h, live: { hint: null, exists: false } })),
+  });
+
+  const revokeTest = useMutation({
+    mutationFn: () => revokeAPIKey("test"),
+    onSuccess: () =>
+      setHints((h) => ({ ...h, test: { hint: null, exists: false } })),
   });
 
   return (
@@ -211,24 +293,33 @@ export default function APIKeysPage() {
         </p>
       </div>
 
-      <ModeKeyCard
-        mode="live"
-        hint={hints.live}
-        loading={loading}
-        onGenerate={() => generateLive.mutate()}
-        generating={generateLive.isPending}
-        revealed={revealed.live}
-        onDismissReveal={() => setRevealed((r) => ({ ...r, live: null }))}
-      />
-      <ModeKeyCard
-        mode="test"
-        hint={hints.test}
-        loading={loading}
-        onGenerate={() => generateTest.mutate()}
-        generating={generateTest.isPending}
-        revealed={revealed.test}
-        onDismissReveal={() => setRevealed((r) => ({ ...r, test: null }))}
-      />
+      {loading ? (
+        <div
+          className="bg-white border rounded-xl p-10 text-center text-sm font-medium mb-4"
+          style={{ borderColor: "#EAECEF", color: "#8A94A6" }}
+        >
+          Loading...
+        </div>
+      ) : (
+        <>
+          <ModeKeyCard
+            mode="live"
+            info={hints.live}
+            onGenerate={() => generateLive.mutate()}
+            generating={generateLive.isPending}
+            onRevoke={() => revokeLive.mutate()}
+            revoking={revokeLive.isPending}
+          />
+          <ModeKeyCard
+            mode="test"
+            info={hints.test}
+            onGenerate={() => generateTest.mutate()}
+            generating={generateTest.isPending}
+            onRevoke={() => revokeTest.mutate()}
+            revoking={revokeTest.isPending}
+          />
+        </>
+      )}
 
       {/* Usage example */}
       <div
@@ -268,6 +359,8 @@ export default function APIKeysPage() {
           </pre>
         </div>
       </div>
+
+      {reveal && <RevealModal reveal={reveal} onClose={() => setReveal(null)} />}
     </div>
   );
 }

@@ -151,6 +151,7 @@ type APIKeyRepository interface {
 	GetByTenantAndMode(ctx context.Context, tenantID uuid.UUID, mode string) (*APIKey, error)
 	ListByTenant(ctx context.Context, tenantID uuid.UUID) ([]*APIKey, error)
 	TouchLastUsed(ctx context.Context, id uuid.UUID) error
+	Delete(ctx context.Context, tenantID uuid.UUID, mode string) error
 }
 
 type MemberRepository interface {

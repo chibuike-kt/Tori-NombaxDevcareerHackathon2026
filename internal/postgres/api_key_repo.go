@@ -78,3 +78,7 @@ func (r *APIKeyRepo) ListByTenant(ctx context.Context, tenantID uuid.UUID) ([]*d
 func (r *APIKeyRepo) TouchLastUsed(ctx context.Context, id uuid.UUID) error {
 	return r.q.TouchAPIKeyLastUsed(ctx, id)
 }
+
+func (r *APIKeyRepo) Delete(ctx context.Context, tenantID uuid.UUID, mode string) error {
+	return r.q.DeleteAPIKeyByTenantAndMode(ctx, db.DeleteAPIKeyByTenantAndModeParams{TenantID: tenantID, Mode: mode})
+}

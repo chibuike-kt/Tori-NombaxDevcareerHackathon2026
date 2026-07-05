@@ -11,6 +11,20 @@ import (
 	"github.com/google/uuid"
 )
 
+const deleteAPIKeyByTenantAndMode = `-- name: DeleteAPIKeyByTenantAndMode :exec
+DELETE FROM api_keys WHERE tenant_id = $1 AND mode = $2
+`
+
+type DeleteAPIKeyByTenantAndModeParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Mode     string    `json:"mode"`
+}
+
+func (q *Queries) DeleteAPIKeyByTenantAndMode(ctx context.Context, arg DeleteAPIKeyByTenantAndModeParams) error {
+	_, err := q.db.Exec(ctx, deleteAPIKeyByTenantAndMode, arg.TenantID, arg.Mode)
+	return err
+}
+
 const getAPIKeyByHash = `-- name: GetAPIKeyByHash :one
 SELECT id, tenant_id, mode, key_hash, key_hint, created_at, last_used_at FROM api_keys WHERE key_hash = $1
 `

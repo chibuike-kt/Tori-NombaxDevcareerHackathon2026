@@ -19,3 +19,6 @@ SELECT * FROM api_keys WHERE tenant_id = $1 ORDER BY mode;
 
 -- name: TouchAPIKeyLastUsed :exec
 UPDATE api_keys SET last_used_at = NOW() WHERE id = $1;
+
+-- name: DeleteAPIKeyByTenantAndMode :exec
+DELETE FROM api_keys WHERE tenant_id = $1 AND mode = $2;

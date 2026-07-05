@@ -141,6 +141,7 @@ r.Group(func(r chi.Router) {
 		r.Post("/v1/api-keys", apiKeyH.CreateAPIKey)
 		r.Post("/v1/api-keys/rotate", apiKeyH.RotateAPIKey)
 		r.Post("/v1/api-keys/test", apiKeyH.CreateTestAPIKey)
+		r.Delete("/v1/api-keys/{mode}", apiKeyH.RevokeAPIKey)
 
 		r.Post("/v1/plans", planH.Create)
 		r.Get("/v1/plans", planH.List)

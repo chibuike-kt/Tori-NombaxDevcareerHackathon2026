@@ -10,6 +10,7 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
+	"github.com/go-chi/chi/v5"
 )
 
 type APIKeyHandler struct {
@@ -94,6 +95,11 @@ func (h *APIKeyHandler) CreateTestAPIKey(w http.ResponseWriter, r *http.Request)
 	h.createOrRotate(w, r, "test", "Test key")
 }
 
+type apiKeyHintInfo struct {
+	Hint   *string `json:"hint"`
+	Exists bool    `json:"exists"`
+}
+
 // GetAPIKeyHints returns hints for both the tenant's live and test keys.
 // Never returns the raw key — only the hint (prefix...suffix).
 func (h *APIKeyHandler) GetAPIKeyHints(w http.ResponseWriter, r *http.Request) {
@@ -105,16 +111,35 @@ func (h *APIKeyHandler) GetAPIKeyHints(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result := map[string]interface{}{
-		"live": nil,
-		"test": nil,
+	result := map[string]apiKeyHintInfo{
+		"live": {Hint: nil, Exists: false},
+		"test": {Hint: nil, Exists: false},
 	}
 	for _, k := range keys {
-		result[k.Mode] = map[string]interface{}{
-			"hint":       k.KeyHint,
-			"created_at": k.CreatedAt,
+		if k.KeyHint == "" {
+			// Backfilled row from before this tenant ever generated a key.
+			continue
 		}
+		hint := k.KeyHint
+		result[k.Mode] = apiKeyHintInfo{Hint: &hint, Exists: true}
 	}
 
 	respond.JSON(w, r, http.StatusOK, result)
+}
+
+// RevokeAPIKey deletes the tenant's key for the given mode ("live" or "test").
+func (h *APIKeyHandler) RevokeAPIKey(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	mode := chi.URLParam(r, "mode")
+	if mode != "live" && mode != "test" {
+		respond.BadRequest(w, r, "invalid_mode", "mode must be 'live' or 'test'")
+		return
+	}
+
+	if err := h.apiKeys.Delete(r.Context(), tenantID, mode); err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, map[string]string{"status": "revoked"})
 }

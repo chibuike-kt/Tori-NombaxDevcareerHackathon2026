@@ -255,13 +255,13 @@ export interface APIKeyReveal {
 }
 
 export interface APIKeyInfo {
-  hint: string;
-  created_at: string;
+  hint: string | null;
+  exists: boolean;
 }
 
 export interface APIKeyHints {
-  live: APIKeyInfo | null;
-  test: APIKeyInfo | null;
+  live: APIKeyInfo;
+  test: APIKeyInfo;
 }
 
 export const createAPIKey = (name: string) =>
@@ -272,6 +272,8 @@ export const createTestAPIKey = () =>
   api.post<{ data: APIKeyReveal }>("/v1/api-keys/test", {});
 export const getAPIKeyHints = () =>
   api.get<{ data: APIKeyHints }>("/v1/api-keys");
+export const revokeAPIKey = (mode: "live" | "test") =>
+  api.delete<{ data: { status: string } }>(`/v1/api-keys/${mode}`);
 
 // Me
 export const getMe = () => api.get<{ data: Tenant }>("/v1/me");
