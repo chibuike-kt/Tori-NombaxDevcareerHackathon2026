@@ -4405,7 +4405,7 @@ X-Ratelimit-Reset: 1782428400`,
               },
               {
                 type: "h2",
-                text: "2026-07-02 — Billing correctness and operator tools",
+                text: "2026-07-02: Billing correctness and operator tools",
                 id: "v1-5",
               },
               {
@@ -4432,7 +4432,7 @@ X-Ratelimit-Reset: 1782428400`,
               },
               {
                 type: "h2",
-                text: "2026-07-01 | Live production integration",
+                text: "2026-07-01: Live production integration",
                 id: "v1-4",
               },
               {
@@ -4456,7 +4456,7 @@ X-Ratelimit-Reset: 1782428400`,
               },
               {
                 type: "h2",
-                text: "2026-06-30 | PENDING_PAYMENT state and refund system",
+                text: "2026-06-30: PENDING_PAYMENT state and refund system",
                 id: "v1-2",
               },
               {
@@ -4479,7 +4479,7 @@ X-Ratelimit-Reset: 1782428400`,
               },
               {
                 type: "h2",
-                text: "2026-06-30 | Nomba integration and ClassPay demo",
+                text: "2026-06-30: Nomba integration and ClassPay demo",
                 id: "v1-1",
               },
               {
@@ -4504,7 +4504,7 @@ X-Ratelimit-Reset: 1782428400`,
               },
               {
                 type: "h2",
-                text: "2026-06-28 | Tenant onboarding and observability",
+                text: "2026-06-28: Tenant onboarding and observability",
                 id: "v1-3",
               },
               {
@@ -4529,7 +4529,7 @@ X-Ratelimit-Reset: 1782428400`,
               },
               {
                 type: "h2",
-                text: "2026-06-26 | Public beta launch",
+                text: "2026-06-26: Public beta launch",
                 id: "v1",
               },
               {
@@ -4555,7 +4555,7 @@ X-Ratelimit-Reset: 1782428400`,
               },
               {
                 type: "h2",
-                text: "2026-06-19 | Project Architecture and initial commit",
+                text: "2026-06-19: Project Architecture and initial commit",
                 id: "v0",
               },
               {
