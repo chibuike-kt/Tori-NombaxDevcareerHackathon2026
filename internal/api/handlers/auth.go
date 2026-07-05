@@ -167,6 +167,11 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Backfill the new tenant as the owner member so it shows up in Team &
+	// Roles immediately, instead of only existing implicitly via tenants.
+	_, _ = h.members.Create(r.Context(), tenant.ID, body.Email, body.Name,
+		domain.MemberRoleOwner, domain.MemberStatusActive, &passwordHash)
+
 	// Generate both a live and a test API key up front.
 	for _, mode := range []string{"live", "test"} {
 		_, hash, hint, keyErr := generateAPIKey(mode)

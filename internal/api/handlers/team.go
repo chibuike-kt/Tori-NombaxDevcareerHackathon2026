@@ -101,7 +101,8 @@ func (h *TeamHandler) InviteMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Audit log
-	_, _ = h.audit.Create(r.Context(), tenantID, nil, "", "member.invited", body.Email, r.RemoteAddr, nil)
+	actorEmail := middleware.GetTenantEmail(r.Context())
+	_, _ = h.audit.Create(r.Context(), tenantID, nil, actorEmail, "member.invited", body.Email, r.RemoteAddr, nil)
 
 	respond.JSON(w, r, http.StatusCreated, inv)
 }

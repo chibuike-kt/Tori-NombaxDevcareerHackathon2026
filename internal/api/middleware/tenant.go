@@ -146,3 +146,14 @@ func GetTenantID(ctx context.Context) uuid.UUID {
 	}
 	return uuid.Nil
 }
+
+// GetTenantEmail returns the authenticated tenant's own account email, or ""
+// if the request context carries no tenant. The tenant is already fetched in
+// full from the database by both JWTAuth and APIKeyAuth, so this needs no
+// extra lookup or JWT claim.
+func GetTenantEmail(ctx context.Context) string {
+	if t := GetTenant(ctx); t != nil {
+		return t.Email
+	}
+	return ""
+}
