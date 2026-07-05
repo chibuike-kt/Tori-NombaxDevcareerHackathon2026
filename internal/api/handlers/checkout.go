@@ -253,6 +253,13 @@ if plan.TrialPeriodDays > 0 {
 		})
 		_, _ = h.jobs.Enqueue(r.Context(), &tenantID, domain.JobExpireTrial,
 			payload, *trialEnd, 3)
+
+		// Warn the customer 3 days before the trial ends and a real charge fires.
+		// If the trial is shorter than 3 days, this fires on the worker's next
+		// poll instead of in the past.
+		warnAt := trialEnd.AddDate(0, 0, -3)
+		_, _ = h.jobs.Enqueue(r.Context(), &tenantID, domain.JobTrialEndingSoon,
+			payload, warnAt, 3)
 	}
 
 	// Build callback URL — use developer's URL if provided, else Tori success page

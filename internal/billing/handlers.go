@@ -11,6 +11,7 @@ import (
 
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/dunning"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/email"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/ledger"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/payment"
 	"github.com/google/uuid"
@@ -28,6 +29,19 @@ type Handlers struct {
 	webhooks  domain.WebhookRepository
 	invoices  domain.InvoiceRepository
 	jobs      domain.JobRepository
+
+	// Optional — wired via WithEmailTemplates. Nil in tests, in which case
+	// TrialEndingSoon skips sending rather than panicking.
+	emailTemplates domain.EmailTemplateRepository
+	emailClient    *email.ResendClient
+}
+
+// WithEmailTemplates wires the dependencies needed to send the trial.ending_soon
+// merchant email. Returns the same Handlers for chaining.
+func (h *Handlers) WithEmailTemplates(emailTemplates domain.EmailTemplateRepository, emailClient *email.ResendClient) *Handlers {
+	h.emailTemplates = emailTemplates
+	h.emailClient = emailClient
+	return h
 }
 
 func NewHandlers(
@@ -59,6 +73,93 @@ func NewHandlers(
 type subscriptionPayload struct {
 	SubscriptionID string `json:"subscription_id"`
 	TenantID       string `json:"tenant_id"`
+}
+
+// TrialEndingSoon sends the customer a heads-up 3 days before their trial
+// ends and the full plan amount is charged. Uses the tenant's configured
+// trial.ending_soon template if enabled, otherwise the default. Skips
+// silently if the subscription already left TRIALING (converted early,
+// cancelled, etc.) or if email dependencies were never wired up.
+func (h *Handlers) TrialEndingSoon(ctx context.Context, payload json.RawMessage) error {
+	if h.emailClient == nil || h.emailTemplates == nil {
+		return nil
+	}
+
+	var p subscriptionPayload
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return fmt.Errorf("unmarshal payload: %w", err)
+	}
+
+	subID, err := uuid.Parse(p.SubscriptionID)
+	if err != nil {
+		return fmt.Errorf("invalid subscription_id: %w", err)
+	}
+	tenantID, err := uuid.Parse(p.TenantID)
+	if err != nil {
+		return fmt.Errorf("invalid tenant_id: %w", err)
+	}
+
+	sub, err := h.subs.GetByID(ctx, subID, tenantID)
+	if err != nil {
+		return fmt.Errorf("get subscription: %w", err)
+	}
+	if sub.Status != domain.StatusTrialing {
+		log.Info().Str("sub_id", subID.String()).Str("status", string(sub.Status)).
+			Msg("trial.ending_soon skipped — subscription no longer trialing")
+		return nil
+	}
+
+	tmpl, tmplErr := h.emailTemplates.Get(ctx, tenantID, "trial.ending_soon")
+	hasCustomTemplate := tmplErr == nil && !tmpl.UseDefault
+	if tmplErr == nil && !tmpl.IsEnabled {
+		return nil
+	}
+
+	plan, err := h.plans.GetByID(ctx, sub.PlanID, tenantID)
+	if err != nil {
+		return fmt.Errorf("get plan: %w", err)
+	}
+	customer, err := h.customers.GetByID(ctx, sub.CustomerID, tenantID)
+	if err != nil {
+		return fmt.Errorf("get customer: %w", err)
+	}
+	tenant, err := h.tenants.GetByID(ctx, tenantID)
+	if err != nil {
+		return fmt.Errorf("get tenant: %w", err)
+	}
+
+	nextBillingDate := ""
+	if sub.TrialEnd != nil {
+		nextBillingDate = sub.TrialEnd.Format("Jan 2, 2006")
+	}
+	vars := email.MerchantEmailVars{
+		CustomerEmail:   customer.Email,
+		PlanName:        plan.Name,
+		AmountKobo:      plan.Amount,
+		NextBillingDate: nextBillingDate,
+		ProductName:     tenant.Name,
+	}
+
+	var subject, html string
+	if hasCustomTemplate {
+		subject = email.RenderMerchantTemplate(tmpl.Subject, vars)
+		html = email.RenderMerchantTemplate(tmpl.HTMLBody, vars)
+	} else {
+		var ok bool
+		subject, html, ok = email.DefaultMerchantTemplate("trial.ending_soon", vars)
+		if !ok {
+			return nil
+		}
+	}
+
+	if err := h.emailClient.Send(ctx, customer.Email, subject, html); err != nil {
+		log.Error().Err(err).Str("sub_id", subID.String()).Msg("billing: failed to send trial.ending_soon email")
+		return nil
+	}
+
+	log.Info().Str("sub_id", subID.String()).Str("customer_email", customer.Email).
+		Msg("billing: trial.ending_soon email sent")
+	return nil
 }
 
 // ExpireTrial transitions a TRIALING subscription to ACTIVE when the trial ends.

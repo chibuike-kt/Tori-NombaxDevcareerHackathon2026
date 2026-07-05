@@ -74,7 +74,7 @@ func main() {
 handlers := billing.NewHandlers(
 	subsRepo, tenantRepo, customerRepo, planRepo,
 	ledgerSvc, dunningEngine, paymentClient, webhookRepo, invoicesRepo, jobRepo,
-)
+).WithEmailTemplates(emailTemplateRepo, emailClient)
 	// Register all job handlers on a single worker instance
 	// RunPool will clone it into 5 concurrent goroutines
 	worker := scheduler.NewWorker(jobRepo, 10*time.Second)
@@ -83,6 +83,7 @@ handlers := billing.NewHandlers(
 	worker.Register(domain.JobSuspendSubscription, handlers.SuspendSubscription)
 	worker.Register(domain.JobTypeGraceRetry, handlers.GraceRetry)
 	worker.Register(domain.JobCheckoutAbandoned, handlers.CheckAbandonedCheckouts)
+	worker.Register(domain.JobTrialEndingSoon, handlers.TrialEndingSoon)
 	webhookDispatcher := webhook.NewDispatcher(webhookRepo, jobRepo).
 		WithMerchantEmail(customerRepo, subsRepo, planRepo, tenantRepo, emailTemplateRepo, emailClient)
 	worker.Register(domain.JobWebhookDeliver, webhookDispatcher.HandleWebhookDeliver)
