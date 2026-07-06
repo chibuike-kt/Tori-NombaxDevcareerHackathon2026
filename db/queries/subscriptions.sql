@@ -51,6 +51,21 @@ SET
 WHERE id = $1 AND tenant_id = $2
 RETURNING *;
 
+-- name: UpdateSubscriptionAfterRenewalOptimistic :one
+UPDATE subscriptions
+SET
+    status = $3,
+    current_period_start = $4,
+    current_period_end = $5,
+    dunning_attempt = 0,
+    next_retry_at = NULL,
+    updated_at = NOW()
+WHERE id = $1
+  AND tenant_id = $2
+  AND updated_at = $6
+  AND status != 'CANCELLED'
+RETURNING *;
+
 -- name: UpdateSubscriptionDunning :one
 UPDATE subscriptions
 SET

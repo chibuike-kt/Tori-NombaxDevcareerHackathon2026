@@ -159,6 +159,52 @@ func (r *SubscriptionRepo) UpdateAfterRenewal(ctx context.Context, id, tenantID 
 	return subFromRow(row), nil
 }
 
+func (r *SubscriptionRepo) ResumeForward(ctx context.Context, id, tenantID uuid.UUID, status domain.SubscriptionStatus, periodStart, periodEnd time.Time, reason string) (*domain.Subscription, error) {
+	before, err := r.q.GetSubscriptionByID(ctx, db.GetSubscriptionByIDParams{ID: id, TenantID: tenantID})
+	if err != nil {
+		return nil, err
+	}
+
+	row, err := r.q.UpdateSubscriptionAfterRenewal(ctx, db.UpdateSubscriptionAfterRenewalParams{
+		ID:                 id,
+		TenantID:           tenantID,
+		Status:             string(status),
+		CurrentPeriodStart: periodStart,
+		CurrentPeriodEnd:   periodEnd,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	r.recordTransition(ctx, id, tenantID, domain.SubscriptionStatus(before.Status), status, reason, "system")
+	return subFromRow(row), nil
+}
+
+func (r *SubscriptionRepo) ResumeForwardOptimistic(ctx context.Context, id, tenantID uuid.UUID, status domain.SubscriptionStatus, periodStart, periodEnd time.Time, reason string, lastUpdatedAt time.Time) (*domain.Subscription, error) {
+	before, err := r.q.GetSubscriptionByID(ctx, db.GetSubscriptionByIDParams{ID: id, TenantID: tenantID})
+	if err != nil {
+		return nil, err
+	}
+
+	row, err := r.q.UpdateSubscriptionAfterRenewalOptimistic(ctx, db.UpdateSubscriptionAfterRenewalOptimisticParams{
+		ID:                 id,
+		TenantID:           tenantID,
+		Status:             string(status),
+		CurrentPeriodStart: periodStart,
+		CurrentPeriodEnd:   periodEnd,
+		UpdatedAt:          lastUpdatedAt,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrConflict
+		}
+		return nil, err
+	}
+
+	r.recordTransition(ctx, id, tenantID, domain.SubscriptionStatus(before.Status), status, reason, "system")
+	return subFromRow(row), nil
+}
+
 // recordTransition writes an audit-trail row for a status change. Failures
 // are logged, not propagated — the audit trail must never block billing.
 func (r *SubscriptionRepo) recordTransition(ctx context.Context, subscriptionID, tenantID uuid.UUID, from, to domain.SubscriptionStatus, reason, actor string) {

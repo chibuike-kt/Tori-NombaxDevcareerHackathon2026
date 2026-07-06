@@ -3,12 +3,14 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 	"net/http"
 	"strconv"
 
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/billing"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/subscription"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/webhook"
@@ -351,7 +353,37 @@ func (h *SubscriptionHandler) Recover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := h.subs.UpdateStatus(r.Context(), id, tenantID, domain.StatusActive)
+	plan, err := h.plans.GetByID(r.Context(), sub.PlanID, tenantID)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	// Resume-forward: fast-forward to the current period instead of
+	// back-billing every cycle missed while suspended.
+	now := time.Now().UTC()
+	_, periodEnd, err := billing.NextPeriod(now, plan)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	skippedCycles := 0
+	cursor := sub.CurrentPeriodEnd
+	for cursor.Before(now) {
+		_, cursor, err = billing.NextPeriod(cursor, plan)
+		if err != nil {
+			respond.InternalError(w, r, err)
+			return
+		}
+		skippedCycles++
+	}
+	reason := "manual recovery"
+	if skippedCycles > 1 {
+		reason = fmt.Sprintf("resume-forward: %d cycles skipped, period reset to current", skippedCycles-1)
+	}
+
+	updated, err := h.subs.ResumeForward(r.Context(), id, tenantID, domain.StatusActive, now, periodEnd, reason)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return

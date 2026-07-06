@@ -311,8 +311,8 @@ if sub.CancelAtPeriodEnd {
 
 	if result.Success {
 		now := time.Now().UTC()
-		periodEnd := nextPeriodEnd(now, plan)
-		_, _ = h.subs.UpdateAfterRenewal(ctx, subID, tenantID, domain.StatusActive, now, periodEnd)
+		periodEnd, reason := resumeForwardPlan(sub, plan, now)
+		_, _ = h.subs.ResumeForward(ctx, subID, tenantID, domain.StatusActive, now, periodEnd, reason)
 		// createInvoiceForCharge records the ledger entry itself — a separate
 		// RecordCharge call here would double-count this charge in the ledger.
 		h.createInvoiceForCharge(ctx, sub, plan, plan.Amount, result.Reference)
@@ -432,7 +432,9 @@ if sub.CancelAtPeriodEnd {
 	}
 
 	if result.Success {
-		_, err = h.subs.UpdateStatusOptimistic(ctx, subID, tenantID, domain.StatusActive, sub.UpdatedAt)
+		now := time.Now().UTC()
+		periodEnd, reason := resumeForwardPlan(sub, plan, now)
+		_, err = h.subs.ResumeForwardOptimistic(ctx, subID, tenantID, domain.StatusActive, now, periodEnd, reason, sub.UpdatedAt)
 		if err != nil {
 			if errors.Is(err, domain.ErrConflict) {
 				return nil
@@ -664,6 +666,32 @@ func nextPeriodEnd(from time.Time, plan *domain.Plan) time.Time {
 		// Custom — use interval_count as days
 		return from.AddDate(0, 0, plan.IntervalCount)
 	}
+}
+
+// resumeForwardPlan computes the fast-forwarded period end for a recovering
+// subscription and a transition-audit reason noting how many billing cycles
+// were skipped. Resume-forward billing never back-bills a lapsed
+// subscription for every missed cycle — it settles one invoice for the
+// current period and resumes service immediately.
+func resumeForwardPlan(sub *domain.Subscription, plan *domain.Plan, now time.Time) (periodEnd time.Time, reason string) {
+	periodEnd = nextPeriodEnd(now, plan)
+
+	skippedCycles := 0
+	cursor := sub.CurrentPeriodEnd
+	for cursor.Before(now) {
+		cursor = nextPeriodEnd(cursor, plan)
+		skippedCycles++
+	}
+
+	reason = "renewal"
+	if skippedCycles > 1 {
+		log.Info().
+			Str("sub_id", sub.ID.String()).
+			Int("skipped_cycles", skippedCycles-1).
+			Msg("billing: resume-forward — skipped cycles settled as one invoice")
+		reason = fmt.Sprintf("resume-forward: %d cycles skipped, period reset to current", skippedCycles-1)
+	}
+	return periodEnd, reason
 }
 
 // attemptRecoveryCharge escalates through the recovery ladder based on the

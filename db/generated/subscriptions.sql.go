@@ -815,6 +815,68 @@ func (q *Queries) UpdateSubscriptionAfterRenewal(ctx context.Context, arg Update
 	return i, err
 }
 
+const updateSubscriptionAfterRenewalOptimistic = `-- name: UpdateSubscriptionAfterRenewalOptimistic :one
+UPDATE subscriptions
+SET
+    status = $3,
+    current_period_start = $4,
+    current_period_end = $5,
+    dunning_attempt = 0,
+    next_retry_at = NULL,
+    updated_at = NOW()
+WHERE id = $1
+  AND tenant_id = $2
+  AND updated_at = $6
+  AND status != 'CANCELLED'
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode
+`
+
+type UpdateSubscriptionAfterRenewalOptimisticParams struct {
+	ID                 uuid.UUID `json:"id"`
+	TenantID           uuid.UUID `json:"tenant_id"`
+	Status             string    `json:"status"`
+	CurrentPeriodStart time.Time `json:"current_period_start"`
+	CurrentPeriodEnd   time.Time `json:"current_period_end"`
+	UpdatedAt          time.Time `json:"updated_at"`
+}
+
+func (q *Queries) UpdateSubscriptionAfterRenewalOptimistic(ctx context.Context, arg UpdateSubscriptionAfterRenewalOptimisticParams) (Subscription, error) {
+	row := q.db.QueryRow(ctx, updateSubscriptionAfterRenewalOptimistic,
+		arg.ID,
+		arg.TenantID,
+		arg.Status,
+		arg.CurrentPeriodStart,
+		arg.CurrentPeriodEnd,
+		arg.UpdatedAt,
+	)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.CustomerID,
+		&i.PlanID,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.TrialEnd,
+		&i.PausedAt,
+		&i.CancelledAt,
+		&i.CancelAtPeriodEnd,
+		&i.DunningAttempt,
+		&i.NextRetryAt,
+		&i.IdempotencyKey,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TokenKey,
+		&i.MandateID,
+		&i.RecoveryRail,
+		&i.DiscountKobo,
+		&i.Mode,
+	)
+	return i, err
+}
+
 const updateSubscriptionDunning = `-- name: UpdateSubscriptionDunning :one
 UPDATE subscriptions
 SET

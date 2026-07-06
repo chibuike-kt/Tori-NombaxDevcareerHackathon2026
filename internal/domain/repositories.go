@@ -73,6 +73,13 @@ type SubscriptionRepository interface {
 	ListByCustomer(ctx context.Context, tenantID, customerID uuid.UUID, mode string) ([]*Subscription, error)
 	UpdateStatus(ctx context.Context, id, tenantID uuid.UUID, status SubscriptionStatus) (*Subscription, error)
 	UpdateAfterRenewal(ctx context.Context, id, tenantID uuid.UUID, status SubscriptionStatus, periodStart, periodEnd time.Time) (*Subscription, error)
+	// ResumeForward fast-forwards a lapsed subscription to the current billing
+	// period instead of back-billing every skipped cycle, recording a custom
+	// transition reason (e.g. noting how many cycles were skipped).
+	ResumeForward(ctx context.Context, id, tenantID uuid.UUID, status SubscriptionStatus, periodStart, periodEnd time.Time, reason string) (*Subscription, error)
+	// ResumeForwardOptimistic is ResumeForward with an optimistic-concurrency
+	// check against the subscription's last-known updated_at.
+	ResumeForwardOptimistic(ctx context.Context, id, tenantID uuid.UUID, status SubscriptionStatus, periodStart, periodEnd time.Time, reason string, lastUpdatedAt time.Time) (*Subscription, error)
 	UpdateDunning(ctx context.Context, id, tenantID uuid.UUID, status SubscriptionStatus, attempt int, nextRetryAt *time.Time) (*Subscription, error)
 	UpdatePlan(ctx context.Context, id, tenantID, planID uuid.UUID) (*Subscription, error)
 	Cancel(ctx context.Context, id, tenantID uuid.UUID) (*Subscription, error)
