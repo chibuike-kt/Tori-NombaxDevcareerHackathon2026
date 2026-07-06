@@ -115,6 +115,7 @@ type LedgerRepository interface {
 	ListByDateRange(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string, limit, offset int) ([]*LedgerEntry, error)
 	ListByTypeAndDateRange(ctx context.Context, tenantID uuid.UUID, types []string, from, to time.Time, mode string, limit, offset int) ([]*LedgerEntry, error)
 	GetSummary(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string) (*LedgerSummary, error)
+	GetBalanceSettlement(ctx context.Context, tenantID uuid.UUID, todayMidnight time.Time, mode string) (availableKobo, pendingKobo int64, err error)
 	GetMRR(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string) (int64, error)
 	GetMonthlyRevenue(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string) ([]MonthlyRevenueRow, error)
 }

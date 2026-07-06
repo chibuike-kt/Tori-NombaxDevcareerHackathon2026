@@ -86,6 +86,16 @@ WHERE l.tenant_id = $1
 GROUP BY p.id, p.name
 ORDER BY total_charged DESC;
 
+-- name: GetBalanceSettlement :one
+-- T+1 settlement: charges/refunds before today's midnight are settled
+-- (available); charges today are pending settlement.
+SELECT
+  (COALESCE(SUM(amount) FILTER (WHERE entry_type = 'CHARGE' AND created_at < $2), 0)
+  - COALESCE(SUM(amount) FILTER (WHERE entry_type = 'REFUND' AND created_at < $2), 0))::BIGINT AS available_kobo,
+    COALESCE(SUM(amount) FILTER (WHERE entry_type = 'CHARGE' AND created_at >= $2), 0)::BIGINT AS pending_kobo
+FROM ledger_entries
+WHERE tenant_id = $1 AND mode = $3;
+
 -- name: GetMonthlyRevenue :many
 SELECT
   DATE_TRUNC('month', created_at)::TIMESTAMPTZ AS month,

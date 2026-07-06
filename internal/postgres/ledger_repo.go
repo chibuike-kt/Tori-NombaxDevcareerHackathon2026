@@ -156,6 +156,18 @@ func (r *LedgerRepo) GetSummary(ctx context.Context, tenantID uuid.UUID, from, t
 	}, nil
 }
 
+func (r *LedgerRepo) GetBalanceSettlement(ctx context.Context, tenantID uuid.UUID, todayMidnight time.Time, mode string) (int64, int64, error) {
+	row, err := r.q.GetBalanceSettlement(ctx, db.GetBalanceSettlementParams{
+		TenantID:  tenantID,
+		CreatedAt: todayMidnight,
+		Mode:      mode,
+	})
+	if err != nil {
+		return 0, 0, err
+	}
+	return row.AvailableKobo, row.PendingKobo, nil
+}
+
 func (r *LedgerRepo) GetMRR(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string) (int64, error) {
 	row, err := r.q.GetMRR(ctx, db.GetMRRParams{
 		TenantID:    tenantID,

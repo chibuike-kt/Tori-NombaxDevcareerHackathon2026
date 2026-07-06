@@ -112,6 +112,21 @@ func (m *mockLedgerRepo) GetMRR(_ context.Context, _ uuid.UUID, _, _ time.Time, 
 	return total, nil
 }
 
+func (m *mockLedgerRepo) GetBalanceSettlement(_ context.Context, _ uuid.UUID, todayMidnight time.Time, _ string) (int64, int64, error) {
+	var available, pending int64
+	for _, e := range m.entries {
+		switch {
+		case e.EntryType == domain.EntryCharge && e.CreatedAt.Before(todayMidnight):
+			available += e.Amount
+		case e.EntryType == domain.EntryRefund && e.CreatedAt.Before(todayMidnight):
+			available -= e.Amount
+		case e.EntryType == domain.EntryCharge:
+			pending += e.Amount
+		}
+	}
+	return available, pending, nil
+}
+
 func TestRecordCharge_WritesDebitEntry(t *testing.T) {
 	repo := &mockLedgerRepo{}
 	svc := ledger.NewService(repo)

@@ -204,6 +204,7 @@ r.Group(func(r chi.Router) {
 		r.Get("/v1/ledger/summary", ledgerH.Summary)
 		r.Get("/v1/ledger/{id}", ledgerH.Get)
 
+		r.Get("/v1/finance/balance", finopsH.Balance)
 		r.Get("/v1/finance/mrr", finopsH.MRR)
 		r.Get("/v1/finance/arr", finopsH.ARR)
 		r.Get("/v1/finance/churn", finopsH.Churn)

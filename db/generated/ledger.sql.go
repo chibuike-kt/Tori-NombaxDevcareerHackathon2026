@@ -73,6 +73,35 @@ func (q *Queries) CreateLedgerEntry(ctx context.Context, arg CreateLedgerEntryPa
 	return i, err
 }
 
+const getBalanceSettlement = `-- name: GetBalanceSettlement :one
+SELECT
+  (COALESCE(SUM(amount) FILTER (WHERE entry_type = 'CHARGE' AND created_at < $2), 0)
+  - COALESCE(SUM(amount) FILTER (WHERE entry_type = 'REFUND' AND created_at < $2), 0))::BIGINT AS available_kobo,
+    COALESCE(SUM(amount) FILTER (WHERE entry_type = 'CHARGE' AND created_at >= $2), 0)::BIGINT AS pending_kobo
+FROM ledger_entries
+WHERE tenant_id = $1 AND mode = $3
+`
+
+type GetBalanceSettlementParams struct {
+	TenantID  uuid.UUID `json:"tenant_id"`
+	CreatedAt time.Time `json:"created_at"`
+	Mode      string    `json:"mode"`
+}
+
+type GetBalanceSettlementRow struct {
+	AvailableKobo int64 `json:"available_kobo"`
+	PendingKobo   int64 `json:"pending_kobo"`
+}
+
+// T+1 settlement: charges/refunds before today's midnight are settled
+// (available); charges today are pending settlement.
+func (q *Queries) GetBalanceSettlement(ctx context.Context, arg GetBalanceSettlementParams) (GetBalanceSettlementRow, error) {
+	row := q.db.QueryRow(ctx, getBalanceSettlement, arg.TenantID, arg.CreatedAt, arg.Mode)
+	var i GetBalanceSettlementRow
+	err := row.Scan(&i.AvailableKobo, &i.PendingKobo)
+	return i, err
+}
+
 const getLedgerEntryByID = `-- name: GetLedgerEntryByID :one
 SELECT id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at, mode FROM ledger_entries WHERE id = $1 AND tenant_id = $2
 `

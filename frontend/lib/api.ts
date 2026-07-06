@@ -232,6 +232,15 @@ export const createCheckout = (
   }>("/v1/checkout", { email, plan_id: planId, name, external_id: externalId });
 
 // Finance
+export interface BalanceResult {
+  available_kobo: number;
+  pending_kobo: number;
+  gross_kobo: number;
+  currency: string;
+  as_of: string;
+}
+
+export const getBalance = () => api.get<{ data: BalanceResult }>("/v1/finance/balance");
 export const getMRR = (period?: string) =>
   api.get<{ data: MRRResult }>(
     `/v1/finance/mrr${period ? `?period=${period}` : ""}`,

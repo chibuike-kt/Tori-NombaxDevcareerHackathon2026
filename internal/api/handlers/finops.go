@@ -35,6 +35,19 @@ func (h *FinOpsHandler) MRR(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, r, http.StatusOK, result)
 }
 
+func (h *FinOpsHandler) Balance(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.GetTenantID(r.Context())
+	mode := middleware.GetMode(r.Context())
+
+	result, err := h.svc.GetBalance(r.Context(), tenantID, mode)
+	if err != nil {
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	respond.JSON(w, r, http.StatusOK, result)
+}
+
 func (h *FinOpsHandler) RecoveryCenter(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	from, to := parseDateRange(r)

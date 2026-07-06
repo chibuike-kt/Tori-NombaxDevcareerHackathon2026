@@ -45,6 +45,16 @@ type RevenueReport struct {
 	BreakdownByPlan  []PlanRevenue   `json:"breakdown_by_plan"`
 }
 
+// BalanceResult reports a merchant's withdrawable balance under a T+1
+// settlement model — charges settle the day after they're collected.
+type BalanceResult struct {
+	AvailableKobo int64     `json:"available_kobo"`
+	PendingKobo   int64     `json:"pending_kobo"`
+	GrossKobo     int64     `json:"gross_kobo"`
+	Currency      string    `json:"currency"`
+	AsOf          time.Time `json:"as_of"`
+}
+
 type PlanRevenue struct {
 	PlanID            uuid.UUID `json:"plan_id"`
 	PlanName          string    `json:"plan_name"`
@@ -139,6 +149,27 @@ func NewService(ledger domain.LedgerRepository, subs domain.SubscriptionReposito
 // the full yearly amount. Custom-interval plans are not normalized (no fixed
 // monthly equivalent is well-defined for an arbitrary day count) and count
 // as-is.
+// GetBalance computes the merchant's available/pending/gross balance under a
+// T+1 settlement model: charges (minus refunds) from before today are
+// settled and withdrawable; charges from today are still pending.
+func (s *Service) GetBalance(ctx context.Context, tenantID uuid.UUID, mode string) (*BalanceResult, error) {
+	now := time.Now().UTC()
+	todayMidnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	available, pending, err := s.ledger.GetBalanceSettlement(ctx, tenantID, todayMidnight, mode)
+	if err != nil {
+		return nil, err
+	}
+
+	return &BalanceResult{
+		AvailableKobo: available,
+		PendingKobo:   pending,
+		GrossKobo:     available + pending,
+		Currency:      "NGN",
+		AsOf:          now,
+	}, nil
+}
+
 func (s *Service) GetMRR(ctx context.Context, tenantID uuid.UUID, period time.Time, mode string) (*MRRResult, error) {
 	from := time.Date(period.Year(), period.Month(), 1, 0, 0, 0, 0, time.UTC)
 	to := from.AddDate(0, 1, 0)

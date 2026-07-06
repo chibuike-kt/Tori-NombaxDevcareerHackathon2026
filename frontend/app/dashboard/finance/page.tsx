@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  getBalance,
   getMRR,
   getChurn,
   getDunningRecovery,
@@ -84,6 +85,11 @@ export default function FinancePage() {
 
 const queryClient = useQueryClient();
 
+const { data: balanceData } = useQuery({
+  queryKey: ["balance"],
+  queryFn: getBalance,
+  staleTime: 0,
+});
 const { data: mrrData } = useQuery({
   queryKey: ["mrr", period],
   queryFn: () => getMRR(period),
@@ -115,6 +121,7 @@ const { data: monthlyData } = useQuery({
   staleTime: 0,
 });
 
+const balance = balanceData?.data;
 const mrr = mrrData?.data;
 const churn = churnData?.data;
 const recovery = recoveryData?.data;
@@ -172,6 +179,61 @@ const ranges: Range[] = ["7D", "30D", "90D", "1Y"];
               </button>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Withdrawable balance — T+1 settlement */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div
+          className="rounded-xl p-4 lg:p-5"
+          style={{ background: "#E6F8F2", border: "1px solid #B8ECD8" }}
+        >
+          <p className="text-xs font-bold mb-2" style={{ color: "#0A7A56" }}>
+            Available
+          </p>
+          <p
+            className="text-xl lg:text-2xl font-extrabold"
+            style={{ color: "#00703C", letterSpacing: "-0.02em" }}
+          >
+            {balance ? formatKobo(balance.available_kobo) : "..."}
+          </p>
+          <p className="text-xs font-medium mt-1" style={{ color: "#0A7A56" }}>
+            Settled and withdrawable
+          </p>
+        </div>
+        <div
+          className="rounded-xl p-4 lg:p-5"
+          style={{ background: "#FEF3C7", border: "1px solid #FDE68A" }}
+        >
+          <p className="text-xs font-bold mb-2" style={{ color: "#92400E" }}>
+            Pending
+          </p>
+          <p
+            className="text-xl lg:text-2xl font-extrabold"
+            style={{ color: "#B45309", letterSpacing: "-0.02em" }}
+          >
+            {balance ? formatKobo(balance.pending_kobo) : "..."}
+          </p>
+          <p className="text-xs font-medium mt-1" style={{ color: "#92400E" }}>
+            Settling today (T+1)
+          </p>
+        </div>
+        <div
+          className="rounded-xl p-4 lg:p-5"
+          style={{ background: "#0F1728" }}
+        >
+          <p className="text-xs font-bold mb-2" style={{ color: "#9CA3AF" }}>
+            Gross earned
+          </p>
+          <p
+            className="text-xl lg:text-2xl font-extrabold text-white"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            {balance ? formatKobo(balance.gross_kobo) : "..."}
+          </p>
+          <p className="text-xs font-medium mt-1" style={{ color: "#9CA3AF" }}>
+            Available + pending
+          </p>
         </div>
       </div>
 
