@@ -44,8 +44,10 @@ func (h *WebhookHandler) CreateEndpoint(w http.ResponseWriter, r *http.Request) 
 		body.APIVersion = "2026-06-17"
 	}
 
+	mode := middleware.GetMode(r.Context())
+
 	// Enforce max 5 webhook endpoints per tenant
-	existing, err := h.webhooks.ListEndpoints(r.Context(), tenantID)
+	existing, err := h.webhooks.ListEndpoints(r.Context(), tenantID, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -57,7 +59,7 @@ func (h *WebhookHandler) CreateEndpoint(w http.ResponseWriter, r *http.Request) 
 	}
 
 	secret := uuid.New().String()
-	endpoint, err := h.webhooks.CreateEndpoint(r.Context(), tenantID, body.URL, body.Events, secret, body.APIVersion)
+	endpoint, err := h.webhooks.CreateEndpoint(r.Context(), tenantID, body.URL, body.Events, secret, body.APIVersion, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -72,8 +74,9 @@ func (h *WebhookHandler) CreateEndpoint(w http.ResponseWriter, r *http.Request) 
 
 func (h *WebhookHandler) ListEndpoints(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
+	mode := middleware.GetMode(r.Context())
 
-	endpoints, err := h.webhooks.ListEndpoints(r.Context(), tenantID)
+	endpoints, err := h.webhooks.ListEndpoints(r.Context(), tenantID, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -151,7 +154,8 @@ func (h *WebhookHandler) RetryDelivery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.dispatcher.RetryDelivery(r.Context(), tenantID, delivery.EventType, delivery.Payload); err != nil {
+	mode := middleware.GetMode(r.Context())
+	if err := h.dispatcher.RetryDelivery(r.Context(), tenantID, delivery.EventType, delivery.Payload, mode); err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}

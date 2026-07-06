@@ -35,11 +35,13 @@ func (h *InvoiceHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	mode := middleware.GetMode(r.Context())
+
 	// Filter by status if provided
 	statusParam := r.URL.Query().Get("status")
 	if statusParam != "" {
 		invoices, err := h.invoices.ListByStatus(r.Context(), tenantID,
-			domain.InvoiceStatus(statusParam), limit, offset)
+			domain.InvoiceStatus(statusParam), mode, limit, offset)
 		if err != nil {
 			respond.InternalError(w, r, err)
 			return
@@ -50,7 +52,7 @@ func (h *InvoiceHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	invoices, err := h.invoices.ListByTenant(r.Context(), tenantID, limit, offset)
+	invoices, err := h.invoices.ListByTenant(r.Context(), tenantID, mode, limit, offset)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return

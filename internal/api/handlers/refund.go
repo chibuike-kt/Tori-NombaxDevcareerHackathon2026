@@ -160,7 +160,7 @@ func (h *RefundHandler) IssueRefund(w http.ResponseWriter, r *http.Request) {
 
 	entry, ledgerErr := h.ledger.RecordRefund(r.Context(),
 		tenantID, subID, latestInvoiceID, sub.CustomerID,
-		ledgerAmount, "NGN", ik, req.Reason)
+		ledgerAmount, "NGN", ik, req.Reason, sub.Mode)
 	if ledgerErr != nil {
 		log.Error().Err(ledgerErr).Str("sub_id", subID.String()).Msg("refund: failed to record ledger entry")
 		respond.InternalError(w, r, ledgerErr)

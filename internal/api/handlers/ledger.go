@@ -29,8 +29,9 @@ func (h *LedgerHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	from, to := parseDateRange(r)
+	mode := middleware.GetMode(r.Context())
 
-	entries, err := h.svc.ListByDateRange(r.Context(), tenantID, from, to, limit, offset)
+	entries, err := h.svc.ListByDateRange(r.Context(), tenantID, from, to, mode, limit, offset)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -47,7 +48,8 @@ func (h *LedgerHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entry, err := h.svc.ListBySubscription(r.Context(), tenantID, id, 1, 0)
+	mode := middleware.GetMode(r.Context())
+	entry, err := h.svc.ListBySubscription(r.Context(), tenantID, id, mode, 1, 0)
 	if err != nil || len(entry) == 0 {
 		respond.NotFound(w, r)
 		return
@@ -59,8 +61,9 @@ func (h *LedgerHandler) Get(w http.ResponseWriter, r *http.Request) {
 func (h *LedgerHandler) Summary(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	from, to := parseDateRange(r)
+	mode := middleware.GetMode(r.Context())
 
-	summary, err := h.svc.GetSummary(r.Context(), tenantID, from, to)
+	summary, err := h.svc.GetSummary(r.Context(), tenantID, from, to, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -96,7 +99,8 @@ func (h *LedgerHandler) MonthlyRevenue(w http.ResponseWriter, r *http.Request) {
 		to = time.Now().UTC()
 	}
 
-	rows, err := h.svc.GetMonthlyRevenue(r.Context(), tenantID, from, to)
+	mode := middleware.GetMode(r.Context())
+	rows, err := h.svc.GetMonthlyRevenue(r.Context(), tenantID, from, to, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return

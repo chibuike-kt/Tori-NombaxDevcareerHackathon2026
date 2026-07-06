@@ -46,8 +46,9 @@ func (h *HealthHandler) GetPortfolioHealth(w http.ResponseWriter, r *http.Reques
 	if limit == 0 {
 		limit = 100
 	}
+	mode := middleware.GetMode(r.Context())
 
-	subs, err := h.subs.List(r.Context(), tenantID, limit, 0)
+	subs, err := h.subs.List(r.Context(), tenantID, mode, limit, 0)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -111,13 +112,14 @@ func (h *HealthHandler) GetRevenueForecast(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	subs, err := h.subs.List(r.Context(), tenantID, 500, 0)
+	mode := middleware.GetMode(r.Context())
+	subs, err := h.subs.List(r.Context(), tenantID, mode, 500, 0)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}
 
-	plans, err := h.plans.ListAll(r.Context(), tenantID)
+	plans, err := h.plans.ListAll(r.Context(), tenantID, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return

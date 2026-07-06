@@ -292,7 +292,7 @@ func (h *NombaWebhookHandler) activateAndRecord(r *http.Request, sub *domain.Sub
 	invoice, invoiceErr := h.invoices.Create(ctx,
 		sub.TenantID, sub.ID, sub.CustomerID,
 		amountKobo, plan.Currency,
-		domain.InvoiceOpen, dueDate, lineItems, &invoiceIK)
+		domain.InvoiceOpen, dueDate, lineItems, &invoiceIK, sub.Mode)
 	if invoiceErr != nil {
 		log.Error().Err(invoiceErr).Str("sub_id", sub.ID.String()).Msg("nomba webhook: failed to create invoice")
 		return
@@ -302,7 +302,7 @@ func (h *NombaWebhookHandler) activateAndRecord(r *http.Request, sub *domain.Sub
 	chargeIK := fmt.Sprintf("checkout-charge-%s", sub.ID)
 	_, ledgerErr := h.ledgerSvc.RecordCharge(ctx,
 		sub.TenantID, sub.ID, invoice.ID, sub.CustomerID,
-		amountKobo, plan.Currency, chargeIK)
+		amountKobo, plan.Currency, chargeIK, sub.Mode)
 	if ledgerErr != nil {
 		log.Error().Err(ledgerErr).Str("sub_id", sub.ID.String()).Msg("nomba webhook: failed to record ledger charge")
 	}
@@ -322,12 +322,12 @@ if h.dispatcher != nil {
     }
     // subscription.activated
     if err := h.dispatcher.DispatchAsync(r.Context(), sub.TenantID,
-        domain.EventSubscriptionActivated, webhookData); err != nil {
+        domain.EventSubscriptionActivated, webhookData, sub.Mode); err != nil {
         log.Error().Err(err).Str("sub_id", sub.ID.String()).Msg("nomba webhook: failed to dispatch subscription.activated")
     }
     // payment.succeeded
     if err := h.dispatcher.DispatchAsync(r.Context(), sub.TenantID,
-        domain.EventPaymentSucceeded, webhookData); err != nil {
+        domain.EventPaymentSucceeded, webhookData, sub.Mode); err != nil {
         log.Error().Err(err).Str("sub_id", sub.ID.String()).Msg("nomba webhook: failed to dispatch payment.succeeded")
     }
 }
@@ -382,7 +382,7 @@ if sub.Status == domain.StatusPendingPayment {
 			mustJSON(map[string]string{
 				"subscription_id": subID.String(),
 				"tenant_id":       sub.TenantID.String(),
-			}), retryAt, 3)
+			}), retryAt, 3, sub.Mode)
 		log.Warn().
 			Str("sub_id", subID.String()).
 			Str("response_code", data.Transaction.ResponseCode).

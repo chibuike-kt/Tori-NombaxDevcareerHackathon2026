@@ -136,6 +136,7 @@ func (h *PlanChangeHandler) ChangePlan(w http.ResponseWriter, r *http.Request) {
 			proration.NetAdjustment,
 			oldPlan.Currency,
 			ik,
+			sub.Mode,
 		)
 	} else if proration.NetAdjustment < 0 {
 		// Downgrade: apply credit
@@ -148,6 +149,7 @@ func (h *PlanChangeHandler) ChangePlan(w http.ResponseWriter, r *http.Request) {
 			credit,
 			oldPlan.Currency,
 			ik+"-credit",
+			sub.Mode,
 		)
 	}
 	if err != nil {

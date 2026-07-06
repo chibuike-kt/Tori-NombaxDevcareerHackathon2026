@@ -45,23 +45,24 @@ func (h *MetricsHandler) GetMetrics(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	monthEnd := monthStart.AddDate(0, 1, 0)
+	mode := middleware.GetMode(r.Context())
 
 	// Subscription counts by status
 	statusCounts := map[string]int{}
-	allSubs, _ := h.subs.List(r.Context(), tenantID, 1000, 0)
+	allSubs, _ := h.subs.List(r.Context(), tenantID, mode, 1000, 0)
 	for _, s := range allSubs {
 		statusCounts[string(s.Status)]++
 	}
 
 	// MRR
 	var mrrKobo int64
-	mrrResult, err := h.finopsSvc.GetMRR(r.Context(), tenantID, now)
+	mrrResult, err := h.finopsSvc.GetMRR(r.Context(), tenantID, now, mode)
 	if err == nil {
 		mrrKobo = mrrResult.MRRKobo
 	}
 
 	// Revenue this month
-	summary, _ := h.ledgerSvc.GetSummary(r.Context(), tenantID, monthStart, monthEnd)
+	summary, _ := h.ledgerSvc.GetSummary(r.Context(), tenantID, monthStart, monthEnd, mode)
 
 	// Job queue depth
 	var queueDepth int64
