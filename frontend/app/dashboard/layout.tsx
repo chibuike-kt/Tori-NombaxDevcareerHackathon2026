@@ -41,9 +41,7 @@ export default function DashboardLayout({
         <Sidebar onClose={() => setSidebarOpen(false)} />
       </div>
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <div className="hidden lg:block">
-          <Topbar />
-        </div>
+        <Topbar onMenuClick={() => setSidebarOpen(true)} />
         {/* Banners rendered client-side only via Suspense — no SSR, no hydration mismatch */}
         <Suspense fallback={null}>
           <TestModeBanner />
@@ -51,23 +49,6 @@ export default function DashboardLayout({
         <Suspense fallback={null}>
           <EmailVerificationBanner />
         </Suspense>
-
-        {/* Mobile top bar */}
-        <div
-          className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b"
-          style={{ borderColor: "#F0F0F0" }}
-        >
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="p-1.5 rounded-lg"
-            style={{ color: "#0F1728" }}
-          >
-            <i className="ti ti-menu-2" style={{ fontSize: 22 }} />
-          </button>
-          <div className="flex items-center gap-2">
-            <img src="/logo-light.svg" alt="Tori" className="h-6 w-auto" />
-          </div>
-        </div>
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>
