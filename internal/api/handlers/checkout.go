@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -109,7 +110,7 @@ func (h *CheckoutHandler) validatePromoCode(w http.ResponseWriter, r *http.Reque
 	}
 
 	if p.DiscountType == domain.DiscountTypePercentage {
-		discountKobo = plan.Amount * p.DiscountValue / 100
+		discountKobo = int64(math.Round(float64(plan.Amount) * float64(p.DiscountValue) / 100))
 	} else {
 		discountKobo = p.DiscountValue
 	}
@@ -232,7 +233,7 @@ if plan.TrialPeriodDays > 0 {
 	sub, err := h.subs.Create(
 		r.Context(), tenantID, customer.ID, plan.ID,
 		initialStatus, now, periodEnd, trialEnd,
-		req.IdempotencyKey, nil,
+		req.IdempotencyKey, nil, discountKobo,
 	)
 	if err != nil {
 		respond.InternalError(w, r, err)
@@ -413,7 +414,7 @@ func (h *CheckoutHandler) RegenerateCheckout(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	customer, err := h.customers.GetByID(r.Context(), tenantID, sub.CustomerID)
+	customer, err := h.customers.GetByID(r.Context(), sub.CustomerID, tenantID)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -434,9 +435,12 @@ func (h *CheckoutHandler) RegenerateCheckout(w http.ResponseWriter, r *http.Requ
 		callbackURL = fmt.Sprintf("%s?sub=%s&orderReference=%s", *req.CallbackURL, sub.ID, sub.ID)
 	}
 
-	checkoutAmount := plan.Amount
+	// Re-apply whatever discount (if any) was applied on the original checkout
+	// that created this subscription — otherwise a regenerated link silently
+	// charges the customer full price after their card failed on a discount.
+	checkoutAmount := plan.Amount - sub.DiscountKobo
 	if plan.TrialPeriodDays > 0 && sub.Status == domain.StatusTrialing {
-		checkoutAmount = 100 // ₦1 verification for trial
+		checkoutAmount = 100 // ₦1 verification for trial — discount never applied to this charge
 	}
 
 	nombaResp, err := h.payment.InitiateCheckout(r.Context(), payment.CheckoutRequest{

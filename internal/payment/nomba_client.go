@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"strconv"
@@ -300,7 +301,7 @@ func (c *NombaHTTPClient) VerifyPayment(ctx context.Context, reference string) (
 	return &VerifyResponse{
 		Success:   result.Data.Status == "SUCCESS" || result.Data.Status == "successful",
 		Reference: result.Data.OrderReference,
-		Amount:    int64(result.Data.Amount * 100),
+		Amount:    int64(math.Round(result.Data.Amount * 100)),
 		Status:    result.Data.Status,
 	}, nil
 }
@@ -312,7 +313,10 @@ func (c *NombaHTTPClient) RefundPayment(ctx context.Context, req RefundRequest) 
 	}
 	// If amount > 0 it's a partial refund, otherwise full refund
 	if req.Amount > 0 {
-		payload["amount"] = float64(req.Amount) / 100 // Nomba expects Naira not kobo
+		// Formatted as a string, matching every other Nomba amount field
+		// (InitiateCheckout, ChargeToken, mandate charges) — a raw float here
+		// risks binary floating-point artifacts leaking into the JSON payload.
+		payload["amount"] = fmt.Sprintf("%.2f", float64(req.Amount)/100)
 	}
 
 	log.Info().

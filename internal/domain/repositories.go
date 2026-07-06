@@ -63,7 +63,7 @@ type PlanRepository interface {
 }
 
 type SubscriptionRepository interface {
-	Create(ctx context.Context, tenantID, customerID, planID uuid.UUID, status SubscriptionStatus, periodStart, periodEnd time.Time, trialEnd *time.Time, idempotencyKey *string, metadata []byte) (*Subscription, error)
+	Create(ctx context.Context, tenantID, customerID, planID uuid.UUID, status SubscriptionStatus, periodStart, periodEnd time.Time, trialEnd *time.Time, idempotencyKey *string, metadata []byte, discountKobo int64) (*Subscription, error)
 	GetByID(ctx context.Context, id, tenantID uuid.UUID) (*Subscription, error)
 	GetByIDNoTenant(ctx context.Context, id uuid.UUID) (*Subscription, error)
 	GetByIdempotencyKey(ctx context.Context, key string, tenantID uuid.UUID) (*Subscription, error)

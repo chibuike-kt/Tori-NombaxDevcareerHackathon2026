@@ -217,15 +217,23 @@ func (h *Handlers) ExpireTrial(ctx context.Context, payload json.RawMessage) err
 		Reference:      fmt.Sprintf("trial-charge-%s", subID),
 	})
 
-	if err == nil && result.Success {
+	if err != nil {
+		// Infrastructure/network error reaching Nomba — not a genuine decline.
+		// Return the error so the job queue retries rather than burning the
+		// subscription's one grace-period attempt on Tori's own hiccup.
+		log.Error().Err(err).Str("sub_id", subID.String()).
+			Msg("trial charge: infrastructure error reaching Nomba — requeuing, not entering grace period")
+		return fmt.Errorf("charge token: %w", err)
+	}
+
+	if result.Success {
 		// Charge succeeded — activate subscription
 		now := time.Now().UTC()
 		periodEnd := nextPeriodEnd(now, plan)
 		_, _ = h.subs.UpdateAfterRenewal(ctx, subID, tenantID, domain.StatusActive, now, periodEnd)
 
-		_, _ = h.ledger.RecordCharge(ctx, tenantID, subID, subID, sub.CustomerID,
-			plan.Amount, plan.Currency, fmt.Sprintf("trial-charge-%s", subID))
-
+		// createInvoiceForCharge records the ledger entry itself — a separate
+		// RecordCharge call here would double-count this charge in the ledger.
 		h.createInvoiceForCharge(ctx, sub, plan, plan.Amount, result.Reference)
 
 		log.Info().Str("sub_id", subID.String()).
@@ -234,7 +242,7 @@ func (h *Handlers) ExpireTrial(ctx context.Context, payload json.RawMessage) err
 		return nil
 	}
 
-	// Charge failed — enter grace period
+	// Charge failed — genuine decline — enter grace period
 	log.Warn().Str("sub_id", subID.String()).Msg("trial charge failed — entering grace period")
 	retry := time.Now().UTC().Add(48 * time.Hour)
 	_, _ = h.subs.UpdateDunning(ctx, subID, tenantID, domain.StatusGracePeriod, 0, &retry)
@@ -290,16 +298,23 @@ if sub.CancelAtPeriodEnd {
 	// Recovery ladder — escalate through card → mandate → pay-link
 	result, rail := h.attemptRecoveryCharge(ctx, sub, plan)
 
+	// A network/API failure reaching Nomba is not a card decline — retry the
+	// job instead of burning a dunning attempt or notifying the customer.
+	if result.IsInfraError {
+		log.Error().Str("sub_id", subID.String()).Str("rail", rail).Str("failure", result.FailureMessage).
+			Msg("dunning retry: infrastructure error reaching Nomba — requeuing, not counting as a decline")
+		return fmt.Errorf("recovery charge infra error: %s", result.FailureMessage)
+	}
+
 	// Track which rail is currently being used
 	_, _ = h.subs.UpdateRecoveryRail(ctx, subID, tenantID, rail)
 
 	if result.Success {
-		ik := fmt.Sprintf("recovery-%s-%d", subID, sub.DunningAttempt)
-		_, _ = h.ledger.RecordCharge(ctx, tenantID, subID, subID, sub.CustomerID,
-			plan.Amount, plan.Currency, ik)
 		now := time.Now().UTC()
 		periodEnd := nextPeriodEnd(now, plan)
 		_, _ = h.subs.UpdateAfterRenewal(ctx, subID, tenantID, domain.StatusActive, now, periodEnd)
+		// createInvoiceForCharge records the ledger entry itself — a separate
+		// RecordCharge call here would double-count this charge in the ledger.
 		h.createInvoiceForCharge(ctx, sub, plan, plan.Amount, result.Reference)
 		log.Info().Str("sub_id", subID.String()).Str("rail", rail).Msg("dunning recovery successful")
 		return nil
@@ -338,7 +353,17 @@ func (h *Handlers) SuspendSubscription(ctx context.Context, payload json.RawMess
 	subID, _ := uuid.Parse(p.SubscriptionID)
 	tenantID, _ := uuid.Parse(p.TenantID)
 
-	_, err := h.subs.UpdateStatus(ctx, subID, tenantID, domain.StatusSuspended)
+	sub, err := h.subs.GetByID(ctx, subID, tenantID)
+	if err != nil {
+		return fmt.Errorf("get subscription: %w", err)
+	}
+	if sub.Status == domain.StatusSuspended || sub.Status == domain.StatusCancelled {
+		log.Info().Str("sub_id", subID.String()).Str("status", string(sub.Status)).
+			Msg("suspend skipped — subscription already suspended or cancelled")
+		return nil
+	}
+
+	_, err = h.subs.UpdateStatus(ctx, subID, tenantID, domain.StatusSuspended)
 	if err != nil {
 		return fmt.Errorf("suspend subscription: %w", err)
 	}
@@ -397,7 +422,16 @@ if sub.CancelAtPeriodEnd {
 		Reference:      fmt.Sprintf("grace-%s", subID),
 	})
 
-	if chargeErr == nil && result.Success {
+	if chargeErr != nil {
+		// Infrastructure/network error reaching Nomba — not a genuine decline.
+		// Return the error so the job queue retries rather than moving the
+		// subscription into full dunning over Tori's own hiccup.
+		log.Error().Err(chargeErr).Str("sub_id", subID.String()).
+			Msg("grace retry: infrastructure error reaching Nomba — requeuing, not moving to PAST_DUE")
+		return fmt.Errorf("charge token: %w", chargeErr)
+	}
+
+	if result.Success {
 		_, err = h.subs.UpdateStatusOptimistic(ctx, subID, tenantID, domain.StatusActive, sub.UpdatedAt)
 		if err != nil {
 			if errors.Is(err, domain.ErrConflict) {
@@ -405,17 +439,15 @@ if sub.CancelAtPeriodEnd {
 			}
 			return fmt.Errorf("activate after grace retry: %w", err)
 		}
-		ik := fmt.Sprintf("grace-recovery-%s", subID)
-		_, _ = h.ledger.RecordCharge(ctx, tenantID, subID, subID, sub.CustomerID,
-			plan.Amount, plan.Currency, ik)
-
+		// createInvoiceForCharge records the ledger entry itself — a separate
+		// RecordCharge call here would double-count this charge in the ledger.
 		h.createInvoiceForCharge(ctx, sub, plan, plan.Amount, result.Reference)
 
 		log.Info().Str("sub_id", subID.String()).Msg("grace retry succeeded — subscription activated")
 		return nil
 	}
 
-	// Grace retry failed — move to PAST_DUE to begin full dunning schedule
+	// Grace retry failed — genuine decline — move to PAST_DUE to begin full dunning schedule
 	_, err = h.subs.UpdateStatusOptimistic(ctx, subID, tenantID, domain.StatusPastDue, sub.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, domain.ErrConflict) {
@@ -665,7 +697,7 @@ func (h *Handlers) attemptRecoveryCharge(ctx context.Context, sub *domain.Subscr
 				Narration: "Subscription renewal — direct debit recovery",
 			})
 			if err != nil {
-				return &payment.ChargeResponse{Success: false, FailureCode: "processing_error", FailureMessage: err.Error()}, "mandate"
+				return &payment.ChargeResponse{Success: false, FailureCode: "processing_error", FailureMessage: err.Error(), IsInfraError: true}, "mandate"
 			}
 			return result, "mandate"
 		}
@@ -695,7 +727,7 @@ func (h *Handlers) chargeCard(ctx context.Context, sub *domain.Subscription, pla
 		Reference:      fmt.Sprintf("retry-card-%s-%d", sub.ID, attempt),
 	})
 	if err != nil {
-		return &payment.ChargeResponse{Success: false, FailureCode: "processing_error", FailureMessage: err.Error()}
+		return &payment.ChargeResponse{Success: false, FailureCode: "processing_error", FailureMessage: err.Error(), IsInfraError: true}
 	}
 	return result
 }
@@ -706,7 +738,6 @@ func (h *Handlers) chargeCard(ctx context.Context, sub *domain.Subscription, pla
 // webhook so the product can prompt the customer to pay manually.
 func (h *Handlers) firePaymentActionRequired(ctx context.Context, sub *domain.Subscription, plan *domain.Plan) {
 	// Generate a fresh pay-link
-	payLink := ""
 	resp, err := h.payment.InitiateCheckout(ctx, payment.CheckoutRequest{
 		CustomerID: sub.CustomerID.String(),
 		Amount:     plan.Amount,
@@ -714,11 +745,15 @@ func (h *Handlers) firePaymentActionRequired(ctx context.Context, sub *domain.Su
 		Reference:  sub.ID.String(),
 	})
 	if err != nil {
+		// Don't fire payment.action_required with no working link — that just
+		// tells the developer's integration to prompt a customer to click
+		// something that doesn't exist. Log clearly and let the next recovery
+		// attempt try again instead.
 		log.Error().Err(err).Str("sub_id", sub.ID.String()).
-			Msg("recovery ladder: failed to generate pay-link for action_required")
-	} else {
-		payLink = resp.CheckoutURL
+			Msg("recovery ladder: failed to generate pay-link — skipping payment.action_required webhook")
+		return
 	}
+	payLink := resp.CheckoutURL
 
 	// Enqueue the webhook delivery via the job queue
 	payload, _ := json.Marshal(map[string]interface{}{

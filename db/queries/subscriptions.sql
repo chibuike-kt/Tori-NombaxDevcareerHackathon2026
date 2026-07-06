@@ -2,9 +2,9 @@
 INSERT INTO subscriptions (
     tenant_id, customer_id, plan_id, status,
     current_period_start, current_period_end,
-    trial_end, idempotency_key, metadata
+    trial_end, idempotency_key, metadata, discount_kobo
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
 
 -- name: GetSubscriptionByID :one

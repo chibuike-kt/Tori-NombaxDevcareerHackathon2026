@@ -226,7 +226,7 @@ func main() {
 
 		key := fmt.Sprintf("seed-sub-%02d", i+1)
 		sub, err := subsRepo.Create(ctx, tid, c.ID, plan.ID, sc.status,
-			periodStart, periodEnd, trialEnd, &key, nil)
+			periodStart, periodEnd, trialEnd, &key, nil, 0)
 		if err != nil {
 			continue
 		}

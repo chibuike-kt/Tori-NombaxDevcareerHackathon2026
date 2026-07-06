@@ -20,7 +20,7 @@ type ProrationResult struct {
 // All amounts in kobo. Rounded to nearest kobo.
 func Calculate(now, periodStart, periodEnd time.Time, oldPlan, newPlan *domain.Plan) ProrationResult {
 	daysInPeriod := int(math.Ceil(periodEnd.Sub(periodStart).Hours() / 24))
-	daysRemaining := int(math.Ceil(periodEnd.Sub(now).Hours() / 24))
+	daysRemaining := int(math.Round(periodEnd.Sub(now).Hours() / 24))
 
 	if daysRemaining < 0 {
 		daysRemaining = 0

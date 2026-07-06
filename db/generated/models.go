@@ -210,6 +210,7 @@ type Subscription struct {
 	TokenKey           pgtype.Text        `json:"token_key"`
 	MandateID          pgtype.Text        `json:"mandate_id"`
 	RecoveryRail       string             `json:"recovery_rail"`
+	DiscountKobo       int64              `json:"discount_kobo"`
 }
 
 type SubscriptionTransition struct {

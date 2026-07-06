@@ -120,7 +120,7 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 		periodEnd = t
 	}
 
-	sub, err := h.subs.Create(r.Context(), tenantID, customerID, planID, status, periodStart, periodEnd, trialEnd, body.IdempotencyKey, nil)
+	sub, err := h.subs.Create(r.Context(), tenantID, customerID, planID, status, periodStart, periodEnd, trialEnd, body.IdempotencyKey, nil, 0)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return

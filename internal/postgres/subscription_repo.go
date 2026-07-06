@@ -24,7 +24,7 @@ func NewSubscriptionRepo(pool *pgxpool.Pool) *SubscriptionRepo {
 	return &SubscriptionRepo{q: db.New(pool), pool: pool}
 }
 
-func (r *SubscriptionRepo) Create(ctx context.Context, tenantID, customerID, planID uuid.UUID, status domain.SubscriptionStatus, periodStart, periodEnd time.Time, trialEnd *time.Time, idempotencyKey *string, metadata []byte) (*domain.Subscription, error) {
+func (r *SubscriptionRepo) Create(ctx context.Context, tenantID, customerID, planID uuid.UUID, status domain.SubscriptionStatus, periodStart, periodEnd time.Time, trialEnd *time.Time, idempotencyKey *string, metadata []byte, discountKobo int64) (*domain.Subscription, error) {
 	row, err := r.q.CreateSubscription(ctx, db.CreateSubscriptionParams{
 		TenantID:           tenantID,
 		CustomerID:         customerID,
@@ -35,6 +35,7 @@ func (r *SubscriptionRepo) Create(ctx context.Context, tenantID, customerID, pla
 		TrialEnd:           toPgTimestamptz(trialEnd),
 		IdempotencyKey:     toPgText(idempotencyKey),
 		Metadata:           metadata,
+		DiscountKobo:       discountKobo,
 	})
 	if err != nil {
 		return nil, err
@@ -319,6 +320,7 @@ func subFromRow(row db.Subscription) *domain.Subscription {
 		}(),
 		RecoveryRail:       row.RecoveryRail,
 		Metadata:           row.Metadata,
+		DiscountKobo:       row.DiscountKobo,
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
 	}

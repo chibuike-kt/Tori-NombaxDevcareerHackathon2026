@@ -35,6 +35,11 @@ type ChargeResponse struct {
 	Reference      string
 	FailureCode    string
 	FailureMessage string
+	// IsInfraError is true when the charge attempt failed because Tori
+	// couldn't complete the call to Nomba (network/timeout/API error) — not
+	// because the card was genuinely declined. Callers use this to retry the
+	// job rather than spend a dunning/grace attempt on Tori's own hiccup.
+	IsInfraError bool
 }
 
 type RefundRequest struct {

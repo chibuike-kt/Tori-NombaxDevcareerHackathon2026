@@ -243,6 +243,7 @@ type Subscription struct {
 	NextRetryAt        *time.Time         `json:"next_retry_at,omitempty"`
 	IdempotencyKey     *string            `json:"idempotency_key,omitempty"`
 	Metadata           json.RawMessage    `json:"metadata,omitempty"`
+	DiscountKobo       int64              `json:"discount_kobo,omitempty"`
 	CreatedAt          time.Time          `json:"created_at"`
 	UpdatedAt          time.Time          `json:"updated_at"`
 }
