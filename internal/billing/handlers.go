@@ -226,7 +226,7 @@ func (h *Handlers) ExpireTrial(ctx context.Context, payload json.RawMessage) err
 		_, _ = h.ledger.RecordCharge(ctx, tenantID, subID, subID, sub.CustomerID,
 			plan.Amount, plan.Currency, fmt.Sprintf("trial-charge-%s", subID))
 
-		h.createInvoiceForCharge(ctx, sub, plan, result.Reference)
+		h.createInvoiceForCharge(ctx, sub, plan, plan.Amount, result.Reference)
 
 		log.Info().Str("sub_id", subID.String()).
 			Str("amount", fmt.Sprintf("%.2f", float64(plan.Amount)/100)).
@@ -300,7 +300,7 @@ if sub.CancelAtPeriodEnd {
 		now := time.Now().UTC()
 		periodEnd := nextPeriodEnd(now, plan)
 		_, _ = h.subs.UpdateAfterRenewal(ctx, subID, tenantID, domain.StatusActive, now, periodEnd)
-		h.createInvoiceForCharge(ctx, sub, plan, result.Reference)
+		h.createInvoiceForCharge(ctx, sub, plan, plan.Amount, result.Reference)
 		log.Info().Str("sub_id", subID.String()).Str("rail", rail).Msg("dunning recovery successful")
 		return nil
 	}
@@ -409,7 +409,7 @@ if sub.CancelAtPeriodEnd {
 		_, _ = h.ledger.RecordCharge(ctx, tenantID, subID, subID, sub.CustomerID,
 			plan.Amount, plan.Currency, ik)
 
-		h.createInvoiceForCharge(ctx, sub, plan, result.Reference)
+		h.createInvoiceForCharge(ctx, sub, plan, plan.Amount, result.Reference)
 
 		log.Info().Str("sub_id", subID.String()).Msg("grace retry succeeded — subscription activated")
 		return nil
@@ -429,19 +429,23 @@ if sub.CancelAtPeriodEnd {
 }
 
 // createInvoiceForCharge generates an invoice record after a successful charge.
-func (h *Handlers) createInvoiceForCharge(ctx context.Context, sub *domain.Subscription, plan *domain.Plan, chargeRef string) {
+// amount is what was actually charged in kobo — the plan's sticker price for
+// a full-price renewal/retry, or a promo-discounted amount for a checkout
+// that applied a promo code. It must never be re-derived from plan.Amount
+// inside this function, since that would silently overwrite a discount.
+func (h *Handlers) createInvoiceForCharge(ctx context.Context, sub *domain.Subscription, plan *domain.Plan, amount int64, chargeRef string) {
 	ik := fmt.Sprintf("invoice-charge-%s-%s", sub.ID, chargeRef)
 	lineItems, _ := json.Marshal([]map[string]interface{}{
 		{
 			"description": fmt.Sprintf("%s — %s billing", plan.Name, plan.Interval),
-			"amount":      plan.Amount,
+			"amount":      amount,
 			"currency":    plan.Currency,
 		},
 	})
 
 	// Step 1: Create invoice
 	invoice, err := h.invoices.Create(ctx, sub.TenantID, sub.ID, sub.CustomerID,
-		plan.Amount, plan.Currency, domain.InvoiceOpen,
+		amount, plan.Currency, domain.InvoiceOpen,
 		time.Now().UTC(), lineItems, &ik)
 	if err != nil {
 		log.Error().Err(err).Str("sub_id", sub.ID.String()).Msg("failed to create invoice for charge")
@@ -452,7 +456,7 @@ func (h *Handlers) createInvoiceForCharge(ctx context.Context, sub *domain.Subsc
 	ledgerIK := fmt.Sprintf("ledger-charge-%s-%s", sub.ID, chargeRef)
 	_, ledgerErr := h.ledger.RecordCharge(ctx,
 		sub.TenantID, sub.ID, invoice.ID, sub.CustomerID,
-		plan.Amount, plan.Currency, ledgerIK)
+		amount, plan.Currency, ledgerIK)
 	if ledgerErr != nil {
 		log.Error().Err(ledgerErr).Str("sub_id", sub.ID.String()).Msg("failed to record ledger charge")
 	}
@@ -467,7 +471,7 @@ func (h *Handlers) createInvoiceForCharge(ctx context.Context, sub *domain.Subsc
 	log.Info().
 		Str("sub_id", sub.ID.String()).
 		Str("invoice_id", invoice.ID.String()).
-		Int64("amount_kobo", plan.Amount).
+		Int64("amount_kobo", amount).
 		Msg("invoice created, ledger entry recorded, invoice marked paid")
 }
 
@@ -581,14 +585,17 @@ func (h *Handlers) SimulateWebhook(ctx context.Context, payload json.RawMessage)
 		return fmt.Errorf("activate simulated subscription: %w", err)
 	}
 
-	h.createInvoiceForCharge(ctx, sub, plan, fmt.Sprintf("sim-%s", subID))
+	// p.AmountKobo is what checkout actually charged — the plan's full price,
+	// or a promo-discounted amount if a promo code was applied. plan.Amount
+	// would silently drop the discount here.
+	h.createInvoiceForCharge(ctx, sub, plan, p.AmountKobo, fmt.Sprintf("sim-%s", subID))
 
 	webhookData := map[string]interface{}{
 		"id":          sub.ID,
 		"customer_id": sub.CustomerID,
 		"plan_id":     sub.PlanID,
 		"status":      domain.StatusActive,
-		"amount_kobo": plan.Amount,
+		"amount_kobo": p.AmountKobo,
 		"currency":    plan.Currency,
 	}
 	for _, evt := range []domain.WebhookEventType{domain.EventSubscriptionActivated, domain.EventPaymentSucceeded} {
@@ -607,7 +614,7 @@ func (h *Handlers) SimulateWebhook(ctx context.Context, payload json.RawMessage)
 		Str("sub_id", subID.String()).
 		Str("token_key", fakeToken).
 		Str("plan", plan.Name).
-		Int64("amount_kobo", plan.Amount).
+		Int64("amount_kobo", p.AmountKobo).
 		Msg("billing: simulated payment_success — subscription activated")
 
 	return nil

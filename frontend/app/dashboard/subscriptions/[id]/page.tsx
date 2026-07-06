@@ -24,6 +24,18 @@ export default function SubscriptionDetailPage({
   const { data: subData, isLoading } = useQuery({
     queryKey: ["subscription", id],
     queryFn: () => getSubscription(id),
+    // Never serve a cached snapshot from an earlier visit to this same
+    // subscription — a webhook can flip its status seconds after the list
+    // page's own (separately cached) row was fetched, so this query must
+    // always hit the network on mount rather than trusting the global
+    // 30s staleTime window.
+    staleTime: 0,
+    refetchOnMount: "always",
+    // Keep polling while the subscription is mid-transition (e.g. waiting on
+    // the payment_success webhook), so a tab left open catches the status
+    // change on its own instead of showing a stale PENDING_PAYMENT forever.
+    refetchInterval: (query) =>
+      query.state.data?.data?.status === "PENDING_PAYMENT" ? 5000 : false,
   });
   const { data: transitionsData } = useQuery({
     queryKey: ["subscription-transitions", id],

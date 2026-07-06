@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -262,11 +263,20 @@ func (h *NombaWebhookHandler) activateAndRecord(r *http.Request, sub *domain.Sub
 	}
 	log.Info().Str("sub_id", sub.ID.String()).Msg("nomba webhook: subscription activated, period start set to payment confirmation time")
 
-	// Fetch plan for amount
+	// Fetch plan for name/currency/interval — the amount recorded below comes
+	// from what Nomba actually charged, not the plan's sticker price, since a
+	// promo code may have discounted the checkout.
 	plan, err := h.plans.GetByID(ctx, sub.PlanID, sub.TenantID)
 	if err != nil {
 		log.Error().Err(err).Str("sub_id", sub.ID.String()).Msg("nomba webhook: could not fetch plan")
 		return
+	}
+
+	amountKobo := int64(math.Round(data.Transaction.TransactionAmount * 100))
+	if amountKobo <= 0 {
+		// Defensive fallback — the webhook should always carry the real charged
+		// amount, but never silently record a zero-amount invoice if it doesn't.
+		amountKobo = plan.Amount
 	}
 
 	// Step 1: Create invoice
@@ -275,13 +285,13 @@ func (h *NombaWebhookHandler) activateAndRecord(r *http.Request, sub *domain.Sub
 	lineItems, _ := json.Marshal([]map[string]interface{}{
 		{
 			"description": fmt.Sprintf("%s — initial payment", plan.Name),
-			"amount":      plan.Amount,
+			"amount":      amountKobo,
 			"currency":    plan.Currency,
 		},
 	})
 	invoice, invoiceErr := h.invoices.Create(ctx,
 		sub.TenantID, sub.ID, sub.CustomerID,
-		plan.Amount, plan.Currency,
+		amountKobo, plan.Currency,
 		domain.InvoiceOpen, dueDate, lineItems, &invoiceIK)
 	if invoiceErr != nil {
 		log.Error().Err(invoiceErr).Str("sub_id", sub.ID.String()).Msg("nomba webhook: failed to create invoice")
@@ -292,7 +302,7 @@ func (h *NombaWebhookHandler) activateAndRecord(r *http.Request, sub *domain.Sub
 	chargeIK := fmt.Sprintf("checkout-charge-%s", sub.ID)
 	_, ledgerErr := h.ledgerSvc.RecordCharge(ctx,
 		sub.TenantID, sub.ID, invoice.ID, sub.CustomerID,
-		plan.Amount, plan.Currency, chargeIK)
+		amountKobo, plan.Currency, chargeIK)
 	if ledgerErr != nil {
 		log.Error().Err(ledgerErr).Str("sub_id", sub.ID.String()).Msg("nomba webhook: failed to record ledger charge")
 	}
@@ -307,7 +317,7 @@ if h.dispatcher != nil {
         "customer_id": sub.CustomerID,
         "plan_id":     sub.PlanID,
         "status":      domain.StatusActive,
-        "amount_kobo": plan.Amount,
+        "amount_kobo": amountKobo,
         "currency":    plan.Currency,
     }
     // subscription.activated
@@ -325,7 +335,7 @@ if h.dispatcher != nil {
 	log.Info().
 		Str("sub_id", sub.ID.String()).
 		Str("invoice_id", invoice.ID.String()).
-		Int64("amount_kobo", plan.Amount).
+		Int64("amount_kobo", amountKobo).
 		Str("plan", plan.Name).
 		Msg("nomba webhook: PENDING_PAYMENT → ACTIVE, invoice created and marked paid")
 }
