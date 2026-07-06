@@ -57,7 +57,7 @@ func TestDispatcher_DeliversToSubscribedEndpoint(t *testing.T) {
 	repo := &mockWebhookRepo{endpointURL: server.URL}
 	d := webhook.NewDispatcher(repo, &mockJobRepo{})
 
-	err := d.Dispatch(t.Context(), testTenantID, domain.EventPaymentFailed, map[string]string{"test": "data"})
+	err := d.Dispatch(t.Context(), testTenantID, domain.EventPaymentFailed, map[string]string{"test": "data"}, "live")
 	if err != nil {
 		t.Fatalf("dispatch error: %v", err)
 	}
@@ -82,7 +82,7 @@ var testTenantID = uuid.New()
 
 type mockJobRepo struct{}
 
-func (m *mockJobRepo) Enqueue(_ context.Context, _ *uuid.UUID, _ domain.JobType, _ []byte, _ time.Time, _ int) (*domain.ScheduledJob, error) {
+func (m *mockJobRepo) Enqueue(_ context.Context, _ *uuid.UUID, _ domain.JobType, _ []byte, _ time.Time, _ int, _ string) (*domain.ScheduledJob, error) {
 	return nil, nil
 }
 func (m *mockJobRepo) ClaimNext(_ context.Context, _ string) (*domain.ScheduledJob, error) {

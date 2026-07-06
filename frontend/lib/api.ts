@@ -10,6 +10,11 @@ function getRefreshToken(): string | null {
   return localStorage.getItem("refresh_token");
 }
 
+function getRequestMode(): string {
+  if (typeof window === "undefined") return "live";
+  return localStorage.getItem("tori_mode") || "live";
+}
+
 let isRefreshing = false;
 let refreshQueue: Array<{
   resolve: (token: string) => void;
@@ -43,8 +48,10 @@ async function refreshAccessToken(): Promise<string | null> {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
+  const mode = getRequestMode();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    "X-Tori-Mode": mode,
     ...(options.headers as Record<string, string>),
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -382,6 +389,7 @@ export interface Plan {
   interval_count: number;
   trial_period_days: number;
   is_active: boolean;
+  mode?: "live" | "test";
   created_at: string;
 }
 
@@ -391,6 +399,7 @@ export interface Customer {
   external_id?: string;
   email: string;
   name?: string;
+  mode?: "live" | "test";
   created_at: string;
 }
 
@@ -407,6 +416,7 @@ export interface Subscription {
   next_retry_at?: string;
   cancel_at_period_end: boolean;
   cancelled_at?: string;
+  mode?: "live" | "test";
   created_at: string;
   updated_at: string;
 }
@@ -501,6 +511,7 @@ export interface Invoice {
   due_date: string;
   paid_at?: string;
   nomba_charge_ref?: string;
+  mode?: "live" | "test";
   created_at: string;
 }
 

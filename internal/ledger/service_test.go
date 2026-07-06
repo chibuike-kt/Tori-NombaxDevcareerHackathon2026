@@ -16,11 +16,11 @@ type mockLedgerRepo struct {
 	entries []*domain.LedgerEntry
 }
 
-func (m *mockLedgerRepo) GetMonthlyRevenue(_ context.Context, _ uuid.UUID, _, _ time.Time) ([]domain.MonthlyRevenueRow, error) {
+func (m *mockLedgerRepo) GetMonthlyRevenue(_ context.Context, _ uuid.UUID, _, _ time.Time, _ string) ([]domain.MonthlyRevenueRow, error) {
 	return nil, nil
 }
 
-func (m *mockLedgerRepo) Append(_ context.Context, tenantID uuid.UUID, subscriptionID, invoiceID, customerID *uuid.UUID, entryType domain.LedgerEntryType, direction domain.LedgerDirection, amount int64, currency, description, idempotencyKey string, metadata []byte) (*domain.LedgerEntry, error) {
+func (m *mockLedgerRepo) Append(_ context.Context, tenantID uuid.UUID, subscriptionID, invoiceID, customerID *uuid.UUID, entryType domain.LedgerEntryType, direction domain.LedgerDirection, amount int64, currency, description, idempotencyKey string, metadata []byte, mode string) (*domain.LedgerEntry, error) {
 	e := &domain.LedgerEntry{
 		ID:             uuid.New(),
 		TenantID:       tenantID,
@@ -34,6 +34,7 @@ func (m *mockLedgerRepo) Append(_ context.Context, tenantID uuid.UUID, subscript
 		Description:    description,
 		IdempotencyKey: idempotencyKey,
 		Metadata:       metadata,
+		Mode:           mode,
 		CreatedAt:      time.Now(),
 	}
 	m.entries = append(m.entries, e)
@@ -58,11 +59,11 @@ func (m *mockLedgerRepo) GetByIdempotencyKey(_ context.Context, key string) (*do
 	return nil, domain.ErrNotFound
 }
 
-func (m *mockLedgerRepo) ListByTenant(_ context.Context, tenantID uuid.UUID, limit, offset int) ([]*domain.LedgerEntry, error) {
+func (m *mockLedgerRepo) ListByTenant(_ context.Context, tenantID uuid.UUID, _ string, limit, offset int) ([]*domain.LedgerEntry, error) {
 	return m.entries, nil
 }
 
-func (m *mockLedgerRepo) ListBySubscription(_ context.Context, _, subscriptionID uuid.UUID, limit, offset int) ([]*domain.LedgerEntry, error) {
+func (m *mockLedgerRepo) ListBySubscription(_ context.Context, _, subscriptionID uuid.UUID, _ string, limit, offset int) ([]*domain.LedgerEntry, error) {
 	var result []*domain.LedgerEntry
 	for _, e := range m.entries {
 		if e.SubscriptionID != nil && *e.SubscriptionID == subscriptionID {
@@ -72,19 +73,19 @@ func (m *mockLedgerRepo) ListBySubscription(_ context.Context, _, subscriptionID
 	return result, nil
 }
 
-func (m *mockLedgerRepo) ListByCustomer(_ context.Context, _, customerID uuid.UUID, limit, offset int) ([]*domain.LedgerEntry, error) {
+func (m *mockLedgerRepo) ListByCustomer(_ context.Context, _, customerID uuid.UUID, _ string, limit, offset int) ([]*domain.LedgerEntry, error) {
 	return m.entries, nil
 }
 
-func (m *mockLedgerRepo) ListByDateRange(_ context.Context, _ uuid.UUID, _, _ time.Time, _, _ int) ([]*domain.LedgerEntry, error) {
+func (m *mockLedgerRepo) ListByDateRange(_ context.Context, _ uuid.UUID, _, _ time.Time, _ string, _, _ int) ([]*domain.LedgerEntry, error) {
 	return m.entries, nil
 }
 
-func (m *mockLedgerRepo) ListByTypeAndDateRange(_ context.Context, _ uuid.UUID, _ []string, _, _ time.Time, _, _ int) ([]*domain.LedgerEntry, error) {
+func (m *mockLedgerRepo) ListByTypeAndDateRange(_ context.Context, _ uuid.UUID, _ []string, _, _ time.Time, _ string, _, _ int) ([]*domain.LedgerEntry, error) {
 	return m.entries, nil
 }
 
-func (m *mockLedgerRepo) GetSummary(_ context.Context, _ uuid.UUID, _, _ time.Time) (*domain.LedgerSummary, error) {
+func (m *mockLedgerRepo) GetSummary(_ context.Context, _ uuid.UUID, _, _ time.Time, _ string) (*domain.LedgerSummary, error) {
 	var charged, refunded int64
 	for _, e := range m.entries {
 		if e.EntryType == domain.EntryCharge {
@@ -101,7 +102,7 @@ func (m *mockLedgerRepo) GetSummary(_ context.Context, _ uuid.UUID, _, _ time.Ti
 	}, nil
 }
 
-func (m *mockLedgerRepo) GetMRR(_ context.Context, _ uuid.UUID, _, _ time.Time) (int64, error) {
+func (m *mockLedgerRepo) GetMRR(_ context.Context, _ uuid.UUID, _, _ time.Time, _ string) (int64, error) {
 	var total int64
 	for _, e := range m.entries {
 		if e.EntryType == domain.EntryCharge {
@@ -120,7 +121,7 @@ func TestRecordCharge_WritesDebitEntry(t *testing.T) {
 	invoiceID := uuid.New()
 	customerID := uuid.New()
 
-	entry, err := svc.RecordCharge(ctx(), tenantID, subID, invoiceID, customerID, 500000, "NGN", "charge:key:1")
+	entry, err := svc.RecordCharge(ctx(), tenantID, subID, invoiceID, customerID, 500000, "NGN", "charge:key:1", "live")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +140,7 @@ func TestRecordRefund_WritesCreditEntry(t *testing.T) {
 	repo := &mockLedgerRepo{}
 	svc := ledger.NewService(repo)
 
-	entry, err := svc.RecordRefund(ctx(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), 250000, "NGN", "refund:key:1", "customer request")
+	entry, err := svc.RecordRefund(ctx(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), 250000, "NGN", "refund:key:1", "customer request", "live")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +162,7 @@ func TestIdempotency_SameKeyReturnsSameEntry(t *testing.T) {
 	customerID := uuid.New()
 	key := "charge:idempotent-key:0"
 
-	_, err := svc.RecordCharge(ctx(), tenantID, subID, invoiceID, customerID, 500000, "NGN", key)
+	_, err := svc.RecordCharge(ctx(), tenantID, subID, invoiceID, customerID, 500000, "NGN", key, "live")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,14 +191,14 @@ func TestGetSummary_NetRevenueCalculation(t *testing.T) {
 	invoiceID := uuid.New()
 	customerID := uuid.New()
 
-	_, _ = svc.RecordCharge(ctx(), tenantID, subID, invoiceID, customerID, 1000000, "NGN", "key:1")
-	_, _ = svc.RecordCharge(ctx(), tenantID, subID, invoiceID, customerID, 500000, "NGN", "key:2")
-	_, _ = svc.RecordRefund(ctx(), tenantID, subID, invoiceID, customerID, 200000, "NGN", "key:3", "duplicate charge")
+	_, _ = svc.RecordCharge(ctx(), tenantID, subID, invoiceID, customerID, 1000000, "NGN", "key:1", "live")
+	_, _ = svc.RecordCharge(ctx(), tenantID, subID, invoiceID, customerID, 500000, "NGN", "key:2", "live")
+	_, _ = svc.RecordRefund(ctx(), tenantID, subID, invoiceID, customerID, 200000, "NGN", "key:3", "duplicate charge", "live")
 
 	from := time.Now().AddDate(0, -1, 0)
 	to := time.Now().AddDate(0, 1, 0)
 
-	summary, err := svc.GetSummary(ctx(), tenantID, from, to)
+	summary, err := svc.GetSummary(ctx(), tenantID, from, to, "live")
 	if err != nil {
 		t.Fatal(err)
 	}

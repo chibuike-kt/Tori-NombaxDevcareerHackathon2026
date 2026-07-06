@@ -93,7 +93,7 @@ func main() {
 		{"Annual Pro", 15000000, 0, "annual"},
 	}
 
-	existingPlans, _ := plansRepo.List(ctx, tid)
+	existingPlans, _ := plansRepo.List(ctx, tid, "live")
 	byName := map[string]*domain.Plan{}
 	for _, p := range existingPlans {
 		byName[p.Name] = p
@@ -106,7 +106,7 @@ func main() {
 			continue
 		}
 		p, err := plansRepo.Create(ctx, tid, d.name, nil, d.amount, "NGN",
-			domain.PlanInterval(d.interval), 1, d.trial, nil)
+			domain.PlanInterval(d.interval), 1, d.trial, nil, "live")
 		if err != nil {
 			fail("create plan "+d.name, err)
 		}
@@ -153,7 +153,7 @@ func main() {
 		}
 		name := p.name
 		extID := ext
-		c, err := customersRepo.Create(ctx, tid, &extID, p.email, &name, nil, nil)
+		c, err := customersRepo.Create(ctx, tid, &extID, p.email, &name, nil, nil, "live")
 		if err != nil {
 			fmt.Printf("  skip customer %s: %v\n", p.email, err)
 			continue
@@ -226,7 +226,7 @@ func main() {
 
 		key := fmt.Sprintf("seed-sub-%02d", i+1)
 		sub, err := subsRepo.Create(ctx, tid, c.ID, plan.ID, sc.status,
-			periodStart, periodEnd, trialEnd, &key, nil, 0)
+			periodStart, periodEnd, trialEnd, &key, nil, 0, "live")
 		if err != nil {
 			continue
 		}
@@ -326,7 +326,7 @@ func main() {
 	// ---- Refunds ----
 	for i := 0; i < 3; i++ {
 		c := customers[i]
-		subs, _ := subsRepo.ListByCustomer(ctx, tid, c.ID)
+		subs, _ := subsRepo.ListByCustomer(ctx, tid, c.ID, "live")
 		if len(subs) == 0 {
 			continue
 		}
@@ -345,12 +345,12 @@ func main() {
 	}
 
 	// ---- Webhook endpoint ----
-	endpoints, _ := webhookRepo.ListEndpoints(ctx, tid)
+	endpoints, _ := webhookRepo.ListEndpoints(ctx, tid, "live")
 	if len(endpoints) == 0 {
 		secret := "whsec_demo_a1b2c3d4e5f6789012345678901234567890abcd"
 		_, err = webhookRepo.CreateEndpoint(ctx, tid,
 			"https://demo.classpay.ng/webhooks/tori",
-			[]string{"*"}, secret, "2026-06-01")
+			[]string{"*"}, secret, "2026-06-01", "live")
 		if err != nil {
 			fmt.Printf("  webhook endpoint error: %v\n", err)
 		} else {

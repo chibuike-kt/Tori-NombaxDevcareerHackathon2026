@@ -13,7 +13,7 @@ type mockWebhookRepo struct {
 	deliveries  []*domain.WebhookDelivery
 }
 
-func (m *mockWebhookRepo) ListEndpoints(_ context.Context, _ uuid.UUID) ([]*domain.WebhookEndpoint, error) {
+func (m *mockWebhookRepo) ListEndpoints(_ context.Context, _ uuid.UUID, _ string) ([]*domain.WebhookEndpoint, error) {
 	return []*domain.WebhookEndpoint{
 		{
 			ID:       uuid.New(),
@@ -47,7 +47,7 @@ func (m *mockWebhookRepo) MarkDeliverySuccess(_ context.Context, _ uuid.UUID, _ 
 func (m *mockWebhookRepo) MarkDeliveryFailed(_ context.Context, _ uuid.UUID, _ int, _ string, _ time.Time) error {
 	return nil
 }
-func (m *mockWebhookRepo) CreateEndpoint(_ context.Context, _ uuid.UUID, _ string, _ []string, _, _ string) (*domain.WebhookEndpoint, error) {
+func (m *mockWebhookRepo) CreateEndpoint(_ context.Context, _ uuid.UUID, _ string, _ []string, _, _, _ string) (*domain.WebhookEndpoint, error) {
 	return nil, nil
 }
 func (m *mockWebhookRepo) GetEndpointByID(_ context.Context, _, _ uuid.UUID) (*domain.WebhookEndpoint, error) {

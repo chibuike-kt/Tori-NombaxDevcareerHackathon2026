@@ -50,10 +50,10 @@ func (h *SubscriptionHandler) cancelPendingJobs(subID string) {
 	}()
 }
 
-func (h *SubscriptionHandler) fireEvent(tenantID uuid.UUID, eventType domain.WebhookEventType, data interface{}) {
+func (h *SubscriptionHandler) fireEvent(tenantID uuid.UUID, eventType domain.WebhookEventType, data interface{}, mode string) {
 	go func() {
 		ctx := context.Background()
-		if err := h.dispatcher.DispatchAsync(ctx, tenantID, eventType, data); err != nil {
+		if err := h.dispatcher.DispatchAsync(ctx, tenantID, eventType, data, mode); err != nil {
 			log.Error().Err(err).Str("event_type", string(eventType)).Msg("webhook dispatch failed")
 		}
 	}()
@@ -120,13 +120,14 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 		periodEnd = t
 	}
 
-	sub, err := h.subs.Create(r.Context(), tenantID, customerID, planID, status, periodStart, periodEnd, trialEnd, body.IdempotencyKey, nil, 0)
+	mode := middleware.GetMode(r.Context())
+	sub, err := h.subs.Create(r.Context(), tenantID, customerID, planID, status, periodStart, periodEnd, trialEnd, body.IdempotencyKey, nil, 0, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
 	}
 
-	h.fireEvent(tenantID, domain.EventSubscriptionCreated, sub)
+	h.fireEvent(tenantID, domain.EventSubscriptionCreated, sub, sub.Mode)
 	respond.JSON(w, r, http.StatusCreated, sub)
 }
 
@@ -137,6 +138,7 @@ func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 	if limit == 0 {
 		limit = 20
 	}
+	mode := middleware.GetMode(r.Context())
 
 	if customerIDStr := r.URL.Query().Get("customer_id"); customerIDStr != "" {
 		customerID, err := uuid.Parse(customerIDStr)
@@ -144,7 +146,7 @@ func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 			respond.BadRequest(w, r, "invalid_customer_id", "customer_id is not a valid UUID")
 			return
 		}
-		subs, err := h.subs.ListByCustomer(r.Context(), tenantID, customerID)
+		subs, err := h.subs.ListByCustomer(r.Context(), tenantID, customerID, mode)
 		if err != nil {
 			respond.InternalError(w, r, err)
 			return
@@ -154,7 +156,7 @@ func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if status := r.URL.Query().Get("status"); status != "" {
-		subs, err := h.subs.ListByStatus(r.Context(), tenantID, domain.SubscriptionStatus(status), limit, offset)
+		subs, err := h.subs.ListByStatus(r.Context(), tenantID, domain.SubscriptionStatus(status), mode, limit, offset)
 		if err != nil {
 			respond.InternalError(w, r, err)
 			return
@@ -163,7 +165,7 @@ func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subs, err := h.subs.List(r.Context(), tenantID, limit, offset)
+	subs, err := h.subs.List(r.Context(), tenantID, mode, limit, offset)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -239,7 +241,7 @@ func (h *SubscriptionHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.cancelPendingJobs(id.String())
-		h.fireEvent(tenantID, domain.EventSubscriptionCancelled, updated)
+		h.fireEvent(tenantID, domain.EventSubscriptionCancelled, updated, updated.Mode)
 		respond.JSON(w, r, http.StatusOK, updated)
 		return
 	}
@@ -257,9 +259,9 @@ func (h *SubscriptionHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 			"subscription_id": id.String(),
 			"tenant_id":       tenantID.String(),
 		}),
-		sub.CurrentPeriodEnd, 3)
+		sub.CurrentPeriodEnd, 3, sub.Mode)
 
-	h.fireEvent(tenantID, domain.EventSubscriptionCancelled, updated)
+	h.fireEvent(tenantID, domain.EventSubscriptionCancelled, updated, updated.Mode)
 	respond.JSON(w, r, http.StatusOK, updated)
 }
 
@@ -294,7 +296,7 @@ func (h *SubscriptionHandler) Pause(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.fireEvent(tenantID, domain.EventSubscriptionPaused, updated)
+	h.fireEvent(tenantID, domain.EventSubscriptionPaused, updated, updated.Mode)
 	respond.JSON(w, r, http.StatusOK, updated)
 }
 
@@ -325,7 +327,7 @@ func (h *SubscriptionHandler) Resume(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.cancelPendingJobs(id.String())
-	h.fireEvent(tenantID, domain.EventSubscriptionResumed, updated)
+	h.fireEvent(tenantID, domain.EventSubscriptionResumed, updated, updated.Mode)
 	respond.JSON(w, r, http.StatusOK, updated)
 }
 
@@ -356,7 +358,7 @@ func (h *SubscriptionHandler) Recover(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.cancelPendingJobs(id.String())
-	h.fireEvent(tenantID, domain.EventSubscriptionResumed, updated)
+	h.fireEvent(tenantID, domain.EventSubscriptionResumed, updated, updated.Mode)
 
 	respond.JSON(w, r, http.StatusOK, updated)
 }
@@ -381,7 +383,7 @@ func (h *SubscriptionHandler) RetryNow(w http.ResponseWriter, r *http.Request) {
 		"subscription_id": id.String(),
 		"tenant_id":       tenantID.String(),
 	})
-	_, err = h.jobs.Enqueue(r.Context(), &tenantID, domain.JobRetryFailedPayment, payload, time.Now(), 3)
+	_, err = h.jobs.Enqueue(r.Context(), &tenantID, domain.JobRetryFailedPayment, payload, time.Now(), 3, sub.Mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -419,8 +421,9 @@ func (h *SubscriptionHandler) SendPayLink(w http.ResponseWriter, r *http.Request
 			"customer_id":     sub.CustomerID.String(),
 			"reason":          "operator requested customer payment",
 		},
+		"mode": sub.Mode,
 	})
-	_, err = h.jobs.Enqueue(r.Context(), &tenantID, domain.JobWebhookDeliver, payload, time.Now(), 5)
+	_, err = h.jobs.Enqueue(r.Context(), &tenantID, domain.JobWebhookDeliver, payload, time.Now(), 5, sub.Mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
