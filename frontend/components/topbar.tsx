@@ -21,9 +21,11 @@ export function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
     persistMode(next);
     setModeState(next);
     // Every data-fetching hook is keyed off data that depends on the active
-    // mode header — clear the cache so switching Live/Test refetches
-    // immediately instead of showing stale data until a manual refresh.
-    queryClient.clear();
+    // mode header. clear() alone empties the cache but doesn't tell mounted
+    // useQuery hooks to refetch, so the UI kept showing stale data until a
+    // manual refresh. invalidateQueries() marks everything stale AND
+    // actively refetches any currently-mounted query.
+    queryClient.invalidateQueries();
   };
 
   const initials = tenant?.name
