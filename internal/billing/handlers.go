@@ -201,7 +201,7 @@ func (h *Handlers) ExpireTrial(ctx context.Context, payload json.RawMessage) err
 			Msg("trial expired but no token key — customer never completed checkout, moving to PAST_DUE")
 		_, _ = h.subs.UpdateStatus(ctx, subID, tenantID, domain.StatusPastDue)
 		_, _ = h.ledger.RecordTrialEnd(ctx, tenantID, subID, sub.CustomerID, "NGN",
-			fmt.Sprintf("trial-end-%s", subID))
+			fmt.Sprintf("trial-end-%s", subID), sub.Mode)
 		return nil
 	}
 
@@ -248,7 +248,7 @@ func (h *Handlers) ExpireTrial(ctx context.Context, payload json.RawMessage) err
 	_, _ = h.subs.UpdateDunning(ctx, subID, tenantID, domain.StatusGracePeriod, 0, &retry)
 
 	_, _ = h.ledger.RecordTrialEnd(ctx, tenantID, subID, sub.CustomerID, "NGN",
-		fmt.Sprintf("trial-end-%s", subID))
+		fmt.Sprintf("trial-end-%s", subID), sub.Mode)
 
 	return nil
 }
@@ -478,7 +478,7 @@ func (h *Handlers) createInvoiceForCharge(ctx context.Context, sub *domain.Subsc
 	// Step 1: Create invoice
 	invoice, err := h.invoices.Create(ctx, sub.TenantID, sub.ID, sub.CustomerID,
 		amount, plan.Currency, domain.InvoiceOpen,
-		time.Now().UTC(), lineItems, &ik)
+		time.Now().UTC(), lineItems, &ik, sub.Mode)
 	if err != nil {
 		log.Error().Err(err).Str("sub_id", sub.ID.String()).Msg("failed to create invoice for charge")
 		return
@@ -488,7 +488,7 @@ func (h *Handlers) createInvoiceForCharge(ctx context.Context, sub *domain.Subsc
 	ledgerIK := fmt.Sprintf("ledger-charge-%s-%s", sub.ID, chargeRef)
 	_, ledgerErr := h.ledger.RecordCharge(ctx,
 		sub.TenantID, sub.ID, invoice.ID, sub.CustomerID,
-		amount, plan.Currency, ledgerIK)
+		amount, plan.Currency, ledgerIK, sub.Mode)
 	if ledgerErr != nil {
 		log.Error().Err(ledgerErr).Str("sub_id", sub.ID.String()).Msg("failed to record ledger charge")
 	}
@@ -635,8 +635,9 @@ func (h *Handlers) SimulateWebhook(ctx context.Context, payload json.RawMessage)
 			"tenant_id":  tenantID.String(),
 			"event_type": string(evt),
 			"data":       webhookData,
+			"mode":       sub.Mode,
 		})
-		if _, err := h.jobs.Enqueue(ctx, &tenantID, domain.JobWebhookDeliver, wpayload, time.Now(), 5); err != nil {
+		if _, err := h.jobs.Enqueue(ctx, &tenantID, domain.JobWebhookDeliver, wpayload, time.Now(), 5, sub.Mode); err != nil {
 			log.Error().Err(err).Str("sub_id", subID.String()).Str("event_type", string(evt)).
 				Msg("billing: failed to enqueue simulated webhook delivery")
 		}
@@ -767,8 +768,9 @@ func (h *Handlers) firePaymentActionRequired(ctx context.Context, sub *domain.Su
 			"pay_link":        payLink,
 			"reason":          "automatic payment recovery exhausted — customer action required",
 		},
+		"mode": sub.Mode,
 	})
-	_, err = h.jobs.Enqueue(ctx, &sub.TenantID, domain.JobWebhookDeliver, payload, time.Now(), 5)
+	_, err = h.jobs.Enqueue(ctx, &sub.TenantID, domain.JobWebhookDeliver, payload, time.Now(), 5, sub.Mode)
 	if err != nil {
 		log.Error().Err(err).Str("sub_id", sub.ID.String()).
 			Msg("recovery ladder: failed to enqueue payment.action_required webhook")

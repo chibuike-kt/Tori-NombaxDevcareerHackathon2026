@@ -29,8 +29,10 @@ func (s *Service) ScheduleNightly(ctx context.Context, tenants domain.TenantRepo
 		})
 
 		tenantIDPtr := tenant.ID
+		// Reconciliation only ever compares against Nomba's real transaction
+		// history, which exists only for live-mode money movement.
 		_, err := jobs.Enqueue(ctx, &tenantIDPtr, domain.JobReconciliation,
-				payload, now, 3) // run immediately (worker picks it up)
+				payload, now, 3, "live") // run immediately (worker picks it up)
 		if err != nil {
 			log.Error().Err(err).Str("tenant_id", tenant.ID.String()).
 				Msg("reconciliation: failed to enqueue job")

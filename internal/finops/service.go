@@ -64,12 +64,13 @@ type Service struct {
 // truncated results.
 const listPageSize = 1000
 
-// listAllSubscriptions paginates through every subscription for a tenant.
-func listAllSubscriptions(ctx context.Context, subs domain.SubscriptionRepository, tenantID uuid.UUID) ([]*domain.Subscription, error) {
+// listAllSubscriptions paginates through every subscription for a tenant in
+// the given mode.
+func listAllSubscriptions(ctx context.Context, subs domain.SubscriptionRepository, tenantID uuid.UUID, mode string) ([]*domain.Subscription, error) {
 	var all []*domain.Subscription
 	offset := 0
 	for {
-		page, err := subs.List(ctx, tenantID, listPageSize, offset)
+		page, err := subs.List(ctx, tenantID, mode, listPageSize, offset)
 		if err != nil {
 			return nil, err
 		}
@@ -82,12 +83,12 @@ func listAllSubscriptions(ctx context.Context, subs domain.SubscriptionRepositor
 }
 
 // listAllSubscriptionsByStatus paginates through every subscription for a
-// tenant in a given status.
-func listAllSubscriptionsByStatus(ctx context.Context, subs domain.SubscriptionRepository, tenantID uuid.UUID, status domain.SubscriptionStatus) ([]*domain.Subscription, error) {
+// tenant in a given status and mode.
+func listAllSubscriptionsByStatus(ctx context.Context, subs domain.SubscriptionRepository, tenantID uuid.UUID, status domain.SubscriptionStatus, mode string) ([]*domain.Subscription, error) {
 	var all []*domain.Subscription
 	offset := 0
 	for {
-		page, err := subs.ListByStatus(ctx, tenantID, status, listPageSize, offset)
+		page, err := subs.ListByStatus(ctx, tenantID, status, mode, listPageSize, offset)
 		if err != nil {
 			return nil, err
 		}
@@ -131,13 +132,14 @@ func NewService(ledger domain.LedgerRepository, subs domain.SubscriptionReposito
 	return &Service{ledger: ledger, subs: subs, plans: plans}
 }
 
-// GetMRR sums ledger CHARGE entries in the given month, normalized to a
-// monthly-equivalent amount per plan interval — an annual plan's once-a-year
-// charge is divided by 12 and a monthly plan's charge counts as-is, so a
-// renewal landing in this particular month doesn't spike MRR by the full
-// yearly amount. Custom-interval plans are not normalized (no fixed monthly
-// equivalent is well-defined for an arbitrary day count) and count as-is.
-func (s *Service) GetMRR(ctx context.Context, tenantID uuid.UUID, period time.Time) (*MRRResult, error) {
+// GetMRR sums ledger CHARGE entries in the given month and mode, normalized
+// to a monthly-equivalent amount per plan interval — an annual plan's
+// once-a-year charge is divided by 12 and a monthly plan's charge counts
+// as-is, so a renewal landing in this particular month doesn't spike MRR by
+// the full yearly amount. Custom-interval plans are not normalized (no fixed
+// monthly equivalent is well-defined for an arbitrary day count) and count
+// as-is.
+func (s *Service) GetMRR(ctx context.Context, tenantID uuid.UUID, period time.Time, mode string) (*MRRResult, error) {
 	from := time.Date(period.Year(), period.Month(), 1, 0, 0, 0, 0, time.UTC)
 	to := from.AddDate(0, 1, 0)
 
@@ -168,7 +170,7 @@ func (s *Service) GetMRR(ctx context.Context, tenantID uuid.UUID, period time.Ti
 	var mrr int64
 	offset := 0
 	for {
-		entries, err := s.ledger.ListByTypeAndDateRange(ctx, tenantID, []string{"CHARGE"}, from, to, listPageSize, offset)
+		entries, err := s.ledger.ListByTypeAndDateRange(ctx, tenantID, []string{"CHARGE"}, from, to, mode, listPageSize, offset)
 		if err != nil {
 			return nil, err
 		}
@@ -195,8 +197,8 @@ func (s *Service) GetMRR(ctx context.Context, tenantID uuid.UUID, period time.Ti
 	}, nil
 }
 
-func (s *Service) GetARR(ctx context.Context, tenantID uuid.UUID, period time.Time) (*ARRResult, error) {
-	mrr, err := s.GetMRR(ctx, tenantID, period)
+func (s *Service) GetARR(ctx context.Context, tenantID uuid.UUID, period time.Time, mode string) (*ARRResult, error) {
+	mrr, err := s.GetMRR(ctx, tenantID, period, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -212,8 +214,8 @@ func (s *Service) GetARR(ctx context.Context, tenantID uuid.UUID, period time.Ti
 // shrinkage during the period doesn't skew the rate. A subscription counts
 // as "active at start" if it existed before the period began (created_at <
 // from) and either is still active now or was cancelled inside the period.
-func (s *Service) GetChurn(ctx context.Context, tenantID uuid.UUID, from, to time.Time) (*ChurnResult, error) {
-	all, err := listAllSubscriptions(ctx, s.subs, tenantID)
+func (s *Service) GetChurn(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string) (*ChurnResult, error) {
+	all, err := listAllSubscriptions(ctx, s.subs, tenantID, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +252,7 @@ func (s *Service) GetChurn(ctx context.Context, tenantID uuid.UUID, from, to tim
 //   - AtRiskKobo   — PAST_DUE and DUNNING subscriptions, money not yet lost or recovered
 //   - RecoveredKobo — ACTIVE subscriptions that had at least one dunning attempt
 //   - LostKobo     — SUSPENDED subscriptions, dunning exhausted with no recovery
-func (s *Service) GetDunningRecovery(ctx context.Context, tenantID uuid.UUID, from, to time.Time) (*DunningRecoveryResult, error) {
+func (s *Service) GetDunningRecovery(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string) (*DunningRecoveryResult, error) {
 	planAmount := func(planID uuid.UUID) int64 {
 		p, err := s.plans.GetByID(ctx, planID, tenantID)
 		if err != nil || p == nil {
@@ -262,7 +264,7 @@ func (s *Service) GetDunningRecovery(ctx context.Context, tenantID uuid.UUID, fr
 	var atRisk, recovered, lost int64
 
 	for _, status := range []domain.SubscriptionStatus{domain.StatusPastDue, domain.StatusDunning} {
-		subs, err := listAllSubscriptionsByStatus(ctx, s.subs, tenantID, status)
+		subs, err := listAllSubscriptionsByStatus(ctx, s.subs, tenantID, status, mode)
 		if err != nil {
 			return nil, err
 		}
@@ -271,7 +273,7 @@ func (s *Service) GetDunningRecovery(ctx context.Context, tenantID uuid.UUID, fr
 		}
 	}
 
-	active, err := listAllSubscriptionsByStatus(ctx, s.subs, tenantID, domain.StatusActive)
+	active, err := listAllSubscriptionsByStatus(ctx, s.subs, tenantID, domain.StatusActive, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +283,7 @@ func (s *Service) GetDunningRecovery(ctx context.Context, tenantID uuid.UUID, fr
 		}
 	}
 
-	suspended, err := listAllSubscriptionsByStatus(ctx, s.subs, tenantID, domain.StatusSuspended)
+	suspended, err := listAllSubscriptionsByStatus(ctx, s.subs, tenantID, domain.StatusSuspended, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -303,13 +305,13 @@ func (s *Service) GetDunningRecovery(ctx context.Context, tenantID uuid.UUID, fr
 	}, nil
 }
 
-func (s *Service) GetRevenueReport(ctx context.Context, tenantID uuid.UUID, from, to time.Time) (*RevenueReport, error) {
-	summary, err := s.ledger.GetSummary(ctx, tenantID, from, to)
+func (s *Service) GetRevenueReport(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string) (*RevenueReport, error) {
+	summary, err := s.ledger.GetSummary(ctx, tenantID, from, to, mode)
 	if err != nil {
 		return nil, err
 	}
 
-	breakdown, err := s.getPlanBreakdown(ctx, tenantID, from, to)
+	breakdown, err := s.getPlanBreakdown(ctx, tenantID, from, to, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -327,7 +329,7 @@ func (s *Service) GetRevenueReport(ctx context.Context, tenantID uuid.UUID, from
 // getPlanBreakdown groups ledger CHARGE entries in the period by the plan of
 // the subscription each entry belongs to, summing charged amounts and
 // counting distinct subscriptions charged per plan.
-func (s *Service) getPlanBreakdown(ctx context.Context, tenantID uuid.UUID, from, to time.Time) ([]PlanRevenue, error) {
+func (s *Service) getPlanBreakdown(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string) ([]PlanRevenue, error) {
 	subPlanCache := map[uuid.UUID]uuid.UUID{}
 	planOf := func(subID uuid.UUID) (uuid.UUID, bool) {
 		if planID, ok := subPlanCache[subID]; ok {
@@ -346,7 +348,7 @@ func (s *Service) getPlanBreakdown(ctx context.Context, tenantID uuid.UUID, from
 
 	offset := 0
 	for {
-		entries, err := s.ledger.ListByTypeAndDateRange(ctx, tenantID, []string{"CHARGE"}, from, to, listPageSize, offset)
+		entries, err := s.ledger.ListByTypeAndDateRange(ctx, tenantID, []string{"CHARGE"}, from, to, mode, listPageSize, offset)
 		if err != nil {
 			return nil, err
 		}
@@ -399,8 +401,9 @@ func (s *Service) GetRecoveryCenter(
 	customers domain.CustomerRepository,
 	plans domain.PlanRepository,
 	from, to time.Time,
+	mode string,
 ) (*RecoveryCenterResult, error) {
-	all, err := listAllSubscriptions(ctx, subs, tenantID)
+	all, err := listAllSubscriptions(ctx, subs, tenantID, mode)
 	if err != nil {
 		return nil, err
 	}

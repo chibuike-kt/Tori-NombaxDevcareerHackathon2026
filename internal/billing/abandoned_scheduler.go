@@ -23,7 +23,9 @@ func (h *Handlers) ScheduleAbandonedCheckoutCheck(ctx context.Context, tenants d
 			"tenant_id": tenant.ID.String(),
 		})
 
-		_, err := jobs.Enqueue(ctx, &tenant.ID, domain.JobCheckoutAbandoned, payload, time.Now(), 1)
+		// This job sweeps both modes itself (see CheckAbandonedCheckouts) — the
+		// job row's own mode is nominal since it isn't scoped to one mode.
+		_, err := jobs.Enqueue(ctx, &tenant.ID, domain.JobCheckoutAbandoned, payload, time.Now(), 1, "live")
 		if err != nil {
 			log.Error().Err(err).Str("tenant_id", tenant.ID.String()).Msg("failed to enqueue abandoned checkout job")
 			continue

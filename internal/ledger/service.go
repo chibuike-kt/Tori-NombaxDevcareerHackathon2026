@@ -19,8 +19,8 @@ type MonthlyRevenue struct {
 	Net      int64  `json:"net_kobo"`
 }
 
-func (s *Service) GetMonthlyRevenue(ctx context.Context, tenantID uuid.UUID, from, to time.Time) ([]MonthlyRevenue, error) {
-	rows, err := s.repo.GetMonthlyRevenue(ctx, tenantID, from, to)
+func (s *Service) GetMonthlyRevenue(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string) ([]MonthlyRevenue, error) {
+	rows, err := s.repo.GetMonthlyRevenue(ctx, tenantID, from, to, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func NewService(repo domain.LedgerRepository) *Service {
 }
 
 // RecordCharge writes a DEBIT entry for a successful payment.
-func (s *Service) RecordCharge(ctx context.Context, tenantID, subscriptionID, invoiceID, customerID uuid.UUID, amount int64, currency, idempotencyKey string) (*domain.LedgerEntry, error) {
+func (s *Service) RecordCharge(ctx context.Context, tenantID, subscriptionID, invoiceID, customerID uuid.UUID, amount int64, currency, idempotencyKey, mode string) (*domain.LedgerEntry, error) {
 	return s.repo.Append(ctx,
 		tenantID,
 		&subscriptionID,
@@ -54,11 +54,12 @@ func (s *Service) RecordCharge(ctx context.Context, tenantID, subscriptionID, in
 		"Payment collected for subscription renewal",
 		idempotencyKey,
 		nil,
+		mode,
 	)
 }
 
 // RecordRefund writes a CREDIT entry for a refund issued.
-func (s *Service) RecordRefund(ctx context.Context, tenantID, subscriptionID, invoiceID, customerID uuid.UUID, amount int64, currency, idempotencyKey, reason string) (*domain.LedgerEntry, error) {
+func (s *Service) RecordRefund(ctx context.Context, tenantID, subscriptionID, invoiceID, customerID uuid.UUID, amount int64, currency, idempotencyKey, reason, mode string) (*domain.LedgerEntry, error) {
 	return s.repo.Append(ctx,
 		tenantID,
 		&subscriptionID,
@@ -71,11 +72,12 @@ func (s *Service) RecordRefund(ctx context.Context, tenantID, subscriptionID, in
 		"Refund issued: "+reason,
 		idempotencyKey,
 		nil,
+		mode,
 	)
 }
 
 // RecordProration writes a DEBIT entry for a mid-cycle upgrade charge.
-func (s *Service) RecordProration(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, amount int64, currency, idempotencyKey string) (*domain.LedgerEntry, error) {
+func (s *Service) RecordProration(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, amount int64, currency, idempotencyKey, mode string) (*domain.LedgerEntry, error) {
 	return s.repo.Append(ctx,
 		tenantID,
 		&subscriptionID,
@@ -88,11 +90,12 @@ func (s *Service) RecordProration(ctx context.Context, tenantID, subscriptionID,
 		"Proration charge for plan upgrade",
 		idempotencyKey,
 		nil,
+		mode,
 	)
 }
 
 // RecordCredit writes a CREDIT entry for a mid-cycle downgrade.
-func (s *Service) RecordCredit(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, amount int64, currency, idempotencyKey string) (*domain.LedgerEntry, error) {
+func (s *Service) RecordCredit(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, amount int64, currency, idempotencyKey, mode string) (*domain.LedgerEntry, error) {
 	return s.repo.Append(ctx,
 		tenantID,
 		&subscriptionID,
@@ -105,11 +108,12 @@ func (s *Service) RecordCredit(ctx context.Context, tenantID, subscriptionID, cu
 		"Credit applied from plan downgrade",
 		idempotencyKey,
 		nil,
+		mode,
 	)
 }
 
 // RecordTrialStart writes an audit marker when a trial begins. Amount is zero.
-func (s *Service) RecordTrialStart(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, currency, idempotencyKey string) (*domain.LedgerEntry, error) {
+func (s *Service) RecordTrialStart(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, currency, idempotencyKey, mode string) (*domain.LedgerEntry, error) {
 	return s.repo.Append(ctx,
 		tenantID,
 		&subscriptionID,
@@ -122,11 +126,12 @@ func (s *Service) RecordTrialStart(ctx context.Context, tenantID, subscriptionID
 		"Trial period started",
 		idempotencyKey,
 		nil,
+		mode,
 	)
 }
 
 // RecordTrialEnd writes an audit marker when a trial ends. Amount is zero.
-func (s *Service) RecordTrialEnd(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, currency, idempotencyKey string) (*domain.LedgerEntry, error) {
+func (s *Service) RecordTrialEnd(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, currency, idempotencyKey, mode string) (*domain.LedgerEntry, error) {
 	return s.repo.Append(ctx,
 		tenantID,
 		&subscriptionID,
@@ -139,11 +144,12 @@ func (s *Service) RecordTrialEnd(ctx context.Context, tenantID, subscriptionID, 
 		"Trial period ended",
 		idempotencyKey,
 		nil,
+		mode,
 	)
 }
 
 // RecordAdminOverride writes an OVERRIDE entry when an admin force-sets subscription state.
-func (s *Service) RecordAdminOverride(ctx context.Context, tenantID, subscriptionID uuid.UUID, currency, idempotencyKey, reason string, metadata []byte) (*domain.LedgerEntry, error) {
+func (s *Service) RecordAdminOverride(ctx context.Context, tenantID, subscriptionID uuid.UUID, currency, idempotencyKey, reason string, metadata []byte, mode string) (*domain.LedgerEntry, error) {
 	return s.repo.Append(ctx,
 		tenantID,
 		&subscriptionID,
@@ -156,12 +162,13 @@ func (s *Service) RecordAdminOverride(ctx context.Context, tenantID, subscriptio
 		"Admin override: "+reason,
 		idempotencyKey,
 		metadata,
+		mode,
 	)
 }
 
 // GetSummary returns aggregated financial totals for a tenant over a date range.
-func (s *Service) GetSummary(ctx context.Context, tenantID uuid.UUID, from, to time.Time) (*domain.LedgerSummary, error) {
-	summary, err := s.repo.GetSummary(ctx, tenantID, from, to)
+func (s *Service) GetSummary(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string) (*domain.LedgerSummary, error) {
+	summary, err := s.repo.GetSummary(ctx, tenantID, from, to, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -176,22 +183,22 @@ func (s *Service) GetByIdempotencyKey(ctx context.Context, key string) (*domain.
 	return s.repo.GetByIdempotencyKey(ctx, key)
 }
 
-func (s *Service) ListBySubscription(ctx context.Context, tenantID, subscriptionID uuid.UUID, limit, offset int) ([]*domain.LedgerEntry, error) {
-	return s.repo.ListBySubscription(ctx, tenantID, subscriptionID, limit, offset)
+func (s *Service) ListBySubscription(ctx context.Context, tenantID, subscriptionID uuid.UUID, mode string, limit, offset int) ([]*domain.LedgerEntry, error) {
+	return s.repo.ListBySubscription(ctx, tenantID, subscriptionID, mode, limit, offset)
 }
 
-func (s *Service) ListByCustomer(ctx context.Context, tenantID, customerID uuid.UUID, limit, offset int) ([]*domain.LedgerEntry, error) {
-	return s.repo.ListByCustomer(ctx, tenantID, customerID, limit, offset)
+func (s *Service) ListByCustomer(ctx context.Context, tenantID, customerID uuid.UUID, mode string, limit, offset int) ([]*domain.LedgerEntry, error) {
+	return s.repo.ListByCustomer(ctx, tenantID, customerID, mode, limit, offset)
 }
 
-func (s *Service) ListByDateRange(ctx context.Context, tenantID uuid.UUID, from, to time.Time, limit, offset int) ([]*domain.LedgerEntry, error) {
-	return s.repo.ListByDateRange(ctx, tenantID, from, to, limit, offset)
+func (s *Service) ListByDateRange(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string, limit, offset int) ([]*domain.LedgerEntry, error) {
+	return s.repo.ListByDateRange(ctx, tenantID, from, to, mode, limit, offset)
 }
 
-func (s *Service) ListByTypeAndDateRange(ctx context.Context, tenantID uuid.UUID, types []string, from, to time.Time, limit, offset int) ([]*domain.LedgerEntry, error) {
-	return s.repo.ListByTypeAndDateRange(ctx, tenantID, types, from, to, limit, offset)
+func (s *Service) ListByTypeAndDateRange(ctx context.Context, tenantID uuid.UUID, types []string, from, to time.Time, mode string, limit, offset int) ([]*domain.LedgerEntry, error) {
+	return s.repo.ListByTypeAndDateRange(ctx, tenantID, types, from, to, mode, limit, offset)
 }
 
-func (s *Service) GetMRR(ctx context.Context, tenantID uuid.UUID, from, to time.Time) (int64, error) {
-	return s.repo.GetMRR(ctx, tenantID, from, to)
+func (s *Service) GetMRR(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string) (int64, error) {
+	return s.repo.GetMRR(ctx, tenantID, from, to, mode)
 }

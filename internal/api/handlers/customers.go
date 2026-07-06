@@ -37,7 +37,8 @@ func (h *CustomerHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customer, err := h.customers.Create(r.Context(), tenantID, body.ExternalID, body.Email, body.Name, nil, nil)
+	mode := middleware.GetMode(r.Context())
+	customer, err := h.customers.Create(r.Context(), tenantID, body.ExternalID, body.Email, body.Name, nil, nil, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -65,7 +66,8 @@ func (h *CustomerHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customers, err := h.customers.List(r.Context(), tenantID, limit, offset)
+	mode := middleware.GetMode(r.Context())
+	customers, err := h.customers.List(r.Context(), tenantID, mode, limit, offset)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return

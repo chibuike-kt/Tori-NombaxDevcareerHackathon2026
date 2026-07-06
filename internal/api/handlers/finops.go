@@ -24,8 +24,9 @@ func NewFinOpsHandler(svc *finops.Service, subs domain.SubscriptionRepository, c
 func (h *FinOpsHandler) MRR(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	period := parsePeriod(r)
+	mode := middleware.GetMode(r.Context())
 
-	result, err := h.svc.GetMRR(r.Context(), tenantID, period)
+	result, err := h.svc.GetMRR(r.Context(), tenantID, period, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -37,7 +38,8 @@ func (h *FinOpsHandler) MRR(w http.ResponseWriter, r *http.Request) {
 func (h *FinOpsHandler) RecoveryCenter(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	from, to := parseDateRange(r)
-	result, err := h.svc.GetRecoveryCenter(r.Context(), tenantID, h.subs, h.customers, h.plans, from, to)
+	mode := middleware.GetMode(r.Context())
+	result, err := h.svc.GetRecoveryCenter(r.Context(), tenantID, h.subs, h.customers, h.plans, from, to, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -48,8 +50,9 @@ func (h *FinOpsHandler) RecoveryCenter(w http.ResponseWriter, r *http.Request) {
 func (h *FinOpsHandler) ARR(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	period := parsePeriod(r)
+	mode := middleware.GetMode(r.Context())
 
-	result, err := h.svc.GetARR(r.Context(), tenantID, period)
+	result, err := h.svc.GetARR(r.Context(), tenantID, period, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -61,8 +64,9 @@ func (h *FinOpsHandler) ARR(w http.ResponseWriter, r *http.Request) {
 func (h *FinOpsHandler) Churn(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	from, to := parseDateRange(r)
+	mode := middleware.GetMode(r.Context())
 
-	result, err := h.svc.GetChurn(r.Context(), tenantID, from, to)
+	result, err := h.svc.GetChurn(r.Context(), tenantID, from, to, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -74,8 +78,9 @@ func (h *FinOpsHandler) Churn(w http.ResponseWriter, r *http.Request) {
 func (h *FinOpsHandler) DunningRecovery(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	from, to := parseDateRange(r)
+	mode := middleware.GetMode(r.Context())
 
-	result, err := h.svc.GetDunningRecovery(r.Context(), tenantID, from, to)
+	result, err := h.svc.GetDunningRecovery(r.Context(), tenantID, from, to, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -87,8 +92,9 @@ func (h *FinOpsHandler) DunningRecovery(w http.ResponseWriter, r *http.Request) 
 func (h *FinOpsHandler) RevenueReport(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 	from, to := parseDateRange(r)
+	mode := middleware.GetMode(r.Context())
 
-	result, err := h.svc.GetRevenueReport(r.Context(), tenantID, from, to)
+	result, err := h.svc.GetRevenueReport(r.Context(), tenantID, from, to, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return

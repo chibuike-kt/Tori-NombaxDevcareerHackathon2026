@@ -130,6 +130,9 @@ func (h *CheckoutHandler) CreateCheckout(w http.ResponseWriter, r *http.Request)
 		respond.Unauthorised(w, r, "missing tenant")
 		return
 	}
+	// API-key requests get mode from the key prefix; JWT dashboard requests
+	// get it from the X-Tori-Mode header set by the Live/Test toggle.
+	mode := middleware.GetMode(r.Context())
 
 	var req checkoutRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -180,7 +183,7 @@ func (h *CheckoutHandler) CreateCheckout(w http.ResponseWriter, r *http.Request)
 		}
 		customer, err = h.customers.Create(
 			r.Context(), tenantID, req.ExternalID,
-			req.Email, req.Name, nil, nil,
+			req.Email, req.Name, nil, nil, mode,
 		)
 		if err != nil {
 			respond.InternalError(w, r, err)
@@ -233,7 +236,7 @@ if plan.TrialPeriodDays > 0 {
 	sub, err := h.subs.Create(
 		r.Context(), tenantID, customer.ID, plan.ID,
 		initialStatus, now, periodEnd, trialEnd,
-		req.IdempotencyKey, nil, discountKobo,
+		req.IdempotencyKey, nil, discountKobo, mode,
 	)
 	if err != nil {
 		respond.InternalError(w, r, err)
@@ -253,14 +256,14 @@ if plan.TrialPeriodDays > 0 {
 			"tenant_id":       tenantID.String(),
 		})
 		_, _ = h.jobs.Enqueue(r.Context(), &tenantID, domain.JobExpireTrial,
-			payload, *trialEnd, 3)
+			payload, *trialEnd, 3, mode)
 
 		// Warn the customer 3 days before the trial ends and a real charge fires.
 		// If the trial is shorter than 3 days, this fires on the worker's next
 		// poll instead of in the past.
 		warnAt := trialEnd.AddDate(0, 0, -3)
 		_, _ = h.jobs.Enqueue(r.Context(), &tenantID, domain.JobTrialEndingSoon,
-			payload, warnAt, 3)
+			payload, warnAt, 3, mode)
 	}
 
 	// Build callback URL — use developer's URL if provided, else Tori success page
@@ -327,9 +330,10 @@ if plan.TrialPeriodDays > 0 {
 				}()).
 				Msg("checkout: Nomba checkout session created")
 
-		// Test-mode key: simulate the payment_success webhook after a short delay,
-		// since Nomba's sandbox does not reliably fire one back to us.
-		if middleware.GetAPIKeyMode(r.Context()) == "test" {
+		// Test mode (test API key, or dashboard Live/Test toggle set to Test):
+		// simulate the payment_success webhook after a short delay, since
+		// Nomba's sandbox does not reliably fire one back to us.
+		if mode == "test" {
 			simPayload, _ := json.Marshal(map[string]interface{}{
 				"subscription_id": sub.ID.String(),
 				"tenant_id":       tenantID.String(),
@@ -337,7 +341,7 @@ if plan.TrialPeriodDays > 0 {
 				"plan_name":       plan.Name,
 				"customer_email":  customer.Email,
 			})
-			if _, err := h.jobs.Enqueue(r.Context(), &tenantID, domain.JobSimulateWebhook, simPayload, time.Now().Add(3*time.Second), 3); err != nil {
+			if _, err := h.jobs.Enqueue(r.Context(), &tenantID, domain.JobSimulateWebhook, simPayload, time.Now().Add(3*time.Second), 3, mode); err != nil {
 				log.Error().Err(err).Str("sub_id", sub.ID.String()).Msg("checkout: failed to enqueue simulated webhook for test mode")
 			} else {
 				log.Info().Str("sub_id", sub.ID.String()).Msg("billing: simulating payment_success webhook for test mode checkout")

@@ -35,9 +35,14 @@ func (h *Handlers) CheckAbandonedCheckouts(ctx context.Context, payload json.Raw
 		return fmt.Errorf("invalid tenant_id: %w", err)
 	}
 
-	subs, err := h.subs.List(ctx, tenantID, 1000, 0)
-	if err != nil {
-		return fmt.Errorf("list subscriptions: %w", err)
+	// Abandoned checkouts happen in both modes — sweep test and live separately.
+	var subs []*domain.Subscription
+	for _, mode := range []string{"live", "test"} {
+		page, err := h.subs.List(ctx, tenantID, mode, 1000, 0)
+		if err != nil {
+			return fmt.Errorf("list subscriptions (mode=%s): %w", mode, err)
+		}
+		subs = append(subs, page...)
 	}
 
 	pendingCutoff := time.Now().UTC().Add(-1 * time.Hour)   // 1 hour for PENDING_PAYMENT
@@ -89,7 +94,7 @@ func (h *Handlers) CheckAbandonedCheckouts(ctx context.Context, payload json.Raw
 			mustJSON(map[string]string{
 				"subscription_id": sub.ID.String(),
 				"tenant_id":       tenantID.String(),
-			}), retryAt, 3)
+			}), retryAt, 3, sub.Mode)
 		abandoned++
 		log.Info().Str("sub_id", sub.ID.String()).Msg("billing: abandoned checkout moved to PAST_DUE, dunning retry scheduled Day 3")
 

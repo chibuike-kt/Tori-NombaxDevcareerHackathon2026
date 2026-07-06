@@ -108,7 +108,8 @@ func (h *PromoCodeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	promo, err := h.promoCodes.Create(r.Context(), tenantID, code, req.Description, discountType, req.DiscountValue, planID, req.MaxUses, expiresAt)
+	mode := middleware.GetMode(r.Context())
+	promo, err := h.promoCodes.Create(r.Context(), tenantID, code, req.Description, discountType, req.DiscountValue, planID, req.MaxUses, expiresAt, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -121,7 +122,8 @@ func (h *PromoCodeHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *PromoCodeHandler) List(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
 
-	codes, err := h.promoCodes.List(r.Context(), tenantID)
+	mode := middleware.GetMode(r.Context())
+	codes, err := h.promoCodes.List(r.Context(), tenantID, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return

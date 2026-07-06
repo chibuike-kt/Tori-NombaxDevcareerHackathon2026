@@ -71,9 +71,11 @@ func (d *Dispatcher) WithMerchantEmail(
 	return d
 }
 
-// Dispatch sends an event to all active endpoints subscribed to the event type.
-func (d *Dispatcher) Dispatch(ctx context.Context, tenantID uuid.UUID, eventType domain.WebhookEventType, data interface{}) error {
-	endpoints, err := d.repo.ListEndpoints(ctx, tenantID)
+// Dispatch sends an event to all active endpoints subscribed to the event
+// type, in the given mode — a test-mode event never reaches a live-mode
+// endpoint and vice versa.
+func (d *Dispatcher) Dispatch(ctx context.Context, tenantID uuid.UUID, eventType domain.WebhookEventType, data interface{}, mode string) error {
+	endpoints, err := d.repo.ListEndpoints(ctx, tenantID, mode)
 	if err != nil {
 		return fmt.Errorf("listing endpoints: %w", err)
 	}
@@ -270,21 +272,22 @@ func (d *Dispatcher) checkCircuitBreaker(ctx context.Context, endpointID uuid.UU
 
 // DispatchAsync enqueues a webhook delivery job instead of delivering inline.
 // The worker picks it up and calls Deliver, keeping the request path fast.
-func (d *Dispatcher) DispatchAsync(ctx context.Context, tenantID uuid.UUID, eventType domain.WebhookEventType, data interface{}) error {
+func (d *Dispatcher) DispatchAsync(ctx context.Context, tenantID uuid.UUID, eventType domain.WebhookEventType, data interface{}, mode string) error {
 	payload, err := json.Marshal(map[string]interface{}{
 		"tenant_id":  tenantID.String(),
 		"event_type": string(eventType),
 		"data":       data,
+		"mode":       mode,
 	})
 	if err != nil {
 		return fmt.Errorf("marshal webhook job payload: %w", err)
 	}
 
-	_, err = d.jobs.Enqueue(ctx, &tenantID, domain.JobWebhookDeliver, payload, time.Now(), 5)
+	_, err = d.jobs.Enqueue(ctx, &tenantID, domain.JobWebhookDeliver, payload, time.Now(), 5, mode)
 	if err != nil {
 		// Fall back to synchronous delivery rather than losing the event
 		log.Warn().Err(err).Msg("webhook: failed to enqueue async delivery — falling back to sync")
-		return d.Dispatch(ctx, tenantID, eventType, data)
+		return d.Dispatch(ctx, tenantID, eventType, data, mode)
 	}
 	return nil
 }
@@ -295,6 +298,7 @@ func (d *Dispatcher) HandleWebhookDeliver(ctx context.Context, payload json.RawM
 		TenantID  string      `json:"tenant_id"`
 		EventType string      `json:"event_type"`
 		Data      interface{} `json:"data"`
+		Mode      string      `json:"mode"`
 	}
 	if err := json.Unmarshal(payload, &p); err != nil {
 		return fmt.Errorf("unmarshal webhook deliver payload: %w", err)
@@ -305,7 +309,12 @@ func (d *Dispatcher) HandleWebhookDeliver(ctx context.Context, payload json.RawM
 		return fmt.Errorf("invalid tenant_id: %w", err)
 	}
 
-	return d.Dispatch(ctx, tenantID, domain.WebhookEventType(p.EventType), p.Data)
+	mode := p.Mode
+	if mode != "test" && mode != "live" {
+		mode = "live"
+	}
+
+	return d.Dispatch(ctx, tenantID, domain.WebhookEventType(p.EventType), p.Data, mode)
 }
 
 // sign produces HMAC-SHA256 signature of the payload using the endpoint secret.
@@ -353,16 +362,17 @@ func SignPayload(secret string, payload []byte) string {
 }
 
 // RetryDelivery re-enqueues a failed webhook delivery by its original payload.
-func (d *Dispatcher) RetryDelivery(ctx context.Context, tenantID uuid.UUID, eventType string, payload json.RawMessage) error {
+func (d *Dispatcher) RetryDelivery(ctx context.Context, tenantID uuid.UUID, eventType string, payload json.RawMessage, mode string) error {
 	jobPayload, err := json.Marshal(map[string]interface{}{
 		"tenant_id":  tenantID.String(),
 		"event_type": eventType,
 		"data":       payload,
+		"mode":       mode,
 	})
 	if err != nil {
 		return fmt.Errorf("marshal retry payload: %w", err)
 	}
 
-	_, err = d.jobs.Enqueue(ctx, &tenantID, domain.JobWebhookDeliver, jobPayload, time.Now(), 5)
+	_, err = d.jobs.Enqueue(ctx, &tenantID, domain.JobWebhookDeliver, jobPayload, time.Now(), 5, mode)
 	return err
 }

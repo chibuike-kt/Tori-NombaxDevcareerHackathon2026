@@ -53,7 +53,8 @@ func (h *PlanHandler) Create(w http.ResponseWriter, r *http.Request) {
 		body.Currency = "NGN"
 	}
 
-	plan, err := h.plans.Create(r.Context(), tenantID, body.Name, body.Description, body.Amount, body.Currency, domain.PlanInterval(body.Interval), body.IntervalCount, body.TrialPeriodDays, nil)
+	mode := middleware.GetMode(r.Context())
+	plan, err := h.plans.Create(r.Context(), tenantID, body.Name, body.Description, body.Amount, body.Currency, domain.PlanInterval(body.Interval), body.IntervalCount, body.TrialPeriodDays, nil, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
@@ -64,7 +65,8 @@ func (h *PlanHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 func (h *PlanHandler) List(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.GetTenantID(r.Context())
-	plans, err := h.plans.ListAll(r.Context(), tenantID)
+	mode := middleware.GetMode(r.Context())
+	plans, err := h.plans.ListAll(r.Context(), tenantID, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
