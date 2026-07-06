@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
@@ -130,6 +131,56 @@ func APIKeyAuth(tenants domain.TenantRepository, apiKeys domain.APIKeyRepository
 			ctx = WithAPIKeyMode(ctx, record.Mode)
 			ctx = WithMode(ctx, record.Mode)
 			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// oauthTokenPrefix identifies a Platform API OAuth access token, as opposed
+// to a dashboard JWT — both can appear in an Authorization: Bearer header.
+const oauthTokenPrefix = "tori_oauth_"
+
+// PlatformAuth accepts either an X-API-Key header (delegated to APIKeyAuth)
+// or an Authorization: Bearer tori_oauth_... token minted by the
+// client_credentials token endpoint. Both paths inject the same tenant and
+// mode into the request context — downstream handlers don't care which auth
+// method was used.
+func PlatformAuth(tenants domain.TenantRepository, apiKeys domain.APIKeyRepository, oauth domain.OAuthRepository) func(http.Handler) http.Handler {
+	apiKeyMW := APIKeyAuth(tenants, apiKeys)
+	return func(next http.Handler) http.Handler {
+		apiKeyHandler := apiKeyMW(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("X-API-Key") != "" {
+				apiKeyHandler.ServeHTTP(w, r)
+				return
+			}
+
+			authHeader := r.Header.Get("Authorization")
+			token := strings.TrimPrefix(authHeader, "Bearer ")
+			if strings.HasPrefix(authHeader, "Bearer ") && strings.HasPrefix(token, oauthTokenPrefix) {
+				rec, err := oauth.GetTokenByHash(r.Context(), HashAPIKey(token))
+				if err != nil {
+					respond.Unauthorised(w, r, "invalid oauth token")
+					return
+				}
+				if time.Now().UTC().After(rec.ExpiresAt) {
+					respond.Unauthorised(w, r, "oauth token has expired")
+					return
+				}
+
+				tenant, err := tenants.GetByID(r.Context(), rec.TenantID)
+				if err != nil {
+					respond.Unauthorised(w, r, "invalid oauth token")
+					return
+				}
+
+				ctx := context.WithValue(r.Context(), tenantKey, tenant)
+				ctx = WithAPIKeyMode(ctx, rec.Mode)
+				ctx = WithMode(ctx, rec.Mode)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
+			respond.Unauthorised(w, r, "missing API key or OAuth bearer token")
 		})
 	}
 }

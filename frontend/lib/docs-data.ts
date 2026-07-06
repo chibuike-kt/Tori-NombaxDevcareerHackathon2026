@@ -1937,6 +1937,93 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
         ],
       },
       {
+        group: "OAuth",
+        items: [
+          {
+            id: "ref-oauth-token",
+            label: "Issue access token",
+            icon: "ti-shield-lock",
+            method: "POST",
+            endpoint: "/v1/oauth/token",
+            blocks: [
+              {
+                type: "p",
+                text: "Exchange a client_id and client_secret for a short-lived bearer token, using the OAuth 2.0 client_credentials grant. This is a production-grade alternative to a raw `X-API-Key` header — create clients from the dashboard's OAuth Clients page. This endpoint is public; the client_id/client_secret pair is the credential.",
+              },
+              { type: "h2", text: "Body", id: "oauth-token-body" },
+              {
+                type: "param",
+                name: "grant_type",
+                paramType: "string",
+                required: true,
+                description: "Must be client_credentials",
+              },
+              {
+                type: "param",
+                name: "client_id",
+                paramType: "string",
+                required: true,
+                description: "The client_id shown when the OAuth client was created",
+              },
+              {
+                type: "param",
+                name: "client_secret",
+                paramType: "string",
+                required: true,
+                description: "The client_secret shown once when the OAuth client was created",
+              },
+              { type: "h2", text: "Response", id: "oauth-token-response" },
+              {
+                type: "response",
+                status: 200,
+                description: "Access token issued",
+                body: `{
+  "data": {
+    "access_token": "tori_oauth_4d2c9f6e1a8b3d5c7e9f0a2b4d6e8f1a3c5e7d9f1b3d5e7f9a1c3e5d7f9b1a3c",
+    "token_type": "Bearer",
+    "expires_in": 1800,
+    "mode": "live"
+  },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+              },
+              {
+                type: "response",
+                status: 401,
+                description: "Invalid or revoked client credentials",
+                body: `{ "error": { "code": "unauthorised", "message": "invalid client credentials" }, "meta": { ... } }`,
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "Tokens expire after 30 minutes (expires_in is in seconds). Request a new one when a Platform API call returns 401 — don't cache tokens past their expiry.",
+              },
+              { type: "h2", text: "Using the token", id: "oauth-token-usage" },
+              { type: "code", lang: "bash", code: `curl https://api.tori.ng/v1/oauth/token \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "grant_type": "client_credentials",
+    "client_id": "oauth_client_...",
+    "client_secret": "oauth_secret_..."
+  }'
+
+curl https://api.tori.ng/v1/platform/checkout \\
+  -H "Authorization: Bearer tori_oauth_..." \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "email": "amaka@startup.ng",
+    "plan_id": "plan_...",
+    "external_id": "your-user-123"
+  }'` },
+              {
+                type: "p",
+                text: "Every Platform API route that accepts `X-API-Key` also accepts this bearer token — the two auth methods are interchangeable and lead to the same tenant/mode context.",
+              },
+            ],
+          },
+        ],
+      },
+      {
         group: "Plans",
         items: [
           {

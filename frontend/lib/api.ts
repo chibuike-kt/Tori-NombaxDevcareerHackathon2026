@@ -284,6 +284,33 @@ export const getAPIKeyHints = () =>
 export const revokeAPIKey = (mode: "live" | "test") =>
   api.delete<{ data: { status: string } }>(`/v1/api-keys/${mode}`);
 
+// OAuth clients
+export interface OAuthClient {
+  id: string;
+  tenant_id: string;
+  client_id: string;
+  client_secret_hint: string;
+  name: string;
+  mode: "live" | "test";
+  is_active: boolean;
+  created_at: string;
+  last_used_at?: string;
+}
+
+export interface OAuthClientReveal {
+  client_id: string;
+  client_secret: string;
+  name: string;
+  mode: "live" | "test";
+}
+
+export const getOAuthClients = () =>
+  api.get<{ data: OAuthClient[] }>("/v1/oauth/clients");
+export const createOAuthClient = (name: string, mode: "live" | "test") =>
+  api.post<{ data: OAuthClientReveal }>("/v1/oauth/clients", { name, mode });
+export const revokeOAuthClient = (id: string) =>
+  api.delete<{ data: OAuthClient }>(`/v1/oauth/clients/${id}`);
+
 // Sessions
 export interface Session {
   id: string;

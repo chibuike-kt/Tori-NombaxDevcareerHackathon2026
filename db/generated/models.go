@@ -129,6 +129,29 @@ type Member struct {
 	UpdatedAt    time.Time          `json:"updated_at"`
 }
 
+type OauthClient struct {
+	ID               uuid.UUID          `json:"id"`
+	TenantID         uuid.UUID          `json:"tenant_id"`
+	ClientID         string             `json:"client_id"`
+	ClientSecretHash string             `json:"client_secret_hash"`
+	ClientSecretHint string             `json:"client_secret_hint"`
+	Name             string             `json:"name"`
+	Mode             string             `json:"mode"`
+	IsActive         bool               `json:"is_active"`
+	CreatedAt        time.Time          `json:"created_at"`
+	LastUsedAt       pgtype.Timestamptz `json:"last_used_at"`
+}
+
+type OauthToken struct {
+	ID        uuid.UUID `json:"id"`
+	TenantID  uuid.UUID `json:"tenant_id"`
+	ClientID  string    `json:"client_id"`
+	TokenHash string    `json:"token_hash"`
+	Mode      string    `json:"mode"`
+	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type Plan struct {
 	ID              uuid.UUID   `json:"id"`
 	TenantID        uuid.UUID   `json:"tenant_id"`

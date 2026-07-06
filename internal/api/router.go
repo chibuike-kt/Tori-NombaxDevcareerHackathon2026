@@ -39,6 +39,7 @@ type Deps struct {
 	Sessions           domain.SessionRepository
 	PromoCodes         domain.PromoCodeRepository
 	EmailTemplates     domain.EmailTemplateRepository
+	OAuth              domain.OAuthRepository
 }
 
 // maxBodySize limits request bodies to 1MB to prevent OOM attacks.
@@ -110,12 +111,14 @@ r.Get("/v1/status", systemHealthH.Check)
 	emailTemplateH := handlers.NewEmailTemplateHandler(deps.EmailTemplates, deps.Tenants, deps.EmailClient)
 	planChangeH := handlers.NewPlanChangeHandler(deps.Subscriptions, deps.Plans, ledgerSvc)
 	refundH := handlers.NewRefundHandler(deps.Subscriptions, deps.Invoices, ledgerSvc, deps.Payment)
+	oauthH := handlers.NewOAuthHandler(deps.OAuth)
 
 	// Public routes — no auth
 	r.Post("/v1/auth/register", authH.Register)
 	r.Post("/v1/auth/login", authH.Login)
 	r.Post("/v1/auth/refresh", authH.Refresh)
 	r.Post("/v1/team/invitations/accept", teamH.AcceptInvite)
+	r.Post("/v1/oauth/token", oauthH.IssueToken)
 	portalH := handlers.NewPortalHandler(deps.Customers, deps.Subscriptions, deps.Plans)
 r.Group(func(r chi.Router) {
     r.Get("/v1/portal", portalH.GetPortalData)
@@ -152,6 +155,10 @@ r.Group(func(r chi.Router) {
 		r.With(middleware.RequireRole("owner", "admin", "developer")).Post("/v1/api-keys/rotate", apiKeyH.RotateAPIKey)
 		r.With(middleware.RequireRole("owner", "admin", "developer")).Post("/v1/api-keys/test", apiKeyH.CreateTestAPIKey)
 		r.With(middleware.RequireRole("owner", "admin", "developer")).Delete("/v1/api-keys/{mode}", apiKeyH.RevokeAPIKey)
+
+		r.With(middleware.RequireRole("owner", "admin", "developer")).Post("/v1/oauth/clients", oauthH.CreateClient)
+		r.With(middleware.RequireRole("owner", "admin", "developer")).Get("/v1/oauth/clients", oauthH.ListClients)
+		r.With(middleware.RequireRole("owner", "admin", "developer")).Delete("/v1/oauth/clients/{id}", oauthH.RevokeClient)
 
 		r.With(middleware.RequireRole("owner", "admin")).Post("/v1/plans", planH.Create)
 		r.Get("/v1/plans", planH.List)
@@ -221,7 +228,7 @@ r.Group(func(r chi.Router) {
 
 	// Platform API — API key auth + per-tenant rate limiting
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.APIKeyAuth(deps.Tenants, deps.APIKeys))
+		r.Use(middleware.PlatformAuth(deps.Tenants, deps.APIKeys, deps.OAuth))
 		r.Use(tenantRateLimiter(600)) // 600 req/min per tenant for server-to-server
 
 		r.Post("/v1/platform/checkout", checkoutH.CreateCheckout)

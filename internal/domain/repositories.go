@@ -200,6 +200,21 @@ type InvitationRepository interface {
 	Delete(ctx context.Context, id, tenantID uuid.UUID) error
 }
 
+// OAuthRepository backs the OAuth 2.0 client credentials flow for the
+// Platform API. Clients are managed from the dashboard (JWT auth); tokens
+// are minted by the public token endpoint and validated by PlatformAuth.
+type OAuthRepository interface {
+	CreateClient(ctx context.Context, tenantID uuid.UUID, clientID, secretHash, secretHint, name, mode string) (*OAuthClient, error)
+	GetClientByClientID(ctx context.Context, clientID string) (*OAuthClient, error)
+	ListClients(ctx context.Context, tenantID uuid.UUID) ([]*OAuthClient, error)
+	RevokeClient(ctx context.Context, id, tenantID uuid.UUID) (*OAuthClient, error)
+	TouchClientLastUsed(ctx context.Context, id uuid.UUID) error
+	CreateToken(ctx context.Context, tenantID uuid.UUID, clientID, tokenHash, mode string, expiresAt time.Time) (*OAuthToken, error)
+	GetTokenByHash(ctx context.Context, tokenHash string) (*OAuthToken, error)
+	DeleteExpiredTokens(ctx context.Context) error
+	RevokeToken(ctx context.Context, tokenHash string) error
+}
+
 type AuditRepository interface {
 	Create(ctx context.Context, tenantID uuid.UUID, actorID *uuid.UUID, actorEmail, action, target, ip string, metadata json.RawMessage) (*AuditEntry, error)
 	List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*AuditEntry, error)

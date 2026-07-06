@@ -442,6 +442,33 @@ type APIKey struct {
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
 }
 
+// OAuthClient is a Platform API credential for the OAuth 2.0 client
+// credentials flow — a production-grade alternative to a raw X-API-Key.
+type OAuthClient struct {
+	ID               uuid.UUID  `json:"id"`
+	TenantID         uuid.UUID  `json:"tenant_id"`
+	ClientID         string     `json:"client_id"`
+	ClientSecretHash string     `json:"-"`
+	ClientSecretHint string     `json:"client_secret_hint"`
+	Name             string     `json:"name"`
+	Mode             string     `json:"mode"`
+	IsActive         bool       `json:"is_active"`
+	CreatedAt        time.Time  `json:"created_at"`
+	LastUsedAt       *time.Time `json:"last_used_at,omitempty"`
+}
+
+// OAuthToken is a short-lived (30 minute) bearer token minted by the
+// client_credentials token endpoint. Only its hash is ever stored.
+type OAuthToken struct {
+	ID        uuid.UUID `json:"id"`
+	TenantID  uuid.UUID `json:"tenant_id"`
+	ClientID  string    `json:"client_id"`
+	TokenHash string    `json:"-"`
+	Mode      string    `json:"mode"`
+	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type EmailVerification struct {
 	ID       uuid.UUID  `json:"id"`
 	TenantID uuid.UUID  `json:"tenant_id"`

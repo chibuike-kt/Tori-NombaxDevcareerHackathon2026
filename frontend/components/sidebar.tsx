@@ -49,6 +49,7 @@ const sections: NavSection[] = [
     items: [
       { href: "/dashboard/webhooks", label: "Webhooks", icon: "ti-webhook" },
       { href: "/dashboard/api-keys", label: "API Keys", icon: "ti-key" },
+      { href: "/dashboard/oauth-clients", label: "OAuth Clients", icon: "ti-shield-lock" },
       { href: "/dashboard/email-templates", label: "Email Templates", icon: "ti-mail" },
       { href: "/docs", label: "Documentation", icon: "ti-book" },
     ],
@@ -85,6 +86,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
       items: section.items.filter((item) => {
         if (item.href === "/dashboard/webhooks") return can(role, "view_webhooks");
         if (item.href === "/dashboard/api-keys") return can(role, "view_api_keys");
+        if (item.href === "/dashboard/oauth-clients") return can(role, "view_api_keys");
         return true;
       }),
     }))
