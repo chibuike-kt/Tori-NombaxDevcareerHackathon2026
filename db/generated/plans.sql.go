@@ -13,9 +13,9 @@ import (
 )
 
 const createPlan = `-- name: CreatePlan :one
-INSERT INTO plans (tenant_id, name, description, amount, currency, interval, interval_count, trial_period_days, metadata)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, tenant_id, name, description, amount, currency, interval, interval_count, trial_period_days, is_active, metadata, created_at
+INSERT INTO plans (tenant_id, name, description, amount, currency, interval, interval_count, trial_period_days, metadata, mode)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, tenant_id, name, description, amount, currency, interval, interval_count, trial_period_days, is_active, metadata, created_at, mode
 `
 
 type CreatePlanParams struct {
@@ -28,6 +28,7 @@ type CreatePlanParams struct {
 	IntervalCount   int32       `json:"interval_count"`
 	TrialPeriodDays int32       `json:"trial_period_days"`
 	Metadata        []byte      `json:"metadata"`
+	Mode            string      `json:"mode"`
 }
 
 func (q *Queries) CreatePlan(ctx context.Context, arg CreatePlanParams) (Plan, error) {
@@ -41,6 +42,7 @@ func (q *Queries) CreatePlan(ctx context.Context, arg CreatePlanParams) (Plan, e
 		arg.IntervalCount,
 		arg.TrialPeriodDays,
 		arg.Metadata,
+		arg.Mode,
 	)
 	var i Plan
 	err := row.Scan(
@@ -56,6 +58,7 @@ func (q *Queries) CreatePlan(ctx context.Context, arg CreatePlanParams) (Plan, e
 		&i.IsActive,
 		&i.Metadata,
 		&i.CreatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
@@ -75,7 +78,7 @@ func (q *Queries) DeactivatePlan(ctx context.Context, arg DeactivatePlanParams) 
 }
 
 const getPlanByID = `-- name: GetPlanByID :one
-SELECT id, tenant_id, name, description, amount, currency, interval, interval_count, trial_period_days, is_active, metadata, created_at FROM plans WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, name, description, amount, currency, interval, interval_count, trial_period_days, is_active, metadata, created_at, mode FROM plans WHERE id = $1 AND tenant_id = $2
 `
 
 type GetPlanByIDParams struct {
@@ -99,16 +102,22 @@ func (q *Queries) GetPlanByID(ctx context.Context, arg GetPlanByIDParams) (Plan,
 		&i.IsActive,
 		&i.Metadata,
 		&i.CreatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
 
 const listAllPlans = `-- name: ListAllPlans :many
-SELECT id, tenant_id, name, description, amount, currency, interval, interval_count, trial_period_days, is_active, metadata, created_at FROM plans WHERE tenant_id = $1 ORDER BY created_at DESC
+SELECT id, tenant_id, name, description, amount, currency, interval, interval_count, trial_period_days, is_active, metadata, created_at, mode FROM plans WHERE tenant_id = $1 AND mode = $2 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListAllPlans(ctx context.Context, tenantID uuid.UUID) ([]Plan, error) {
-	rows, err := q.db.Query(ctx, listAllPlans, tenantID)
+type ListAllPlansParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Mode     string    `json:"mode"`
+}
+
+func (q *Queries) ListAllPlans(ctx context.Context, arg ListAllPlansParams) ([]Plan, error) {
+	rows, err := q.db.Query(ctx, listAllPlans, arg.TenantID, arg.Mode)
 	if err != nil {
 		return nil, err
 	}
@@ -129,6 +138,7 @@ func (q *Queries) ListAllPlans(ctx context.Context, tenantID uuid.UUID) ([]Plan,
 			&i.IsActive,
 			&i.Metadata,
 			&i.CreatedAt,
+			&i.Mode,
 		); err != nil {
 			return nil, err
 		}
@@ -141,11 +151,16 @@ func (q *Queries) ListAllPlans(ctx context.Context, tenantID uuid.UUID) ([]Plan,
 }
 
 const listPlans = `-- name: ListPlans :many
-SELECT id, tenant_id, name, description, amount, currency, interval, interval_count, trial_period_days, is_active, metadata, created_at FROM plans WHERE tenant_id = $1 AND is_active = TRUE ORDER BY created_at DESC
+SELECT id, tenant_id, name, description, amount, currency, interval, interval_count, trial_period_days, is_active, metadata, created_at, mode FROM plans WHERE tenant_id = $1 AND is_active = TRUE AND mode = $2 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListPlans(ctx context.Context, tenantID uuid.UUID) ([]Plan, error) {
-	rows, err := q.db.Query(ctx, listPlans, tenantID)
+type ListPlansParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Mode     string    `json:"mode"`
+}
+
+func (q *Queries) ListPlans(ctx context.Context, arg ListPlansParams) ([]Plan, error) {
+	rows, err := q.db.Query(ctx, listPlans, arg.TenantID, arg.Mode)
 	if err != nil {
 		return nil, err
 	}
@@ -166,6 +181,7 @@ func (q *Queries) ListPlans(ctx context.Context, tenantID uuid.UUID) ([]Plan, er
 			&i.IsActive,
 			&i.Metadata,
 			&i.CreatedAt,
+			&i.Mode,
 		); err != nil {
 			return nil, err
 		}
@@ -181,7 +197,7 @@ const updatePlan = `-- name: UpdatePlan :one
 UPDATE plans
 SET name = $3, description = $4, amount = $5, trial_period_days = $6, metadata = $7
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, name, description, amount, currency, interval, interval_count, trial_period_days, is_active, metadata, created_at
+RETURNING id, tenant_id, name, description, amount, currency, interval, interval_count, trial_period_days, is_active, metadata, created_at, mode
 `
 
 type UpdatePlanParams struct {
@@ -218,6 +234,7 @@ func (q *Queries) UpdatePlan(ctx context.Context, arg UpdatePlanParams) (Plan, e
 		&i.IsActive,
 		&i.Metadata,
 		&i.CreatedAt,
+		&i.Mode,
 	)
 	return i, err
 }

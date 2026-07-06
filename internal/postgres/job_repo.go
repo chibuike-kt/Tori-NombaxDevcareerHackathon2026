@@ -22,13 +22,14 @@ func NewJobRepo(pool *pgxpool.Pool) *JobRepo {
 	return &JobRepo{q: db.New(pool)}
 }
 
-func (r *JobRepo) Enqueue(ctx context.Context, tenantID *uuid.UUID, jobType domain.JobType, payload []byte, scheduledAt time.Time, maxAttempts int) (*domain.ScheduledJob, error) {
+func (r *JobRepo) Enqueue(ctx context.Context, tenantID *uuid.UUID, jobType domain.JobType, payload []byte, scheduledAt time.Time, maxAttempts int, mode string) (*domain.ScheduledJob, error) {
 	row, err := r.q.EnqueueJob(ctx, db.EnqueueJobParams{
 		TenantID:    toPgUUID(tenantID),
 		JobType:     string(jobType),
 		Payload:     payload,
 		ScheduledAt: scheduledAt,
 		MaxAttempts: int32(maxAttempts),
+		Mode:        mode,
 	})
 	if err != nil {
 		return nil, err
@@ -111,6 +112,7 @@ func jobFromRow(row db.ScheduledJob) *domain.ScheduledJob {
 		Attempts:    int(row.Attempts),
 		MaxAttempts: int(row.MaxAttempts),
 		LastError:   fromPgText(row.LastError),
+		Mode:        row.Mode,
 		CreatedAt:   row.CreatedAt,
 	}
 }

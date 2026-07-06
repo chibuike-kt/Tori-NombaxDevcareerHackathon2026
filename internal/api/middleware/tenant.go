@@ -73,6 +73,29 @@ func GetMemberRole(ctx context.Context) string {
 	return ""
 }
 
+type resourceModeContextKey string
+
+const resourceModeKey resourceModeContextKey = "resource_mode"
+
+// WithMode attaches the active data-isolation mode ("test" or "live") to the
+// context — every resource create/list call is scoped to this mode so test
+// and live data never mix.
+func WithMode(ctx context.Context, mode string) context.Context {
+	return context.WithValue(ctx, resourceModeKey, mode)
+}
+
+// GetMode returns the active data-isolation mode for the request.
+// API-key-authenticated requests get it from the key prefix
+// (tori_test_/tori_live_, stamped by APIKeyAuth); JWT-authenticated dashboard
+// requests get it from the X-Tori-Mode header (stamped by JWTAuth). Defaults
+// to "live" if neither set one.
+func GetMode(ctx context.Context) string {
+	if m, ok := ctx.Value(resourceModeKey).(string); ok && (m == "test" || m == "live") {
+		return m
+	}
+	return "live"
+}
+
 // HashAPIKey produces the SHA-256 hex digest of a plaintext API key.
 func HashAPIKey(key string) string {
 	h := sha256.Sum256([]byte(key))
@@ -105,6 +128,7 @@ func APIKeyAuth(tenants domain.TenantRepository, apiKeys domain.APIKeyRepository
 
 			ctx := context.WithValue(r.Context(), tenantKey, tenant)
 			ctx = WithAPIKeyMode(ctx, record.Mode)
+			ctx = WithMode(ctx, record.Mode)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -145,9 +169,17 @@ func JWTAuth(secret string, tenants domain.TenantRepository, tokens domain.Token
 				return
 			}
 
+			// Dashboard requests carry the active mode in a header set by the
+			// frontend's Live/Test toggle — default to live if absent/invalid.
+			mode := r.Header.Get("X-Tori-Mode")
+			if mode != "test" && mode != "live" {
+				mode = "live"
+			}
+
 			ctx := context.WithValue(r.Context(), tenantKey, tenant)
 			ctx = WithSessionID(ctx, sessionID)
 			ctx = WithMemberRole(ctx, role)
+			ctx = WithMode(ctx, mode)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

@@ -13,9 +13,9 @@ import (
 )
 
 const createPromoCode = `-- name: CreatePromoCode :one
-INSERT INTO promo_codes (tenant_id, code, description, discount_type, discount_value, plan_id, max_uses, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, tenant_id, code, description, discount_type, discount_value, plan_id, max_uses, use_count, expires_at, is_active, created_at, updated_at
+INSERT INTO promo_codes (tenant_id, code, description, discount_type, discount_value, plan_id, max_uses, expires_at, mode)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, tenant_id, code, description, discount_type, discount_value, plan_id, max_uses, use_count, expires_at, is_active, created_at, updated_at, mode
 `
 
 type CreatePromoCodeParams struct {
@@ -27,6 +27,7 @@ type CreatePromoCodeParams struct {
 	PlanID        pgtype.UUID        `json:"plan_id"`
 	MaxUses       pgtype.Int4        `json:"max_uses"`
 	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+	Mode          string             `json:"mode"`
 }
 
 func (q *Queries) CreatePromoCode(ctx context.Context, arg CreatePromoCodeParams) (PromoCode, error) {
@@ -39,6 +40,7 @@ func (q *Queries) CreatePromoCode(ctx context.Context, arg CreatePromoCodeParams
 		arg.PlanID,
 		arg.MaxUses,
 		arg.ExpiresAt,
+		arg.Mode,
 	)
 	var i PromoCode
 	err := row.Scan(
@@ -55,6 +57,7 @@ func (q *Queries) CreatePromoCode(ctx context.Context, arg CreatePromoCodeParams
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
@@ -62,7 +65,7 @@ func (q *Queries) CreatePromoCode(ctx context.Context, arg CreatePromoCodeParams
 const deactivatePromoCode = `-- name: DeactivatePromoCode :one
 UPDATE promo_codes SET is_active = false, updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, code, description, discount_type, discount_value, plan_id, max_uses, use_count, expires_at, is_active, created_at, updated_at
+RETURNING id, tenant_id, code, description, discount_type, discount_value, plan_id, max_uses, use_count, expires_at, is_active, created_at, updated_at, mode
 `
 
 type DeactivatePromoCodeParams struct {
@@ -87,6 +90,7 @@ func (q *Queries) DeactivatePromoCode(ctx context.Context, arg DeactivatePromoCo
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
@@ -106,7 +110,7 @@ func (q *Queries) DeletePromoCode(ctx context.Context, arg DeletePromoCodeParams
 }
 
 const getPromoCodeByCode = `-- name: GetPromoCodeByCode :one
-SELECT id, tenant_id, code, description, discount_type, discount_value, plan_id, max_uses, use_count, expires_at, is_active, created_at, updated_at FROM promo_codes WHERE tenant_id = $1 AND code = $2
+SELECT id, tenant_id, code, description, discount_type, discount_value, plan_id, max_uses, use_count, expires_at, is_active, created_at, updated_at, mode FROM promo_codes WHERE tenant_id = $1 AND code = $2
 `
 
 type GetPromoCodeByCodeParams struct {
@@ -131,12 +135,13 @@ func (q *Queries) GetPromoCodeByCode(ctx context.Context, arg GetPromoCodeByCode
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
 
 const getPromoCodeByID = `-- name: GetPromoCodeByID :one
-SELECT id, tenant_id, code, description, discount_type, discount_value, plan_id, max_uses, use_count, expires_at, is_active, created_at, updated_at FROM promo_codes WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, code, description, discount_type, discount_value, plan_id, max_uses, use_count, expires_at, is_active, created_at, updated_at, mode FROM promo_codes WHERE id = $1 AND tenant_id = $2
 `
 
 type GetPromoCodeByIDParams struct {
@@ -161,6 +166,7 @@ func (q *Queries) GetPromoCodeByID(ctx context.Context, arg GetPromoCodeByIDPara
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
@@ -175,11 +181,16 @@ func (q *Queries) IncrementPromoUseCount(ctx context.Context, id uuid.UUID) erro
 }
 
 const listAllPromoCodes = `-- name: ListAllPromoCodes :many
-SELECT id, tenant_id, code, description, discount_type, discount_value, plan_id, max_uses, use_count, expires_at, is_active, created_at, updated_at FROM promo_codes WHERE tenant_id = $1 ORDER BY created_at DESC
+SELECT id, tenant_id, code, description, discount_type, discount_value, plan_id, max_uses, use_count, expires_at, is_active, created_at, updated_at, mode FROM promo_codes WHERE tenant_id = $1 AND mode = $2 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListAllPromoCodes(ctx context.Context, tenantID uuid.UUID) ([]PromoCode, error) {
-	rows, err := q.db.Query(ctx, listAllPromoCodes, tenantID)
+type ListAllPromoCodesParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Mode     string    `json:"mode"`
+}
+
+func (q *Queries) ListAllPromoCodes(ctx context.Context, arg ListAllPromoCodesParams) ([]PromoCode, error) {
+	rows, err := q.db.Query(ctx, listAllPromoCodes, arg.TenantID, arg.Mode)
 	if err != nil {
 		return nil, err
 	}
@@ -201,6 +212,7 @@ func (q *Queries) ListAllPromoCodes(ctx context.Context, tenantID uuid.UUID) ([]
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Mode,
 		); err != nil {
 			return nil, err
 		}
@@ -213,11 +225,16 @@ func (q *Queries) ListAllPromoCodes(ctx context.Context, tenantID uuid.UUID) ([]
 }
 
 const listPromoCodes = `-- name: ListPromoCodes :many
-SELECT id, tenant_id, code, description, discount_type, discount_value, plan_id, max_uses, use_count, expires_at, is_active, created_at, updated_at FROM promo_codes WHERE tenant_id = $1 AND is_active = true ORDER BY created_at DESC
+SELECT id, tenant_id, code, description, discount_type, discount_value, plan_id, max_uses, use_count, expires_at, is_active, created_at, updated_at, mode FROM promo_codes WHERE tenant_id = $1 AND is_active = true AND mode = $2 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListPromoCodes(ctx context.Context, tenantID uuid.UUID) ([]PromoCode, error) {
-	rows, err := q.db.Query(ctx, listPromoCodes, tenantID)
+type ListPromoCodesParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Mode     string    `json:"mode"`
+}
+
+func (q *Queries) ListPromoCodes(ctx context.Context, arg ListPromoCodesParams) ([]PromoCode, error) {
+	rows, err := q.db.Query(ctx, listPromoCodes, arg.TenantID, arg.Mode)
 	if err != nil {
 		return nil, err
 	}
@@ -239,6 +256,7 @@ func (q *Queries) ListPromoCodes(ctx context.Context, tenantID uuid.UUID) ([]Pro
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Mode,
 		); err != nil {
 			return nil, err
 		}

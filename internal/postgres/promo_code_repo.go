@@ -31,6 +31,7 @@ func promoCodeFromRow(row db.PromoCode) *domain.PromoCode {
 		DiscountValue: row.DiscountValue,
 		UseCount:      int(row.UseCount),
 		IsActive:      row.IsActive,
+		Mode:          row.Mode,
 		CreatedAt:     row.CreatedAt,
 		UpdatedAt:     row.UpdatedAt,
 	}
@@ -52,7 +53,7 @@ func promoCodeFromRow(row db.PromoCode) *domain.PromoCode {
 	return p
 }
 
-func (r *PromoCodeRepo) Create(ctx context.Context, tenantID uuid.UUID, code, description string, discountType domain.DiscountType, discountValue int64, planID *uuid.UUID, maxUses *int, expiresAt *time.Time) (*domain.PromoCode, error) {
+func (r *PromoCodeRepo) Create(ctx context.Context, tenantID uuid.UUID, code, description string, discountType domain.DiscountType, discountValue int64, planID *uuid.UUID, maxUses *int, expiresAt *time.Time, mode string) (*domain.PromoCode, error) {
 	pid := pgtype.UUID{}
 	if planID != nil {
 		pid = pgtype.UUID{Bytes: *planID, Valid: true}
@@ -71,6 +72,7 @@ func (r *PromoCodeRepo) Create(ctx context.Context, tenantID uuid.UUID, code, de
 		PlanID:        pid,
 		MaxUses:       mu,
 		ExpiresAt:     toPgTimestamptz(expiresAt),
+		Mode:          mode,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create promo code: %w", err)
@@ -100,8 +102,8 @@ func (r *PromoCodeRepo) GetByID(ctx context.Context, id, tenantID uuid.UUID) (*d
 	return promoCodeFromRow(row), nil
 }
 
-func (r *PromoCodeRepo) List(ctx context.Context, tenantID uuid.UUID) ([]*domain.PromoCode, error) {
-	rows, err := r.q.ListAllPromoCodes(ctx, tenantID)
+func (r *PromoCodeRepo) List(ctx context.Context, tenantID uuid.UUID, mode string) ([]*domain.PromoCode, error) {
+	rows, err := r.q.ListAllPromoCodes(ctx, db.ListAllPromoCodesParams{TenantID: tenantID, Mode: mode})
 	if err != nil {
 		return nil, fmt.Errorf("list promo codes: %w", err)
 	}

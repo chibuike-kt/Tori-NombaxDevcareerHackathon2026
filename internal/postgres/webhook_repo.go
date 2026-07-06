@@ -21,13 +21,14 @@ func NewWebhookRepo(pool *pgxpool.Pool) *WebhookRepo {
 	return &WebhookRepo{q: db.New(pool)}
 }
 
-func (r *WebhookRepo) CreateEndpoint(ctx context.Context, tenantID uuid.UUID, url string, events []string, secret, apiVersion string) (*domain.WebhookEndpoint, error) {
+func (r *WebhookRepo) CreateEndpoint(ctx context.Context, tenantID uuid.UUID, url string, events []string, secret, apiVersion, mode string) (*domain.WebhookEndpoint, error) {
 	row, err := r.q.CreateWebhookEndpoint(ctx, db.CreateWebhookEndpointParams{
 		TenantID:   tenantID,
 		Url:        url,
 		Events:     events,
 		Secret:     secret,
 		ApiVersion: apiVersion,
+		Mode:       mode,
 	})
 	if err != nil {
 		return nil, err
@@ -46,8 +47,8 @@ func (r *WebhookRepo) GetEndpointByID(ctx context.Context, id, tenantID uuid.UUI
 	return endpointFromRow(row), nil
 }
 
-func (r *WebhookRepo) ListEndpoints(ctx context.Context, tenantID uuid.UUID) ([]*domain.WebhookEndpoint, error) {
-	rows, err := r.q.ListWebhookEndpoints(ctx, tenantID)
+func (r *WebhookRepo) ListEndpoints(ctx context.Context, tenantID uuid.UUID, mode string) ([]*domain.WebhookEndpoint, error) {
+	rows, err := r.q.ListWebhookEndpoints(ctx, db.ListWebhookEndpointsParams{TenantID: tenantID, Mode: mode})
 	if err != nil {
 		return nil, err
 	}
@@ -173,6 +174,7 @@ func endpointFromRow(row db.WebhookEndpoint) *domain.WebhookEndpoint {
 		Secret:     row.Secret,
 		APIVersion: row.ApiVersion,
 		IsActive:   row.IsActive,
+		Mode:       row.Mode,
 		CreatedAt:  row.CreatedAt,
 	}
 }

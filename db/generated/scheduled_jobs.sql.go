@@ -42,7 +42,7 @@ WHERE id = (
     FOR UPDATE SKIP LOCKED
     LIMIT 1
 )
-RETURNING id, tenant_id, job_type, payload, status, scheduled_at, locked_at, locked_by, attempts, max_attempts, last_error, created_at
+RETURNING id, tenant_id, job_type, payload, status, scheduled_at, locked_at, locked_by, attempts, max_attempts, last_error, created_at, mode
 `
 
 // SKIP LOCKED means concurrent workers won't block each other.
@@ -62,14 +62,15 @@ func (q *Queries) ClaimNextJob(ctx context.Context, lockedBy pgtype.Text) (Sched
 		&i.MaxAttempts,
 		&i.LastError,
 		&i.CreatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
 
 const enqueueJob = `-- name: EnqueueJob :one
-INSERT INTO scheduled_jobs (tenant_id, job_type, payload, scheduled_at, max_attempts)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, tenant_id, job_type, payload, status, scheduled_at, locked_at, locked_by, attempts, max_attempts, last_error, created_at
+INSERT INTO scheduled_jobs (tenant_id, job_type, payload, scheduled_at, max_attempts, mode)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, tenant_id, job_type, payload, status, scheduled_at, locked_at, locked_by, attempts, max_attempts, last_error, created_at, mode
 `
 
 type EnqueueJobParams struct {
@@ -78,6 +79,7 @@ type EnqueueJobParams struct {
 	Payload     json.RawMessage `json:"payload"`
 	ScheduledAt time.Time       `json:"scheduled_at"`
 	MaxAttempts int32           `json:"max_attempts"`
+	Mode        string          `json:"mode"`
 }
 
 func (q *Queries) EnqueueJob(ctx context.Context, arg EnqueueJobParams) (ScheduledJob, error) {
@@ -87,6 +89,7 @@ func (q *Queries) EnqueueJob(ctx context.Context, arg EnqueueJobParams) (Schedul
 		arg.Payload,
 		arg.ScheduledAt,
 		arg.MaxAttempts,
+		arg.Mode,
 	)
 	var i ScheduledJob
 	err := row.Scan(
@@ -102,6 +105,7 @@ func (q *Queries) EnqueueJob(ctx context.Context, arg EnqueueJobParams) (Schedul
 		&i.MaxAttempts,
 		&i.LastError,
 		&i.CreatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
@@ -118,7 +122,7 @@ func (q *Queries) GetJobQueueDepth(ctx context.Context) (int64, error) {
 }
 
 const listFailedJobs = `-- name: ListFailedJobs :many
-SELECT id, tenant_id, job_type, payload, status, scheduled_at, locked_at, locked_by, attempts, max_attempts, last_error, created_at FROM scheduled_jobs
+SELECT id, tenant_id, job_type, payload, status, scheduled_at, locked_at, locked_by, attempts, max_attempts, last_error, created_at, mode FROM scheduled_jobs
 WHERE status = 'failed'
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2
@@ -151,6 +155,7 @@ func (q *Queries) ListFailedJobs(ctx context.Context, arg ListFailedJobsParams) 
 			&i.MaxAttempts,
 			&i.LastError,
 			&i.CreatedAt,
+			&i.Mode,
 		); err != nil {
 			return nil, err
 		}

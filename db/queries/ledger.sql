@@ -2,9 +2,9 @@
 INSERT INTO ledger_entries (
     tenant_id, subscription_id, invoice_id, customer_id,
     entry_type, direction, amount, currency,
-    description, idempotency_key, metadata
+    description, idempotency_key, metadata, mode
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: GetLedgerEntryByID :one
@@ -15,27 +15,27 @@ SELECT * FROM ledger_entries WHERE idempotency_key = $1;
 
 -- name: ListLedgerEntriesByTenant :many
 SELECT * FROM ledger_entries
-WHERE tenant_id = $1
+WHERE tenant_id = $1 AND mode = $2
 ORDER BY created_at DESC
-LIMIT $2 OFFSET $3;
+LIMIT $3 OFFSET $4;
 
 -- name: ListLedgerEntriesBySubscription :many
 SELECT * FROM ledger_entries
-WHERE tenant_id = $1 AND subscription_id = $2
+WHERE tenant_id = $1 AND subscription_id = $2 AND mode = $3
 ORDER BY created_at DESC
-LIMIT $3 OFFSET $4;
+LIMIT $4 OFFSET $5;
 
 -- name: ListLedgerEntriesByCustomer :many
 SELECT * FROM ledger_entries
-WHERE tenant_id = $1 AND customer_id = $2
+WHERE tenant_id = $1 AND customer_id = $2 AND mode = $3
 ORDER BY created_at DESC
-LIMIT $3 OFFSET $4;
+LIMIT $4 OFFSET $5;
 
 -- name: ListLedgerEntriesByDateRange :many
 SELECT * FROM ledger_entries
-WHERE tenant_id = $1 AND created_at >= $2 AND created_at <= $3
+WHERE tenant_id = $1 AND created_at >= $2 AND created_at <= $3 AND mode = $4
 ORDER BY created_at DESC
-LIMIT $4 OFFSET $5;
+LIMIT $5 OFFSET $6;
 
 -- name: ListLedgerEntriesByTypeAndDateRange :many
 SELECT * FROM ledger_entries
@@ -43,8 +43,9 @@ WHERE tenant_id = $1
   AND entry_type = ANY($2::text[])
   AND created_at >= $3
   AND created_at <= $4
+  AND mode = $5
 ORDER BY created_at DESC
-LIMIT $5 OFFSET $6;
+LIMIT $6 OFFSET $7;
 
 -- name: GetLedgerSummary :one
 SELECT
@@ -55,7 +56,7 @@ SELECT
     COALESCE(SUM(amount) FILTER (WHERE entry_type = 'CREDIT'), 0)  AS total_credits_applied,
     COUNT(*) AS entry_count
 FROM ledger_entries
-WHERE tenant_id = $1 AND created_at >= $2 AND created_at <= $3;
+WHERE tenant_id = $1 AND created_at >= $2 AND created_at <= $3 AND mode = $4;
 
 -- name: GetMRR :one
 -- MRR = sum of all CHARGE entries in the given month, normalised to monthly.
@@ -65,7 +66,8 @@ FROM ledger_entries
 WHERE tenant_id = $1
   AND entry_type = 'CHARGE'
   AND created_at >= $2
-  AND created_at < $3;
+  AND created_at < $3
+  AND mode = $4;
 
 -- name: GetRevenueByPlan :many
 SELECT
@@ -80,6 +82,7 @@ WHERE l.tenant_id = $1
   AND l.entry_type = 'CHARGE'
   AND l.created_at >= $2
   AND l.created_at < $3
+  AND l.mode = $4
 GROUP BY p.id, p.name
 ORDER BY total_charged DESC;
 
@@ -92,5 +95,6 @@ FROM ledger_entries
 WHERE tenant_id = $1
   AND created_at >= $2
   AND created_at <= $3
+  AND mode = $4
 GROUP BY DATE_TRUNC('month', created_at)
 ORDER BY month ASC;

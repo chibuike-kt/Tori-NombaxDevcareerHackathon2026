@@ -19,7 +19,7 @@ func NewPlanRepo(pool *pgxpool.Pool) *PlanRepo {
 	return &PlanRepo{q: db.New(pool)}
 }
 
-func (r *PlanRepo) Create(ctx context.Context, tenantID uuid.UUID, name string, description *string, amount int64, currency string, interval domain.PlanInterval, intervalCount, trialDays int, metadata []byte) (*domain.Plan, error) {
+func (r *PlanRepo) Create(ctx context.Context, tenantID uuid.UUID, name string, description *string, amount int64, currency string, interval domain.PlanInterval, intervalCount, trialDays int, metadata []byte, mode string) (*domain.Plan, error) {
 	row, err := r.q.CreatePlan(ctx, db.CreatePlanParams{
 		TenantID:        tenantID,
 		Name:            name,
@@ -30,6 +30,7 @@ func (r *PlanRepo) Create(ctx context.Context, tenantID uuid.UUID, name string, 
 		IntervalCount:   int32(intervalCount),
 		TrialPeriodDays: int32(trialDays),
 		Metadata:        metadata,
+		Mode:            mode,
 	})
 	if err != nil {
 		return nil, err
@@ -48,8 +49,8 @@ func (r *PlanRepo) GetByID(ctx context.Context, id, tenantID uuid.UUID) (*domain
 	return planFromRow(row), nil
 }
 
-func (r *PlanRepo) List(ctx context.Context, tenantID uuid.UUID) ([]*domain.Plan, error) {
-	rows, err := r.q.ListPlans(ctx, tenantID)
+func (r *PlanRepo) List(ctx context.Context, tenantID uuid.UUID, mode string) ([]*domain.Plan, error) {
+	rows, err := r.q.ListPlans(ctx, db.ListPlansParams{TenantID: tenantID, Mode: mode})
 	if err != nil {
 		return nil, err
 	}
@@ -60,8 +61,8 @@ func (r *PlanRepo) List(ctx context.Context, tenantID uuid.UUID) ([]*domain.Plan
 	return plans, nil
 }
 
-func (r *PlanRepo) ListAll(ctx context.Context, tenantID uuid.UUID) ([]*domain.Plan, error) {
-	rows, err := r.q.ListAllPlans(ctx, tenantID)
+func (r *PlanRepo) ListAll(ctx context.Context, tenantID uuid.UUID, mode string) ([]*domain.Plan, error) {
+	rows, err := r.q.ListAllPlans(ctx, db.ListAllPlansParams{TenantID: tenantID, Mode: mode})
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +107,7 @@ func planFromRow(row db.Plan) *domain.Plan {
 		TrialPeriodDays: int(row.TrialPeriodDays),
 		IsActive:        row.IsActive,
 		Metadata:        row.Metadata,
+		Mode:            row.Mode,
 		CreatedAt:       row.CreatedAt,
 	}
 }

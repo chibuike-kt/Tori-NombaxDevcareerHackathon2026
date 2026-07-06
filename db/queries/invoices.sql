@@ -2,9 +2,9 @@
 INSERT INTO invoices (
     tenant_id, subscription_id, customer_id,
     amount, currency, status, due_date,
-    line_items, idempotency_key
+    line_items, idempotency_key, mode
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
 
 -- name: GetInvoiceByID :one
@@ -18,15 +18,15 @@ SELECT * FROM invoices WHERE subscription_id = $1 ORDER BY created_at DESC;
 
 -- name: ListInvoicesByTenant :many
 SELECT * FROM invoices
-WHERE tenant_id = $1
+WHERE tenant_id = $1 AND mode = $2
 ORDER BY created_at DESC
-LIMIT $2 OFFSET $3;
+LIMIT $3 OFFSET $4;
 
 -- name: ListInvoicesByStatus :many
 SELECT * FROM invoices
-WHERE tenant_id = $1 AND status = $2
+WHERE tenant_id = $1 AND status = $2 AND mode = $3
 ORDER BY created_at DESC
-LIMIT $3 OFFSET $4;
+LIMIT $4 OFFSET $5;
 
 -- name: MarkInvoicePaid :one
 UPDATE invoices

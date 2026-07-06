@@ -24,7 +24,7 @@ func NewSubscriptionRepo(pool *pgxpool.Pool) *SubscriptionRepo {
 	return &SubscriptionRepo{q: db.New(pool), pool: pool}
 }
 
-func (r *SubscriptionRepo) Create(ctx context.Context, tenantID, customerID, planID uuid.UUID, status domain.SubscriptionStatus, periodStart, periodEnd time.Time, trialEnd *time.Time, idempotencyKey *string, metadata []byte, discountKobo int64) (*domain.Subscription, error) {
+func (r *SubscriptionRepo) Create(ctx context.Context, tenantID, customerID, planID uuid.UUID, status domain.SubscriptionStatus, periodStart, periodEnd time.Time, trialEnd *time.Time, idempotencyKey *string, metadata []byte, discountKobo int64, mode string) (*domain.Subscription, error) {
 	row, err := r.q.CreateSubscription(ctx, db.CreateSubscriptionParams{
 		TenantID:           tenantID,
 		CustomerID:         customerID,
@@ -36,6 +36,7 @@ func (r *SubscriptionRepo) Create(ctx context.Context, tenantID, customerID, pla
 		IdempotencyKey:     toPgText(idempotencyKey),
 		Metadata:           metadata,
 		DiscountKobo:       discountKobo,
+		Mode:               mode,
 	})
 	if err != nil {
 		return nil, err
@@ -79,9 +80,10 @@ func (r *SubscriptionRepo) GetByIdempotencyKey(ctx context.Context, key string, 
 	return subFromRow(row), nil
 }
 
-func (r *SubscriptionRepo) List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*domain.Subscription, error) {
+func (r *SubscriptionRepo) List(ctx context.Context, tenantID uuid.UUID, mode string, limit, offset int) ([]*domain.Subscription, error) {
 	rows, err := r.q.ListSubscriptions(ctx, db.ListSubscriptionsParams{
 		TenantID: tenantID,
+		Mode:     mode,
 		Limit:    int32(limit),
 		Offset:   int32(offset),
 	})
@@ -91,10 +93,11 @@ func (r *SubscriptionRepo) List(ctx context.Context, tenantID uuid.UUID, limit, 
 	return subsFromRows(rows), nil
 }
 
-func (r *SubscriptionRepo) ListByStatus(ctx context.Context, tenantID uuid.UUID, status domain.SubscriptionStatus, limit, offset int) ([]*domain.Subscription, error) {
+func (r *SubscriptionRepo) ListByStatus(ctx context.Context, tenantID uuid.UUID, status domain.SubscriptionStatus, mode string, limit, offset int) ([]*domain.Subscription, error) {
 	rows, err := r.q.ListSubscriptionsByStatus(ctx, db.ListSubscriptionsByStatusParams{
 		TenantID: tenantID,
 		Status:   string(status),
+		Mode:     mode,
 		Limit:    int32(limit),
 		Offset:   int32(offset),
 	})
@@ -104,10 +107,11 @@ func (r *SubscriptionRepo) ListByStatus(ctx context.Context, tenantID uuid.UUID,
 	return subsFromRows(rows), nil
 }
 
-func (r *SubscriptionRepo) ListByCustomer(ctx context.Context, tenantID, customerID uuid.UUID) ([]*domain.Subscription, error) {
+func (r *SubscriptionRepo) ListByCustomer(ctx context.Context, tenantID, customerID uuid.UUID, mode string) ([]*domain.Subscription, error) {
 	rows, err := r.q.ListSubscriptionsByCustomer(ctx, db.ListSubscriptionsByCustomerParams{
 		TenantID:   tenantID,
 		CustomerID: customerID,
+		Mode:       mode,
 	})
 	if err != nil {
 		return nil, err
@@ -321,6 +325,7 @@ func subFromRow(row db.Subscription) *domain.Subscription {
 		RecoveryRail:       row.RecoveryRail,
 		Metadata:           row.Metadata,
 		DiscountKobo:       row.DiscountKobo,
+		Mode:               row.Mode,
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
 	}

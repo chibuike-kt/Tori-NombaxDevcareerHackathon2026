@@ -21,7 +21,7 @@ func NewLedgerRepo(pool *pgxpool.Pool) *LedgerRepo {
 	return &LedgerRepo{q: db.New(pool)}
 }
 
-func (r *LedgerRepo) Append(ctx context.Context, tenantID uuid.UUID, subscriptionID, invoiceID, customerID *uuid.UUID, entryType domain.LedgerEntryType, direction domain.LedgerDirection, amount int64, currency, description, idempotencyKey string, metadata []byte) (*domain.LedgerEntry, error) {
+func (r *LedgerRepo) Append(ctx context.Context, tenantID uuid.UUID, subscriptionID, invoiceID, customerID *uuid.UUID, entryType domain.LedgerEntryType, direction domain.LedgerDirection, amount int64, currency, description, idempotencyKey string, metadata []byte, mode string) (*domain.LedgerEntry, error) {
 	row, err := r.q.CreateLedgerEntry(ctx, db.CreateLedgerEntryParams{
 		TenantID:       tenantID,
 		SubscriptionID: toPgUUID(subscriptionID),
@@ -34,6 +34,7 @@ func (r *LedgerRepo) Append(ctx context.Context, tenantID uuid.UUID, subscriptio
 		Description:    description,
 		IdempotencyKey: idempotencyKey,
 		Metadata:       metadata,
+		Mode:           mode,
 	})
 	if err != nil {
 		return nil, err
@@ -63,9 +64,10 @@ func (r *LedgerRepo) GetByIdempotencyKey(ctx context.Context, key string) (*doma
 	return ledgerEntryFromRow(row), nil
 }
 
-func (r *LedgerRepo) ListByTenant(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*domain.LedgerEntry, error) {
+func (r *LedgerRepo) ListByTenant(ctx context.Context, tenantID uuid.UUID, mode string, limit, offset int) ([]*domain.LedgerEntry, error) {
 	rows, err := r.q.ListLedgerEntriesByTenant(ctx, db.ListLedgerEntriesByTenantParams{
 		TenantID: tenantID,
+		Mode:     mode,
 		Limit:    int32(limit),
 		Offset:   int32(offset),
 	})
@@ -75,10 +77,11 @@ func (r *LedgerRepo) ListByTenant(ctx context.Context, tenantID uuid.UUID, limit
 	return ledgerEntriesFromRows(rows), nil
 }
 
-func (r *LedgerRepo) ListBySubscription(ctx context.Context, tenantID, subscriptionID uuid.UUID, limit, offset int) ([]*domain.LedgerEntry, error) {
+func (r *LedgerRepo) ListBySubscription(ctx context.Context, tenantID, subscriptionID uuid.UUID, mode string, limit, offset int) ([]*domain.LedgerEntry, error) {
 	rows, err := r.q.ListLedgerEntriesBySubscription(ctx, db.ListLedgerEntriesBySubscriptionParams{
 		TenantID:       tenantID,
 		SubscriptionID: toPgUUID(&subscriptionID),
+		Mode:           mode,
 		Limit:          int32(limit),
 		Offset:         int32(offset),
 	})
@@ -88,10 +91,11 @@ func (r *LedgerRepo) ListBySubscription(ctx context.Context, tenantID, subscript
 	return ledgerEntriesFromRows(rows), nil
 }
 
-func (r *LedgerRepo) ListByCustomer(ctx context.Context, tenantID, customerID uuid.UUID, limit, offset int) ([]*domain.LedgerEntry, error) {
+func (r *LedgerRepo) ListByCustomer(ctx context.Context, tenantID, customerID uuid.UUID, mode string, limit, offset int) ([]*domain.LedgerEntry, error) {
 	rows, err := r.q.ListLedgerEntriesByCustomer(ctx, db.ListLedgerEntriesByCustomerParams{
 		TenantID:   tenantID,
 		CustomerID: toPgUUID(&customerID),
+		Mode:       mode,
 		Limit:      int32(limit),
 		Offset:     int32(offset),
 	})
@@ -101,11 +105,12 @@ func (r *LedgerRepo) ListByCustomer(ctx context.Context, tenantID, customerID uu
 	return ledgerEntriesFromRows(rows), nil
 }
 
-func (r *LedgerRepo) ListByDateRange(ctx context.Context, tenantID uuid.UUID, from, to time.Time, limit, offset int) ([]*domain.LedgerEntry, error) {
+func (r *LedgerRepo) ListByDateRange(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string, limit, offset int) ([]*domain.LedgerEntry, error) {
 	rows, err := r.q.ListLedgerEntriesByDateRange(ctx, db.ListLedgerEntriesByDateRangeParams{
 		TenantID:  tenantID,
 		CreatedAt: from,
 		CreatedAt_2: to,
+		Mode:      mode,
 		Limit:     int32(limit),
 		Offset:    int32(offset),
 	})
@@ -115,12 +120,13 @@ func (r *LedgerRepo) ListByDateRange(ctx context.Context, tenantID uuid.UUID, fr
 	return ledgerEntriesFromRows(rows), nil
 }
 
-func (r *LedgerRepo) ListByTypeAndDateRange(ctx context.Context, tenantID uuid.UUID, types []string, from, to time.Time, limit, offset int) ([]*domain.LedgerEntry, error) {
+func (r *LedgerRepo) ListByTypeAndDateRange(ctx context.Context, tenantID uuid.UUID, types []string, from, to time.Time, mode string, limit, offset int) ([]*domain.LedgerEntry, error) {
 	rows, err := r.q.ListLedgerEntriesByTypeAndDateRange(ctx, db.ListLedgerEntriesByTypeAndDateRangeParams{
 		TenantID:  tenantID,
 		Column2:   types,
 		CreatedAt: from,
 		CreatedAt_2: to,
+		Mode:      mode,
 		Limit:     int32(limit),
 		Offset:    int32(offset),
 	})
@@ -130,11 +136,12 @@ func (r *LedgerRepo) ListByTypeAndDateRange(ctx context.Context, tenantID uuid.U
 	return ledgerEntriesFromRows(rows), nil
 }
 
-func (r *LedgerRepo) GetSummary(ctx context.Context, tenantID uuid.UUID, from, to time.Time) (*domain.LedgerSummary, error) {
+func (r *LedgerRepo) GetSummary(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string) (*domain.LedgerSummary, error) {
 	row, err := r.q.GetLedgerSummary(ctx, db.GetLedgerSummaryParams{
 		TenantID:    tenantID,
 		CreatedAt:   from,
 		CreatedAt_2: to,
+		Mode:        mode,
 	})
 	if err != nil {
 		return nil, err
@@ -149,11 +156,12 @@ func (r *LedgerRepo) GetSummary(ctx context.Context, tenantID uuid.UUID, from, t
 	}, nil
 }
 
-func (r *LedgerRepo) GetMRR(ctx context.Context, tenantID uuid.UUID, from, to time.Time) (int64, error) {
+func (r *LedgerRepo) GetMRR(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string) (int64, error) {
 	row, err := r.q.GetMRR(ctx, db.GetMRRParams{
 		TenantID:    tenantID,
 		CreatedAt:   from,
 		CreatedAt_2: to,
+		Mode:        mode,
 	})
 	if err != nil {
 		return 0, err
@@ -204,6 +212,7 @@ func ledgerEntryFromRow(row db.LedgerEntry) *domain.LedgerEntry {
 		Description:    row.Description,
 		IdempotencyKey: row.IdempotencyKey,
 		Metadata:       row.Metadata,
+		Mode:           row.Mode,
 		CreatedAt:      row.CreatedAt,
 	}
 }
@@ -231,11 +240,12 @@ func fromPgUUID(u pgtype.UUID) *uuid.UUID {
 	return &id
 }
 
-func (r *LedgerRepo) GetMonthlyRevenue(ctx context.Context, tenantID uuid.UUID, from, to time.Time) ([]domain.MonthlyRevenueRow, error) {
+func (r *LedgerRepo) GetMonthlyRevenue(ctx context.Context, tenantID uuid.UUID, from, to time.Time, mode string) ([]domain.MonthlyRevenueRow, error) {
 	rows, err := r.q.GetMonthlyRevenue(ctx, db.GetMonthlyRevenueParams{
 		TenantID:    tenantID,
 		CreatedAt:   from,
 		CreatedAt_2: to,
+		Mode:        mode,
 	})
 	if err != nil {
 		return nil, err

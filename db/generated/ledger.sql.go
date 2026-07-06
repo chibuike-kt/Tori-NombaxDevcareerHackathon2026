@@ -17,10 +17,10 @@ const createLedgerEntry = `-- name: CreateLedgerEntry :one
 INSERT INTO ledger_entries (
     tenant_id, subscription_id, invoice_id, customer_id,
     entry_type, direction, amount, currency,
-    description, idempotency_key, metadata
+    description, idempotency_key, metadata, mode
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at, mode
 `
 
 type CreateLedgerEntryParams struct {
@@ -35,6 +35,7 @@ type CreateLedgerEntryParams struct {
 	Description    string      `json:"description"`
 	IdempotencyKey string      `json:"idempotency_key"`
 	Metadata       []byte      `json:"metadata"`
+	Mode           string      `json:"mode"`
 }
 
 func (q *Queries) CreateLedgerEntry(ctx context.Context, arg CreateLedgerEntryParams) (LedgerEntry, error) {
@@ -50,6 +51,7 @@ func (q *Queries) CreateLedgerEntry(ctx context.Context, arg CreateLedgerEntryPa
 		arg.Description,
 		arg.IdempotencyKey,
 		arg.Metadata,
+		arg.Mode,
 	)
 	var i LedgerEntry
 	err := row.Scan(
@@ -66,12 +68,13 @@ func (q *Queries) CreateLedgerEntry(ctx context.Context, arg CreateLedgerEntryPa
 		&i.IdempotencyKey,
 		&i.Metadata,
 		&i.CreatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
 
 const getLedgerEntryByID = `-- name: GetLedgerEntryByID :one
-SELECT id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at FROM ledger_entries WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at, mode FROM ledger_entries WHERE id = $1 AND tenant_id = $2
 `
 
 type GetLedgerEntryByIDParams struct {
@@ -96,12 +99,13 @@ func (q *Queries) GetLedgerEntryByID(ctx context.Context, arg GetLedgerEntryByID
 		&i.IdempotencyKey,
 		&i.Metadata,
 		&i.CreatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
 
 const getLedgerEntryByIdempotencyKey = `-- name: GetLedgerEntryByIdempotencyKey :one
-SELECT id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at FROM ledger_entries WHERE idempotency_key = $1
+SELECT id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at, mode FROM ledger_entries WHERE idempotency_key = $1
 `
 
 func (q *Queries) GetLedgerEntryByIdempotencyKey(ctx context.Context, idempotencyKey string) (LedgerEntry, error) {
@@ -121,6 +125,7 @@ func (q *Queries) GetLedgerEntryByIdempotencyKey(ctx context.Context, idempotenc
 		&i.IdempotencyKey,
 		&i.Metadata,
 		&i.CreatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
@@ -134,13 +139,14 @@ SELECT
     COALESCE(SUM(amount) FILTER (WHERE entry_type = 'CREDIT'), 0)  AS total_credits_applied,
     COUNT(*) AS entry_count
 FROM ledger_entries
-WHERE tenant_id = $1 AND created_at >= $2 AND created_at <= $3
+WHERE tenant_id = $1 AND created_at >= $2 AND created_at <= $3 AND mode = $4
 `
 
 type GetLedgerSummaryParams struct {
 	TenantID    uuid.UUID `json:"tenant_id"`
 	CreatedAt   time.Time `json:"created_at"`
 	CreatedAt_2 time.Time `json:"created_at_2"`
+	Mode        string    `json:"mode"`
 }
 
 type GetLedgerSummaryRow struct {
@@ -153,7 +159,12 @@ type GetLedgerSummaryRow struct {
 }
 
 func (q *Queries) GetLedgerSummary(ctx context.Context, arg GetLedgerSummaryParams) (GetLedgerSummaryRow, error) {
-	row := q.db.QueryRow(ctx, getLedgerSummary, arg.TenantID, arg.CreatedAt, arg.CreatedAt_2)
+	row := q.db.QueryRow(ctx, getLedgerSummary,
+		arg.TenantID,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.Mode,
+	)
 	var i GetLedgerSummaryRow
 	err := row.Scan(
 		&i.TotalDebits,
@@ -173,18 +184,25 @@ WHERE tenant_id = $1
   AND entry_type = 'CHARGE'
   AND created_at >= $2
   AND created_at < $3
+  AND mode = $4
 `
 
 type GetMRRParams struct {
 	TenantID    uuid.UUID `json:"tenant_id"`
 	CreatedAt   time.Time `json:"created_at"`
 	CreatedAt_2 time.Time `json:"created_at_2"`
+	Mode        string    `json:"mode"`
 }
 
 // MRR = sum of all CHARGE entries in the given month, normalised to monthly.
 // Annual charges are divided by 12. Custom intervals handled in application layer.
 func (q *Queries) GetMRR(ctx context.Context, arg GetMRRParams) (interface{}, error) {
-	row := q.db.QueryRow(ctx, getMRR, arg.TenantID, arg.CreatedAt, arg.CreatedAt_2)
+	row := q.db.QueryRow(ctx, getMRR,
+		arg.TenantID,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.Mode,
+	)
 	var mrr interface{}
 	err := row.Scan(&mrr)
 	return mrr, err
@@ -199,6 +217,7 @@ FROM ledger_entries
 WHERE tenant_id = $1
   AND created_at >= $2
   AND created_at <= $3
+  AND mode = $4
 GROUP BY DATE_TRUNC('month', created_at)
 ORDER BY month ASC
 `
@@ -207,6 +226,7 @@ type GetMonthlyRevenueParams struct {
 	TenantID    uuid.UUID `json:"tenant_id"`
 	CreatedAt   time.Time `json:"created_at"`
 	CreatedAt_2 time.Time `json:"created_at_2"`
+	Mode        string    `json:"mode"`
 }
 
 type GetMonthlyRevenueRow struct {
@@ -216,7 +236,12 @@ type GetMonthlyRevenueRow struct {
 }
 
 func (q *Queries) GetMonthlyRevenue(ctx context.Context, arg GetMonthlyRevenueParams) ([]GetMonthlyRevenueRow, error) {
-	rows, err := q.db.Query(ctx, getMonthlyRevenue, arg.TenantID, arg.CreatedAt, arg.CreatedAt_2)
+	rows, err := q.db.Query(ctx, getMonthlyRevenue,
+		arg.TenantID,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.Mode,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -248,6 +273,7 @@ WHERE l.tenant_id = $1
   AND l.entry_type = 'CHARGE'
   AND l.created_at >= $2
   AND l.created_at < $3
+  AND l.mode = $4
 GROUP BY p.id, p.name
 ORDER BY total_charged DESC
 `
@@ -256,6 +282,7 @@ type GetRevenueByPlanParams struct {
 	TenantID    uuid.UUID `json:"tenant_id"`
 	CreatedAt   time.Time `json:"created_at"`
 	CreatedAt_2 time.Time `json:"created_at_2"`
+	Mode        string    `json:"mode"`
 }
 
 type GetRevenueByPlanRow struct {
@@ -266,7 +293,12 @@ type GetRevenueByPlanRow struct {
 }
 
 func (q *Queries) GetRevenueByPlan(ctx context.Context, arg GetRevenueByPlanParams) ([]GetRevenueByPlanRow, error) {
-	rows, err := q.db.Query(ctx, getRevenueByPlan, arg.TenantID, arg.CreatedAt, arg.CreatedAt_2)
+	rows, err := q.db.Query(ctx, getRevenueByPlan,
+		arg.TenantID,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.Mode,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -291,15 +323,16 @@ func (q *Queries) GetRevenueByPlan(ctx context.Context, arg GetRevenueByPlanPara
 }
 
 const listLedgerEntriesByCustomer = `-- name: ListLedgerEntriesByCustomer :many
-SELECT id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at FROM ledger_entries
-WHERE tenant_id = $1 AND customer_id = $2
+SELECT id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at, mode FROM ledger_entries
+WHERE tenant_id = $1 AND customer_id = $2 AND mode = $3
 ORDER BY created_at DESC
-LIMIT $3 OFFSET $4
+LIMIT $4 OFFSET $5
 `
 
 type ListLedgerEntriesByCustomerParams struct {
 	TenantID   uuid.UUID   `json:"tenant_id"`
 	CustomerID pgtype.UUID `json:"customer_id"`
+	Mode       string      `json:"mode"`
 	Limit      int32       `json:"limit"`
 	Offset     int32       `json:"offset"`
 }
@@ -308,6 +341,7 @@ func (q *Queries) ListLedgerEntriesByCustomer(ctx context.Context, arg ListLedge
 	rows, err := q.db.Query(ctx, listLedgerEntriesByCustomer,
 		arg.TenantID,
 		arg.CustomerID,
+		arg.Mode,
 		arg.Limit,
 		arg.Offset,
 	)
@@ -332,6 +366,7 @@ func (q *Queries) ListLedgerEntriesByCustomer(ctx context.Context, arg ListLedge
 			&i.IdempotencyKey,
 			&i.Metadata,
 			&i.CreatedAt,
+			&i.Mode,
 		); err != nil {
 			return nil, err
 		}
@@ -344,16 +379,17 @@ func (q *Queries) ListLedgerEntriesByCustomer(ctx context.Context, arg ListLedge
 }
 
 const listLedgerEntriesByDateRange = `-- name: ListLedgerEntriesByDateRange :many
-SELECT id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at FROM ledger_entries
-WHERE tenant_id = $1 AND created_at >= $2 AND created_at <= $3
+SELECT id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at, mode FROM ledger_entries
+WHERE tenant_id = $1 AND created_at >= $2 AND created_at <= $3 AND mode = $4
 ORDER BY created_at DESC
-LIMIT $4 OFFSET $5
+LIMIT $5 OFFSET $6
 `
 
 type ListLedgerEntriesByDateRangeParams struct {
 	TenantID    uuid.UUID `json:"tenant_id"`
 	CreatedAt   time.Time `json:"created_at"`
 	CreatedAt_2 time.Time `json:"created_at_2"`
+	Mode        string    `json:"mode"`
 	Limit       int32     `json:"limit"`
 	Offset      int32     `json:"offset"`
 }
@@ -363,6 +399,7 @@ func (q *Queries) ListLedgerEntriesByDateRange(ctx context.Context, arg ListLedg
 		arg.TenantID,
 		arg.CreatedAt,
 		arg.CreatedAt_2,
+		arg.Mode,
 		arg.Limit,
 		arg.Offset,
 	)
@@ -387,6 +424,7 @@ func (q *Queries) ListLedgerEntriesByDateRange(ctx context.Context, arg ListLedg
 			&i.IdempotencyKey,
 			&i.Metadata,
 			&i.CreatedAt,
+			&i.Mode,
 		); err != nil {
 			return nil, err
 		}
@@ -399,15 +437,16 @@ func (q *Queries) ListLedgerEntriesByDateRange(ctx context.Context, arg ListLedg
 }
 
 const listLedgerEntriesBySubscription = `-- name: ListLedgerEntriesBySubscription :many
-SELECT id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at FROM ledger_entries
-WHERE tenant_id = $1 AND subscription_id = $2
+SELECT id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at, mode FROM ledger_entries
+WHERE tenant_id = $1 AND subscription_id = $2 AND mode = $3
 ORDER BY created_at DESC
-LIMIT $3 OFFSET $4
+LIMIT $4 OFFSET $5
 `
 
 type ListLedgerEntriesBySubscriptionParams struct {
 	TenantID       uuid.UUID   `json:"tenant_id"`
 	SubscriptionID pgtype.UUID `json:"subscription_id"`
+	Mode           string      `json:"mode"`
 	Limit          int32       `json:"limit"`
 	Offset         int32       `json:"offset"`
 }
@@ -416,6 +455,7 @@ func (q *Queries) ListLedgerEntriesBySubscription(ctx context.Context, arg ListL
 	rows, err := q.db.Query(ctx, listLedgerEntriesBySubscription,
 		arg.TenantID,
 		arg.SubscriptionID,
+		arg.Mode,
 		arg.Limit,
 		arg.Offset,
 	)
@@ -440,6 +480,7 @@ func (q *Queries) ListLedgerEntriesBySubscription(ctx context.Context, arg ListL
 			&i.IdempotencyKey,
 			&i.Metadata,
 			&i.CreatedAt,
+			&i.Mode,
 		); err != nil {
 			return nil, err
 		}
@@ -452,77 +493,23 @@ func (q *Queries) ListLedgerEntriesBySubscription(ctx context.Context, arg ListL
 }
 
 const listLedgerEntriesByTenant = `-- name: ListLedgerEntriesByTenant :many
-SELECT id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at FROM ledger_entries
-WHERE tenant_id = $1
+SELECT id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at, mode FROM ledger_entries
+WHERE tenant_id = $1 AND mode = $2
 ORDER BY created_at DESC
-LIMIT $2 OFFSET $3
+LIMIT $3 OFFSET $4
 `
 
 type ListLedgerEntriesByTenantParams struct {
 	TenantID uuid.UUID `json:"tenant_id"`
+	Mode     string    `json:"mode"`
 	Limit    int32     `json:"limit"`
 	Offset   int32     `json:"offset"`
 }
 
 func (q *Queries) ListLedgerEntriesByTenant(ctx context.Context, arg ListLedgerEntriesByTenantParams) ([]LedgerEntry, error) {
-	rows, err := q.db.Query(ctx, listLedgerEntriesByTenant, arg.TenantID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []LedgerEntry{}
-	for rows.Next() {
-		var i LedgerEntry
-		if err := rows.Scan(
-			&i.ID,
-			&i.TenantID,
-			&i.SubscriptionID,
-			&i.InvoiceID,
-			&i.CustomerID,
-			&i.EntryType,
-			&i.Direction,
-			&i.Amount,
-			&i.Currency,
-			&i.Description,
-			&i.IdempotencyKey,
-			&i.Metadata,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listLedgerEntriesByTypeAndDateRange = `-- name: ListLedgerEntriesByTypeAndDateRange :many
-SELECT id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at FROM ledger_entries
-WHERE tenant_id = $1
-  AND entry_type = ANY($2::text[])
-  AND created_at >= $3
-  AND created_at <= $4
-ORDER BY created_at DESC
-LIMIT $5 OFFSET $6
-`
-
-type ListLedgerEntriesByTypeAndDateRangeParams struct {
-	TenantID    uuid.UUID `json:"tenant_id"`
-	Column2     []string  `json:"column_2"`
-	CreatedAt   time.Time `json:"created_at"`
-	CreatedAt_2 time.Time `json:"created_at_2"`
-	Limit       int32     `json:"limit"`
-	Offset      int32     `json:"offset"`
-}
-
-func (q *Queries) ListLedgerEntriesByTypeAndDateRange(ctx context.Context, arg ListLedgerEntriesByTypeAndDateRangeParams) ([]LedgerEntry, error) {
-	rows, err := q.db.Query(ctx, listLedgerEntriesByTypeAndDateRange,
+	rows, err := q.db.Query(ctx, listLedgerEntriesByTenant,
 		arg.TenantID,
-		arg.Column2,
-		arg.CreatedAt,
-		arg.CreatedAt_2,
+		arg.Mode,
 		arg.Limit,
 		arg.Offset,
 	)
@@ -547,6 +534,71 @@ func (q *Queries) ListLedgerEntriesByTypeAndDateRange(ctx context.Context, arg L
 			&i.IdempotencyKey,
 			&i.Metadata,
 			&i.CreatedAt,
+			&i.Mode,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLedgerEntriesByTypeAndDateRange = `-- name: ListLedgerEntriesByTypeAndDateRange :many
+SELECT id, tenant_id, subscription_id, invoice_id, customer_id, entry_type, direction, amount, currency, description, idempotency_key, metadata, created_at, mode FROM ledger_entries
+WHERE tenant_id = $1
+  AND entry_type = ANY($2::text[])
+  AND created_at >= $3
+  AND created_at <= $4
+  AND mode = $5
+ORDER BY created_at DESC
+LIMIT $6 OFFSET $7
+`
+
+type ListLedgerEntriesByTypeAndDateRangeParams struct {
+	TenantID    uuid.UUID `json:"tenant_id"`
+	Column2     []string  `json:"column_2"`
+	CreatedAt   time.Time `json:"created_at"`
+	CreatedAt_2 time.Time `json:"created_at_2"`
+	Mode        string    `json:"mode"`
+	Limit       int32     `json:"limit"`
+	Offset      int32     `json:"offset"`
+}
+
+func (q *Queries) ListLedgerEntriesByTypeAndDateRange(ctx context.Context, arg ListLedgerEntriesByTypeAndDateRangeParams) ([]LedgerEntry, error) {
+	rows, err := q.db.Query(ctx, listLedgerEntriesByTypeAndDateRange,
+		arg.TenantID,
+		arg.Column2,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.Mode,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LedgerEntry{}
+	for rows.Next() {
+		var i LedgerEntry
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.SubscriptionID,
+			&i.InvoiceID,
+			&i.CustomerID,
+			&i.EntryType,
+			&i.Direction,
+			&i.Amount,
+			&i.Currency,
+			&i.Description,
+			&i.IdempotencyKey,
+			&i.Metadata,
+			&i.CreatedAt,
+			&i.Mode,
 		); err != nil {
 			return nil, err
 		}

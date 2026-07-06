@@ -1,13 +1,13 @@
 -- name: CreateWebhookEndpoint :one
-INSERT INTO webhook_endpoints (tenant_id, url, events, secret, api_version)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO webhook_endpoints (tenant_id, url, events, secret, api_version, mode)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: GetWebhookEndpointByID :one
 SELECT * FROM webhook_endpoints WHERE id = $1 AND tenant_id = $2;
 
 -- name: ListWebhookEndpoints :many
-SELECT * FROM webhook_endpoints WHERE tenant_id = $1 AND is_active = TRUE;
+SELECT * FROM webhook_endpoints WHERE tenant_id = $1 AND is_active = TRUE AND mode = $2;
 
 -- name: UpdateWebhookEndpoint :one
 UPDATE webhook_endpoints

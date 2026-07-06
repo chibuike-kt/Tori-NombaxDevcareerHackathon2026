@@ -1,6 +1,6 @@
 -- name: CreateCustomer :one
-INSERT INTO customers (tenant_id, external_id, email, name, nomba_customer_id, metadata)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO customers (tenant_id, external_id, email, name, nomba_customer_id, metadata, mode)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: GetCustomerByID :one
@@ -14,9 +14,9 @@ SELECT * FROM customers WHERE tenant_id = $1 AND external_id = $2 AND is_deleted
 
 -- name: ListCustomers :many
 SELECT * FROM customers
-WHERE tenant_id = $1 AND is_deleted = FALSE
+WHERE tenant_id = $1 AND is_deleted = FALSE AND mode = $2
 ORDER BY created_at DESC
-LIMIT $2 OFFSET $3;
+LIMIT $3 OFFSET $4;
 
 -- name: UpdateCustomer :one
 UPDATE customers

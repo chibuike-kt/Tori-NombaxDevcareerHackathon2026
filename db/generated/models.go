@@ -45,6 +45,7 @@ type Customer struct {
 	Metadata        []byte      `json:"metadata"`
 	IsDeleted       bool        `json:"is_deleted"`
 	CreatedAt       time.Time   `json:"created_at"`
+	Mode            string      `json:"mode"`
 }
 
 type EmailTemplate struct {
@@ -95,6 +96,7 @@ type Invoice struct {
 	LineItems        json.RawMessage    `json:"line_items"`
 	IdempotencyKey   pgtype.Text        `json:"idempotency_key"`
 	CreatedAt        time.Time          `json:"created_at"`
+	Mode             string             `json:"mode"`
 }
 
 type LedgerEntry struct {
@@ -111,6 +113,7 @@ type LedgerEntry struct {
 	IdempotencyKey string      `json:"idempotency_key"`
 	Metadata       []byte      `json:"metadata"`
 	CreatedAt      time.Time   `json:"created_at"`
+	Mode           string      `json:"mode"`
 }
 
 type Member struct {
@@ -139,6 +142,7 @@ type Plan struct {
 	IsActive        bool        `json:"is_active"`
 	Metadata        []byte      `json:"metadata"`
 	CreatedAt       time.Time   `json:"created_at"`
+	Mode            string      `json:"mode"`
 }
 
 type PromoCode struct {
@@ -155,6 +159,7 @@ type PromoCode struct {
 	IsActive      bool               `json:"is_active"`
 	CreatedAt     time.Time          `json:"created_at"`
 	UpdatedAt     time.Time          `json:"updated_at"`
+	Mode          string             `json:"mode"`
 }
 
 type ReconciliationRun struct {
@@ -187,6 +192,7 @@ type ScheduledJob struct {
 	MaxAttempts int32              `json:"max_attempts"`
 	LastError   pgtype.Text        `json:"last_error"`
 	CreatedAt   time.Time          `json:"created_at"`
+	Mode        string             `json:"mode"`
 }
 
 type Subscription struct {
@@ -211,6 +217,7 @@ type Subscription struct {
 	MandateID          pgtype.Text        `json:"mandate_id"`
 	RecoveryRail       string             `json:"recovery_rail"`
 	DiscountKobo       int64              `json:"discount_kobo"`
+	Mode               string             `json:"mode"`
 }
 
 type SubscriptionTransition struct {
@@ -263,4 +270,5 @@ type WebhookEndpoint struct {
 	ApiVersion string    `json:"api_version"`
 	IsActive   bool      `json:"is_active"`
 	CreatedAt  time.Time `json:"created_at"`
+	Mode       string    `json:"mode"`
 }

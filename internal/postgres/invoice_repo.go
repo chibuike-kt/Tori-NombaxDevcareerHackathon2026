@@ -20,7 +20,7 @@ func NewInvoiceRepo(pool *pgxpool.Pool) *InvoiceRepo {
 	return &InvoiceRepo{q: db.New(pool)}
 }
 
-func (r *InvoiceRepo) Create(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, amount int64, currency string, status domain.InvoiceStatus, dueDate time.Time, lineItems []byte, idempotencyKey *string) (*domain.Invoice, error) {
+func (r *InvoiceRepo) Create(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, amount int64, currency string, status domain.InvoiceStatus, dueDate time.Time, lineItems []byte, idempotencyKey *string, mode string) (*domain.Invoice, error) {
 	row, err := r.q.CreateInvoice(ctx, db.CreateInvoiceParams{
 		TenantID:       tenantID,
 		SubscriptionID: subscriptionID,
@@ -31,6 +31,7 @@ func (r *InvoiceRepo) Create(ctx context.Context, tenantID, subscriptionID, cust
 		DueDate:        dueDate,
 		LineItems:      lineItems,
 		IdempotencyKey: toPgText(idempotencyKey),
+		Mode:           mode,
 	})
 	if err != nil {
 		return nil, err
@@ -68,9 +69,10 @@ func (r *InvoiceRepo) ListBySubscription(ctx context.Context, subscriptionID uui
 	return invoicesFromRows(rows), nil
 }
 
-func (r *InvoiceRepo) ListByTenant(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*domain.Invoice, error) {
+func (r *InvoiceRepo) ListByTenant(ctx context.Context, tenantID uuid.UUID, mode string, limit, offset int) ([]*domain.Invoice, error) {
 	rows, err := r.q.ListInvoicesByTenant(ctx, db.ListInvoicesByTenantParams{
 		TenantID: tenantID,
+		Mode:     mode,
 		Limit:    int32(limit),
 		Offset:   int32(offset),
 	})
@@ -80,10 +82,11 @@ func (r *InvoiceRepo) ListByTenant(ctx context.Context, tenantID uuid.UUID, limi
 	return invoicesFromRows(rows), nil
 }
 
-func (r *InvoiceRepo) ListByStatus(ctx context.Context, tenantID uuid.UUID, status domain.InvoiceStatus, limit, offset int) ([]*domain.Invoice, error) {
+func (r *InvoiceRepo) ListByStatus(ctx context.Context, tenantID uuid.UUID, status domain.InvoiceStatus, mode string, limit, offset int) ([]*domain.Invoice, error) {
 	rows, err := r.q.ListInvoicesByStatus(ctx, db.ListInvoicesByStatusParams{
 		TenantID: tenantID,
 		Status:   string(status),
+		Mode:     mode,
 		Limit:    int32(limit),
 		Offset:   int32(offset),
 	})
@@ -149,6 +152,7 @@ func invoiceFromRow(row db.Invoice) *domain.Invoice {
 		ProrationDetails: row.ProrationDetails,
 		LineItems:        row.LineItems,
 		IdempotencyKey:   fromPgText(row.IdempotencyKey),
+		Mode:             row.Mode,
 		CreatedAt:        row.CreatedAt,
 	}
 }

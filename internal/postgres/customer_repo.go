@@ -20,7 +20,7 @@ func NewCustomerRepo(pool *pgxpool.Pool) *CustomerRepo {
 	return &CustomerRepo{q: db.New(pool)}
 }
 
-func (r *CustomerRepo) Create(ctx context.Context, tenantID uuid.UUID, externalID *string, email string, name *string, nombaCustomerID *string, metadata []byte) (*domain.Customer, error) {
+func (r *CustomerRepo) Create(ctx context.Context, tenantID uuid.UUID, externalID *string, email string, name *string, nombaCustomerID *string, metadata []byte, mode string) (*domain.Customer, error) {
 	row, err := r.q.CreateCustomer(ctx, db.CreateCustomerParams{
 		TenantID:        tenantID,
 		ExternalID:      toPgText(externalID),
@@ -28,6 +28,7 @@ func (r *CustomerRepo) Create(ctx context.Context, tenantID uuid.UUID, externalI
 		Name:            toPgText(name),
 		NombaCustomerID: toPgText(nombaCustomerID),
 		Metadata:        metadata,
+		Mode:            mode,
 	})
 	if err != nil {
 		return nil, err
@@ -68,9 +69,10 @@ func (r *CustomerRepo) GetByExternalID(ctx context.Context, tenantID uuid.UUID, 
 	return customerFromRow(row), nil
 }
 
-func (r *CustomerRepo) List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*domain.Customer, error) {
+func (r *CustomerRepo) List(ctx context.Context, tenantID uuid.UUID, mode string, limit, offset int) ([]*domain.Customer, error) {
 	rows, err := r.q.ListCustomers(ctx, db.ListCustomersParams{
 		TenantID: tenantID,
+		Mode:     mode,
 		Limit:    int32(limit),
 		Offset:   int32(offset),
 	})
@@ -125,6 +127,7 @@ func customerFromRow(row db.Customer) *domain.Customer {
 		NombaCustomerID: fromPgText(row.NombaCustomerID),
 		TokenisedCard:   row.TokenisedCard,
 		Metadata:        row.Metadata,
+		Mode:            row.Mode,
 		CreatedAt:       row.CreatedAt,
 	}
 }

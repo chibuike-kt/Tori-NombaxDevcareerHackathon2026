@@ -2,9 +2,9 @@
 INSERT INTO subscriptions (
     tenant_id, customer_id, plan_id, status,
     current_period_start, current_period_end,
-    trial_end, idempotency_key, metadata, discount_kobo
+    trial_end, idempotency_key, metadata, discount_kobo, mode
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 RETURNING *;
 
 -- name: GetSubscriptionByID :one
@@ -18,19 +18,19 @@ SELECT * FROM subscriptions WHERE idempotency_key = $1 AND tenant_id = $2;
 
 -- name: ListSubscriptions :many
 SELECT * FROM subscriptions
-WHERE tenant_id = $1
-ORDER BY created_at DESC
-LIMIT $2 OFFSET $3;
-
--- name: ListSubscriptionsByStatus :many
-SELECT * FROM subscriptions
-WHERE tenant_id = $1 AND status = $2
+WHERE tenant_id = $1 AND mode = $2
 ORDER BY created_at DESC
 LIMIT $3 OFFSET $4;
 
+-- name: ListSubscriptionsByStatus :many
+SELECT * FROM subscriptions
+WHERE tenant_id = $1 AND status = $2 AND mode = $3
+ORDER BY created_at DESC
+LIMIT $4 OFFSET $5;
+
 -- name: ListSubscriptionsByCustomer :many
 SELECT * FROM subscriptions
-WHERE tenant_id = $1 AND customer_id = $2
+WHERE tenant_id = $1 AND customer_id = $2 AND mode = $3
 ORDER BY created_at DESC;
 
 -- name: UpdateSubscriptionStatus :one

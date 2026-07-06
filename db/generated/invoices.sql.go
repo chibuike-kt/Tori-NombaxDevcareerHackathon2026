@@ -18,10 +18,10 @@ const createInvoice = `-- name: CreateInvoice :one
 INSERT INTO invoices (
     tenant_id, subscription_id, customer_id,
     amount, currency, status, due_date,
-    line_items, idempotency_key
+    line_items, idempotency_key, mode
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at, mode
 `
 
 type CreateInvoiceParams struct {
@@ -34,6 +34,7 @@ type CreateInvoiceParams struct {
 	DueDate        time.Time       `json:"due_date"`
 	LineItems      json.RawMessage `json:"line_items"`
 	IdempotencyKey pgtype.Text     `json:"idempotency_key"`
+	Mode           string          `json:"mode"`
 }
 
 func (q *Queries) CreateInvoice(ctx context.Context, arg CreateInvoiceParams) (Invoice, error) {
@@ -47,6 +48,7 @@ func (q *Queries) CreateInvoice(ctx context.Context, arg CreateInvoiceParams) (I
 		arg.DueDate,
 		arg.LineItems,
 		arg.IdempotencyKey,
+		arg.Mode,
 	)
 	var i Invoice
 	err := row.Scan(
@@ -64,12 +66,13 @@ func (q *Queries) CreateInvoice(ctx context.Context, arg CreateInvoiceParams) (I
 		&i.LineItems,
 		&i.IdempotencyKey,
 		&i.CreatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
 
 const getInvoiceByID = `-- name: GetInvoiceByID :one
-SELECT id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at FROM invoices WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at, mode FROM invoices WHERE id = $1 AND tenant_id = $2
 `
 
 type GetInvoiceByIDParams struct {
@@ -95,12 +98,13 @@ func (q *Queries) GetInvoiceByID(ctx context.Context, arg GetInvoiceByIDParams) 
 		&i.LineItems,
 		&i.IdempotencyKey,
 		&i.CreatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
 
 const getInvoiceByIdempotencyKey = `-- name: GetInvoiceByIdempotencyKey :one
-SELECT id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at FROM invoices WHERE idempotency_key = $1
+SELECT id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at, mode FROM invoices WHERE idempotency_key = $1
 `
 
 func (q *Queries) GetInvoiceByIdempotencyKey(ctx context.Context, idempotencyKey pgtype.Text) (Invoice, error) {
@@ -121,20 +125,22 @@ func (q *Queries) GetInvoiceByIdempotencyKey(ctx context.Context, idempotencyKey
 		&i.LineItems,
 		&i.IdempotencyKey,
 		&i.CreatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
 
 const listInvoicesByStatus = `-- name: ListInvoicesByStatus :many
-SELECT id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at FROM invoices
-WHERE tenant_id = $1 AND status = $2
+SELECT id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at, mode FROM invoices
+WHERE tenant_id = $1 AND status = $2 AND mode = $3
 ORDER BY created_at DESC
-LIMIT $3 OFFSET $4
+LIMIT $4 OFFSET $5
 `
 
 type ListInvoicesByStatusParams struct {
 	TenantID uuid.UUID `json:"tenant_id"`
 	Status   string    `json:"status"`
+	Mode     string    `json:"mode"`
 	Limit    int32     `json:"limit"`
 	Offset   int32     `json:"offset"`
 }
@@ -143,6 +149,7 @@ func (q *Queries) ListInvoicesByStatus(ctx context.Context, arg ListInvoicesBySt
 	rows, err := q.db.Query(ctx, listInvoicesByStatus,
 		arg.TenantID,
 		arg.Status,
+		arg.Mode,
 		arg.Limit,
 		arg.Offset,
 	)
@@ -168,6 +175,7 @@ func (q *Queries) ListInvoicesByStatus(ctx context.Context, arg ListInvoicesBySt
 			&i.LineItems,
 			&i.IdempotencyKey,
 			&i.CreatedAt,
+			&i.Mode,
 		); err != nil {
 			return nil, err
 		}
@@ -180,7 +188,7 @@ func (q *Queries) ListInvoicesByStatus(ctx context.Context, arg ListInvoicesBySt
 }
 
 const listInvoicesBySubscription = `-- name: ListInvoicesBySubscription :many
-SELECT id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at FROM invoices WHERE subscription_id = $1 ORDER BY created_at DESC
+SELECT id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at, mode FROM invoices WHERE subscription_id = $1 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListInvoicesBySubscription(ctx context.Context, subscriptionID uuid.UUID) ([]Invoice, error) {
@@ -207,6 +215,7 @@ func (q *Queries) ListInvoicesBySubscription(ctx context.Context, subscriptionID
 			&i.LineItems,
 			&i.IdempotencyKey,
 			&i.CreatedAt,
+			&i.Mode,
 		); err != nil {
 			return nil, err
 		}
@@ -219,20 +228,26 @@ func (q *Queries) ListInvoicesBySubscription(ctx context.Context, subscriptionID
 }
 
 const listInvoicesByTenant = `-- name: ListInvoicesByTenant :many
-SELECT id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at FROM invoices
-WHERE tenant_id = $1
+SELECT id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at, mode FROM invoices
+WHERE tenant_id = $1 AND mode = $2
 ORDER BY created_at DESC
-LIMIT $2 OFFSET $3
+LIMIT $3 OFFSET $4
 `
 
 type ListInvoicesByTenantParams struct {
 	TenantID uuid.UUID `json:"tenant_id"`
+	Mode     string    `json:"mode"`
 	Limit    int32     `json:"limit"`
 	Offset   int32     `json:"offset"`
 }
 
 func (q *Queries) ListInvoicesByTenant(ctx context.Context, arg ListInvoicesByTenantParams) ([]Invoice, error) {
-	rows, err := q.db.Query(ctx, listInvoicesByTenant, arg.TenantID, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, listInvoicesByTenant,
+		arg.TenantID,
+		arg.Mode,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -255,6 +270,7 @@ func (q *Queries) ListInvoicesByTenant(ctx context.Context, arg ListInvoicesByTe
 			&i.LineItems,
 			&i.IdempotencyKey,
 			&i.CreatedAt,
+			&i.Mode,
 		); err != nil {
 			return nil, err
 		}
@@ -270,7 +286,7 @@ const markInvoicePaid = `-- name: MarkInvoicePaid :one
 UPDATE invoices
 SET status = 'paid', paid_at = NOW(), nomba_charge_ref = $3
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at
+RETURNING id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at, mode
 `
 
 type MarkInvoicePaidParams struct {
@@ -297,6 +313,7 @@ func (q *Queries) MarkInvoicePaid(ctx context.Context, arg MarkInvoicePaidParams
 		&i.LineItems,
 		&i.IdempotencyKey,
 		&i.CreatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
@@ -305,7 +322,7 @@ const markInvoiceUncollectible = `-- name: MarkInvoiceUncollectible :one
 UPDATE invoices
 SET status = 'uncollectible'
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at
+RETURNING id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at, mode
 `
 
 type MarkInvoiceUncollectibleParams struct {
@@ -331,6 +348,7 @@ func (q *Queries) MarkInvoiceUncollectible(ctx context.Context, arg MarkInvoiceU
 		&i.LineItems,
 		&i.IdempotencyKey,
 		&i.CreatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
@@ -339,7 +357,7 @@ const markInvoiceVoid = `-- name: MarkInvoiceVoid :one
 UPDATE invoices
 SET status = 'void'
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at
+RETURNING id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at, mode
 `
 
 type MarkInvoiceVoidParams struct {
@@ -365,6 +383,7 @@ func (q *Queries) MarkInvoiceVoid(ctx context.Context, arg MarkInvoiceVoidParams
 		&i.LineItems,
 		&i.IdempotencyKey,
 		&i.CreatedAt,
+		&i.Mode,
 	)
 	return i, err
 }
@@ -373,7 +392,7 @@ const updateInvoiceProration = `-- name: UpdateInvoiceProration :one
 UPDATE invoices
 SET proration_details = $3, line_items = $4
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at
+RETURNING id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at, mode
 `
 
 type UpdateInvoiceProrationParams struct {
@@ -406,6 +425,7 @@ func (q *Queries) UpdateInvoiceProration(ctx context.Context, arg UpdateInvoiceP
 		&i.LineItems,
 		&i.IdempotencyKey,
 		&i.CreatedAt,
+		&i.Mode,
 	)
 	return i, err
 }

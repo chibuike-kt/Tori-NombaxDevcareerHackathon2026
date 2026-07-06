@@ -206,6 +206,7 @@ type Customer struct {
 	NombaCustomerID *string         `json:"nomba_customer_id,omitempty"`
 	TokenisedCard   json.RawMessage `json:"tokenised_card,omitempty"`
 	Metadata        json.RawMessage `json:"metadata,omitempty"`
+	Mode            string          `json:"mode"`
 	CreatedAt       time.Time       `json:"created_at"`
 }
 
@@ -221,6 +222,7 @@ type Plan struct {
 	TrialPeriodDays int          `json:"trial_period_days"`
 	IsActive        bool         `json:"is_active"`
 	Metadata        json.RawMessage `json:"metadata,omitempty"`
+	Mode            string       `json:"mode"`
 	CreatedAt       time.Time    `json:"created_at"`
 }
 
@@ -244,6 +246,7 @@ type Subscription struct {
 	IdempotencyKey     *string            `json:"idempotency_key,omitempty"`
 	Metadata           json.RawMessage    `json:"metadata,omitempty"`
 	DiscountKobo       int64              `json:"discount_kobo,omitempty"`
+	Mode               string             `json:"mode"`
 	CreatedAt          time.Time          `json:"created_at"`
 	UpdatedAt          time.Time          `json:"updated_at"`
 }
@@ -262,6 +265,7 @@ type Invoice struct {
 	ProrationDetails json.RawMessage `json:"proration_details,omitempty"`
 	LineItems        json.RawMessage `json:"line_items"`
 	IdempotencyKey   *string         `json:"idempotency_key,omitempty"`
+	Mode             string          `json:"mode"`
 	CreatedAt        time.Time       `json:"created_at"`
 }
 
@@ -278,6 +282,7 @@ type LedgerEntry struct {
 	Description    string          `json:"description"`
 	IdempotencyKey string          `json:"idempotency_key"`
 	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	Mode           string          `json:"mode"`
 	CreatedAt      time.Time       `json:"created_at"`
 }
 
@@ -304,6 +309,7 @@ type ScheduledJob struct {
 	Attempts    int             `json:"attempts"`
 	MaxAttempts int             `json:"max_attempts"`
 	LastError   *string         `json:"last_error,omitempty"`
+	Mode        string          `json:"mode"`
 	CreatedAt   time.Time       `json:"created_at"`
 }
 
@@ -315,6 +321,7 @@ type WebhookEndpoint struct {
 	Secret     string    `json:"-"`
 	APIVersion string    `json:"api_version"`
 	IsActive   bool      `json:"is_active"`
+	Mode       string    `json:"mode"`
 	CreatedAt  time.Time `json:"created_at"`
 }
 
@@ -378,6 +385,7 @@ type PromoCode struct {
 	UseCount      int          `json:"use_count"`
 	ExpiresAt     *time.Time   `json:"expires_at,omitempty"`
 	IsActive      bool         `json:"is_active"`
+	Mode          string       `json:"mode"`
 	CreatedAt     time.Time    `json:"created_at"`
 	UpdatedAt     time.Time    `json:"updated_at"`
 }

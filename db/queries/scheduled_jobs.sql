@@ -1,6 +1,6 @@
 -- name: EnqueueJob :one
-INSERT INTO scheduled_jobs (tenant_id, job_type, payload, scheduled_at, max_attempts)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO scheduled_jobs (tenant_id, job_type, payload, scheduled_at, max_attempts, mode)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: ClaimNextJob :one
