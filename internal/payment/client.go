@@ -89,6 +89,11 @@ type NombaClient interface {
 	RefundPayment(ctx context.Context, req RefundRequest) (*RefundResponse, error)
 	ListTransactions(ctx context.Context, req ListTransactionsRequest) (*TransactionList, error)
 	FetchSubAccountTransactions(ctx context.Context, from, to time.Time, limit int, cursor string) (*TransactionList, error)
+	// DebitWallet debits a customer's Nomba wallet — the first rail the
+	// recovery waterfall tries, before falling back to card/mandate.
+	DebitWallet(ctx context.Context, accountID string, amount int64, currency, reference, narration string) (*ChargeResponse, error)
+	// GetWalletBalance returns a customer's current Nomba wallet balance in kobo.
+	GetWalletBalance(ctx context.Context, accountID string) (int64, error)
 }
 
 // MandateCharger is implemented by clients that can debit a direct-debit mandate.

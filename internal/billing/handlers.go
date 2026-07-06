@@ -669,16 +669,24 @@ func nextPeriodEnd(from time.Time, plan *domain.Plan) time.Time {
 // attemptRecoveryCharge escalates through the recovery ladder based on the
 // current attempt number and the payment rails available on the subscription.
 //
-// The ladder:
+// The ladder (ChargeWaterfall):
+//   Rail 0       : if the customer has a Nomba wallet with sufficient balance,
+//                  debit the wallet — this is tried on every attempt, before
+//                  the card/mandate rails below
 //   Attempts 1-2 : retry the tokenised card
 //   Attempt 3+   : escalate to direct-debit mandate if one exists,
 //                  otherwise signal that customer action is required (pay-link)
 //
-// Returns the charge result and the rail that was used ("card", "mandate", "manual").
+// Returns the charge result and the rail that was used ("wallet", "card", "mandate", "manual").
 func (h *Handlers) attemptRecoveryCharge(ctx context.Context, sub *domain.Subscription, plan *domain.Plan) (*payment.ChargeResponse, string) {
 	attempt := sub.DunningAttempt + 1
 	cardAvailable := sub.TokenKey != "" && sub.TokenKey != "N/A"
 	mandateAvailable := sub.MandateID != ""
+
+	// Rail 0 — the customer's Nomba wallet, checked before card/mandate.
+	if result, ok := h.tryWalletDebit(ctx, sub, plan, attempt); ok {
+		return result, "wallet"
+	}
 
 	// Rail 1 — tokenised card on the first two attempts
 	if attempt <= 2 && cardAvailable {
@@ -715,6 +723,39 @@ func (h *Handlers) attemptRecoveryCharge(ctx context.Context, sub *domain.Subscr
 		FailureCode:    "action_required",
 		FailureMessage: "no automatic payment rail available — customer action required",
 	}, "manual"
+}
+
+// tryWalletDebit checks the customer's Nomba wallet balance and debits it if
+// sufficient to cover the plan amount. The second return value is false when
+// the wallet rail doesn't apply (no wallet on file, or balance too low) —
+// callers should fall through to the next rail in that case, not treat it as
+// a failed charge.
+func (h *Handlers) tryWalletDebit(ctx context.Context, sub *domain.Subscription, plan *domain.Plan, attempt int) (*payment.ChargeResponse, bool) {
+	customer, err := h.customers.GetByID(ctx, sub.CustomerID, sub.TenantID)
+	if err != nil || customer.NombaAccountID == nil || *customer.NombaAccountID == "" {
+		return nil, false
+	}
+
+	balance, err := h.payment.GetWalletBalance(ctx, *customer.NombaAccountID)
+	if err != nil {
+		log.Warn().Err(err).Str("sub_id", sub.ID.String()).
+			Msg("recovery ladder: wallet balance check failed — falling through to card")
+		return nil, false
+	}
+	if balance < plan.Amount {
+		log.Info().Str("sub_id", sub.ID.String()).Int64("balance_kobo", balance).Int64("needed_kobo", plan.Amount).
+			Msg("recovery ladder: insufficient wallet balance — falling through to card")
+		return nil, false
+	}
+
+	log.Info().Str("sub_id", sub.ID.String()).Int("attempt", attempt).Int64("balance_kobo", balance).
+		Msg("recovery ladder: sufficient wallet balance — debiting wallet")
+	result, err := h.payment.DebitWallet(ctx, *customer.NombaAccountID, plan.Amount, plan.Currency,
+		fmt.Sprintf("retry-wallet-%s-%d", sub.ID, attempt), "Subscription renewal — wallet recovery")
+	if err != nil {
+		return &payment.ChargeResponse{Success: false, FailureCode: "processing_error", FailureMessage: err.Error(), IsInfraError: true}, true
+	}
+	return result, true
 }
 
 // chargeCard performs a tokenised card charge with a deterministic idempotency key.

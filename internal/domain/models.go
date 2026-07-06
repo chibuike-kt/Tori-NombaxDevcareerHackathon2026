@@ -204,6 +204,7 @@ type Customer struct {
 	Email           string          `json:"email"`
 	Name            *string         `json:"name,omitempty"`
 	NombaCustomerID *string         `json:"nomba_customer_id,omitempty"`
+	NombaAccountID  *string         `json:"nomba_account_id,omitempty"`
 	TokenisedCard   json.RawMessage `json:"tokenised_card,omitempty"`
 	Metadata        json.RawMessage `json:"metadata,omitempty"`
 	Mode            string          `json:"mode"`

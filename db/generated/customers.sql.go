@@ -29,7 +29,7 @@ func (q *Queries) ArchiveCustomer(ctx context.Context, arg ArchiveCustomerParams
 const createCustomer = `-- name: CreateCustomer :one
 INSERT INTO customers (tenant_id, external_id, email, name, nomba_customer_id, metadata, mode)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode
+RETURNING id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode, nomba_account_id
 `
 
 type CreateCustomerParams struct {
@@ -65,12 +65,13 @@ func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) 
 		&i.IsDeleted,
 		&i.CreatedAt,
 		&i.Mode,
+		&i.NombaAccountID,
 	)
 	return i, err
 }
 
 const getCustomerByEmail = `-- name: GetCustomerByEmail :one
-SELECT id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode FROM customers WHERE tenant_id = $1 AND email = $2 AND is_deleted = FALSE
+SELECT id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode, nomba_account_id FROM customers WHERE tenant_id = $1 AND email = $2 AND is_deleted = FALSE
 `
 
 type GetCustomerByEmailParams struct {
@@ -93,12 +94,13 @@ func (q *Queries) GetCustomerByEmail(ctx context.Context, arg GetCustomerByEmail
 		&i.IsDeleted,
 		&i.CreatedAt,
 		&i.Mode,
+		&i.NombaAccountID,
 	)
 	return i, err
 }
 
 const getCustomerByExternalID = `-- name: GetCustomerByExternalID :one
-SELECT id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode FROM customers WHERE tenant_id = $1 AND external_id = $2 AND is_deleted = FALSE
+SELECT id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode, nomba_account_id FROM customers WHERE tenant_id = $1 AND external_id = $2 AND is_deleted = FALSE
 `
 
 type GetCustomerByExternalIDParams struct {
@@ -121,12 +123,13 @@ func (q *Queries) GetCustomerByExternalID(ctx context.Context, arg GetCustomerBy
 		&i.IsDeleted,
 		&i.CreatedAt,
 		&i.Mode,
+		&i.NombaAccountID,
 	)
 	return i, err
 }
 
 const getCustomerByID = `-- name: GetCustomerByID :one
-SELECT id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode FROM customers WHERE id = $1 AND tenant_id = $2 AND is_deleted = FALSE
+SELECT id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode, nomba_account_id FROM customers WHERE id = $1 AND tenant_id = $2 AND is_deleted = FALSE
 `
 
 type GetCustomerByIDParams struct {
@@ -149,12 +152,13 @@ func (q *Queries) GetCustomerByID(ctx context.Context, arg GetCustomerByIDParams
 		&i.IsDeleted,
 		&i.CreatedAt,
 		&i.Mode,
+		&i.NombaAccountID,
 	)
 	return i, err
 }
 
 const getCustomerByIDNoTenant = `-- name: GetCustomerByIDNoTenant :one
-SELECT id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode FROM customers WHERE id = $1 AND is_deleted = FALSE
+SELECT id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode, nomba_account_id FROM customers WHERE id = $1 AND is_deleted = FALSE
 `
 
 func (q *Queries) GetCustomerByIDNoTenant(ctx context.Context, id uuid.UUID) (Customer, error) {
@@ -172,12 +176,13 @@ func (q *Queries) GetCustomerByIDNoTenant(ctx context.Context, id uuid.UUID) (Cu
 		&i.IsDeleted,
 		&i.CreatedAt,
 		&i.Mode,
+		&i.NombaAccountID,
 	)
 	return i, err
 }
 
 const listCustomers = `-- name: ListCustomers :many
-SELECT id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode FROM customers
+SELECT id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode, nomba_account_id FROM customers
 WHERE tenant_id = $1 AND is_deleted = FALSE AND mode = $2
 ORDER BY created_at DESC
 LIMIT $3 OFFSET $4
@@ -216,6 +221,7 @@ func (q *Queries) ListCustomers(ctx context.Context, arg ListCustomersParams) ([
 			&i.IsDeleted,
 			&i.CreatedAt,
 			&i.Mode,
+			&i.NombaAccountID,
 		); err != nil {
 			return nil, err
 		}
@@ -231,7 +237,7 @@ const updateCustomer = `-- name: UpdateCustomer :one
 UPDATE customers
 SET name = $3, email = $4, metadata = $5
 WHERE id = $1 AND tenant_id = $2 AND is_deleted = FALSE
-RETURNING id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode
+RETURNING id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode, nomba_account_id
 `
 
 type UpdateCustomerParams struct {
@@ -263,6 +269,40 @@ func (q *Queries) UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) 
 		&i.IsDeleted,
 		&i.CreatedAt,
 		&i.Mode,
+		&i.NombaAccountID,
+	)
+	return i, err
+}
+
+const updateCustomerNombaAccountID = `-- name: UpdateCustomerNombaAccountID :one
+UPDATE customers
+SET nomba_account_id = $3
+WHERE id = $1 AND tenant_id = $2
+RETURNING id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode, nomba_account_id
+`
+
+type UpdateCustomerNombaAccountIDParams struct {
+	ID             uuid.UUID   `json:"id"`
+	TenantID       uuid.UUID   `json:"tenant_id"`
+	NombaAccountID pgtype.Text `json:"nomba_account_id"`
+}
+
+func (q *Queries) UpdateCustomerNombaAccountID(ctx context.Context, arg UpdateCustomerNombaAccountIDParams) (Customer, error) {
+	row := q.db.QueryRow(ctx, updateCustomerNombaAccountID, arg.ID, arg.TenantID, arg.NombaAccountID)
+	var i Customer
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.ExternalID,
+		&i.Email,
+		&i.Name,
+		&i.NombaCustomerID,
+		&i.TokenisedCard,
+		&i.Metadata,
+		&i.IsDeleted,
+		&i.CreatedAt,
+		&i.Mode,
+		&i.NombaAccountID,
 	)
 	return i, err
 }
@@ -271,7 +311,7 @@ const updateCustomerTokenisedCard = `-- name: UpdateCustomerTokenisedCard :one
 UPDATE customers
 SET tokenised_card = $3, nomba_customer_id = $4
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode
+RETURNING id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode, nomba_account_id
 `
 
 type UpdateCustomerTokenisedCardParams struct {
@@ -301,6 +341,7 @@ func (q *Queries) UpdateCustomerTokenisedCard(ctx context.Context, arg UpdateCus
 		&i.IsDeleted,
 		&i.CreatedAt,
 		&i.Mode,
+		&i.NombaAccountID,
 	)
 	return i, err
 }

@@ -46,6 +46,7 @@ type Customer struct {
 	IsDeleted       bool        `json:"is_deleted"`
 	CreatedAt       time.Time   `json:"created_at"`
 	Mode            string      `json:"mode"`
+	NombaAccountID  pgtype.Text `json:"nomba_account_id"`
 }
 
 type EmailTemplate struct {

@@ -14,6 +14,13 @@ import { can, type Role } from "@/lib/permissions";
 
 function railBadge(rail: string) {
   switch (rail) {
+    case "wallet":
+      return {
+        label: "Wallet",
+        bg: "#ECFDF5",
+        color: "#047857",
+        icon: "ti-wallet",
+      };
     case "card":
       return {
         label: "Card",

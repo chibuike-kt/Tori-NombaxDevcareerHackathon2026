@@ -486,6 +486,84 @@ func (c *NombaHTTPClient) FetchSubAccountTransactions(ctx context.Context, from,
 	}, nil
 }
 
+// DebitWallet debits a customer's Nomba wallet — the first rail the
+// recovery waterfall tries before falling back to card/mandate.
+func (c *NombaHTTPClient) DebitWallet(ctx context.Context, accountID string, amount int64, currency, reference, narration string) (*ChargeResponse, error) {
+	payload := map[string]interface{}{
+		"amount":    fmt.Sprintf("%.2f", float64(amount)/100),
+		"currency":  currency,
+		"reference": reference,
+		"narration": narration,
+	}
+
+	log.Info().
+		Str("account_id", accountID).
+		Str("reference", reference).
+		Int64("amount_kobo", amount).
+		Msg("nomba: debiting customer wallet")
+
+	resp, err := c.do(ctx, http.MethodPost, fmt.Sprintf("/accounts/%s/debit", accountID), payload)
+	if err != nil {
+		return nil, fmt.Errorf("nomba debit wallet: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Code        string `json:"code"`
+		Description string `json:"description"`
+		Data        struct {
+			Status  bool   `json:"status"`
+			Message string `json:"message"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("nomba debit wallet decode: %w", err)
+	}
+
+	if result.Code != "00" || !result.Data.Status {
+		log.Warn().
+			Str("account_id", accountID).
+			Str("reference", reference).
+			Str("code", result.Code).
+			Str("message", result.Description).
+			Msg("nomba: wallet debit failed")
+		return &ChargeResponse{
+			Success:        false,
+			Reference:      reference,
+			FailureCode:    MapNombaFailureCode(result.Code),
+			FailureMessage: result.Description,
+		}, nil
+	}
+
+	log.Info().Str("account_id", accountID).Str("reference", reference).Msg("nomba: wallet debit succeeded")
+	return &ChargeResponse{Success: true, Reference: reference}, nil
+}
+
+// GetWalletBalance returns a customer's current Nomba wallet balance in kobo.
+func (c *NombaHTTPClient) GetWalletBalance(ctx context.Context, accountID string) (int64, error) {
+	resp, err := c.do(ctx, http.MethodGet, fmt.Sprintf("/accounts/%s", accountID), nil)
+	if err != nil {
+		return 0, fmt.Errorf("nomba get wallet balance: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Code        string `json:"code"`
+		Description string `json:"description"`
+		Data        struct {
+			WalletBalance float64 `json:"walletBalance"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return 0, fmt.Errorf("nomba get wallet balance decode: %w", err)
+	}
+	if result.Code != "00" {
+		return 0, fmt.Errorf("nomba get wallet balance failed: %s", result.Description)
+	}
+
+	return int64(math.Round(result.Data.WalletBalance * 100)), nil
+}
+
 // MapNombaFailureCode maps Nomba response codes to our internal dunning classifier codes.
 func MapNombaFailureCode(nombaCode string) string {
 	switch nombaCode {

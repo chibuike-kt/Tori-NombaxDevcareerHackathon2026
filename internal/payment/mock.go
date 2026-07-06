@@ -21,6 +21,11 @@ type MockNombaClient struct {
 	VerifyPaymentCalls  []string
 
 	chargeCallIndex int
+
+	// WalletBalanceKobo is what GetWalletBalance returns for every account —
+	// defaults to 0, so tests don't hit the wallet rail unless they opt in.
+	WalletBalanceKobo int64
+	DebitWalletCalls  []string // accountIDs debited
 }
 
 func NewMockNombaClient() *MockNombaClient {
@@ -83,6 +88,22 @@ func (m *MockNombaClient) RefundPayment(_ context.Context, req RefundRequest) (*
 
 func (m *MockNombaClient) ListTransactions(_ context.Context, _ ListTransactionsRequest) (*TransactionList, error) {
 	return &TransactionList{}, nil
+}
+
+// DebitWallet records the call and always succeeds — tests that need a
+// failure should assert against DebitWalletCalls instead.
+func (m *MockNombaClient) DebitWallet(_ context.Context, accountID string, _ int64, _, reference, _ string) (*ChargeResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.DebitWalletCalls = append(m.DebitWalletCalls, accountID)
+	return &ChargeResponse{Success: true, Reference: reference}, nil
+}
+
+// GetWalletBalance returns the configured WalletBalanceKobo for every account.
+func (m *MockNombaClient) GetWalletBalance(_ context.Context, _ string) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.WalletBalanceKobo, nil
 }
 
 // ChargeCallCount returns how many times ChargeToken was called.

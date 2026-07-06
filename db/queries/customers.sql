@@ -30,6 +30,12 @@ SET tokenised_card = $3, nomba_customer_id = $4
 WHERE id = $1 AND tenant_id = $2
 RETURNING *;
 
+-- name: UpdateCustomerNombaAccountID :one
+UPDATE customers
+SET nomba_account_id = $3
+WHERE id = $1 AND tenant_id = $2
+RETURNING *;
+
 -- name: ArchiveCustomer :exec
 UPDATE customers SET is_deleted = TRUE WHERE id = $1 AND tenant_id = $2;
 

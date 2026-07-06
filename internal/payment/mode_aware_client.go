@@ -51,3 +51,11 @@ func (c *ModeAwareClient) ListTransactions(ctx context.Context, req ListTransact
 func (c *ModeAwareClient) FetchSubAccountTransactions(ctx context.Context, from, to time.Time, limit int, cursor string) (*TransactionList, error) {
 	return c.pick(ctx).FetchSubAccountTransactions(ctx, from, to, limit, cursor)
 }
+
+func (c *ModeAwareClient) DebitWallet(ctx context.Context, accountID string, amount int64, currency, reference, narration string) (*ChargeResponse, error) {
+	return c.pick(ctx).DebitWallet(ctx, accountID, amount, currency, reference, narration)
+}
+
+func (c *ModeAwareClient) GetWalletBalance(ctx context.Context, accountID string) (int64, error) {
+	return c.pick(ctx).GetWalletBalance(ctx, accountID)
+}

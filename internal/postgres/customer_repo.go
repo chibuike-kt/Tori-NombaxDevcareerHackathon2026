@@ -113,6 +113,18 @@ func (r *CustomerRepo) UpdateTokenisedCard(ctx context.Context, id, tenantID uui
 	return customerFromRow(row), nil
 }
 
+func (r *CustomerRepo) UpdateNombaAccountID(ctx context.Context, id, tenantID uuid.UUID, nombaAccountID string) (*domain.Customer, error) {
+	row, err := r.q.UpdateCustomerNombaAccountID(ctx, db.UpdateCustomerNombaAccountIDParams{
+		ID:             id,
+		TenantID:       tenantID,
+		NombaAccountID: toPgText(&nombaAccountID),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return customerFromRow(row), nil
+}
+
 func (r *CustomerRepo) Archive(ctx context.Context, id, tenantID uuid.UUID) error {
 	return r.q.ArchiveCustomer(ctx, db.ArchiveCustomerParams{ID: id, TenantID: tenantID})
 }
@@ -125,6 +137,7 @@ func customerFromRow(row db.Customer) *domain.Customer {
 		Email:           row.Email,
 		Name:            fromPgText(row.Name),
 		NombaCustomerID: fromPgText(row.NombaCustomerID),
+		NombaAccountID:  fromPgText(row.NombaAccountID),
 		TokenisedCard:   row.TokenisedCard,
 		Metadata:        row.Metadata,
 		Mode:            row.Mode,

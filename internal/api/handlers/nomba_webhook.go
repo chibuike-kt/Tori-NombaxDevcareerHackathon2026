@@ -32,6 +32,7 @@ type NombaWebhookHandler struct {
 	payment    payment.NombaClient
 	dispatcher *webhook.Dispatcher
 	jobs       domain.JobRepository
+	customers  domain.CustomerRepository
 }
 
 func NewNombaWebhookHandler(
@@ -43,12 +44,14 @@ func NewNombaWebhookHandler(
 	paymentClient payment.NombaClient,
 	dispatcher *webhook.Dispatcher,
 	jobs domain.JobRepository,
+	customers domain.CustomerRepository,
 ) *NombaWebhookHandler {
 	return &NombaWebhookHandler{
 		subs: subs, tokens: tokens,
 		plans: plans, invoices: invoices,
 		ledgerSvc: ledgerSvc, payment: paymentClient,
 		dispatcher: dispatcher, jobs: jobs,
+		customers: customers,
 	}
 }
 
@@ -194,6 +197,14 @@ func (h *NombaWebhookHandler) handlePaymentSuccess(w http.ResponseWriter, r *htt
 		log.Error().Err(err).Str("sub_id", subID.String()).Msg("nomba webhook: subscription not found")
 		respond.JSON(w, r, http.StatusOK, map[string]string{"status": "processed"})
 		return
+	}
+
+	// Capture the customer's Nomba wallet ID — the recovery waterfall checks
+	// this balance before falling back to card/mandate on a dunning retry.
+	if data.Merchant.WalletID != "" {
+		if _, err := h.customers.UpdateNombaAccountID(r.Context(), sub.CustomerID, sub.TenantID, data.Merchant.WalletID); err != nil {
+			log.Error().Err(err).Str("sub_id", subID.String()).Msg("nomba webhook: failed to store customer wallet ID")
+		}
 	}
 
 	// Store tokenKey only if the payment was a tokenised card.
