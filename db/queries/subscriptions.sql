@@ -63,6 +63,15 @@ SET
 WHERE id = $1 AND tenant_id = $2
 RETURNING *;
 
+-- name: SetSubscriptionCancelReason :one
+-- Merges cancel_reason into existing metadata rather than overwriting it,
+-- so any other metadata the subscription carries survives.
+UPDATE subscriptions
+SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('cancel_reason', sqlc.arg(reason)::text),
+    updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING *;
+
 -- name: UpdateSubscriptionAfterRenewalOptimistic :one
 UPDATE subscriptions
 SET
@@ -131,6 +140,12 @@ SELECT * FROM subscriptions
 WHERE status IN ('PAST_DUE', 'DUNNING') AND next_retry_at <= $1
 ORDER BY next_retry_at ASC
 LIMIT $2;
+
+-- name: CancelSubscriptionAtPeriodEnd :one
+UPDATE subscriptions
+SET cancel_at_period_end = true, updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING *;
 
 -- name: UpdateSubscriptionStatusOptimistic :one
 UPDATE subscriptions

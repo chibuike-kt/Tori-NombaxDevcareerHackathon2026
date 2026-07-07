@@ -110,6 +110,10 @@ type SubscriptionRepository interface {
 	SetMandate(ctx context.Context, id, tenantID uuid.UUID, mandateID string) (*Subscription, error)
 	UpdateRecoveryRail(ctx context.Context, id, tenantID uuid.UUID, rail string) (*Subscription, error)
 	ListTransitions(ctx context.Context, id, tenantID uuid.UUID, limit, offset int) ([]*SubscriptionTransition, error)
+	// SetCancelReason merges {"cancel_reason": reason} into the subscription's
+	// existing metadata — gives operators churn-reason data from
+	// customer-initiated cancellations.
+	SetCancelReason(ctx context.Context, id, tenantID uuid.UUID, reason string) (*Subscription, error)
 }
 
 type InvoiceRepository interface {

@@ -41,6 +41,7 @@ type Deps struct {
 	EmailTemplates     domain.EmailTemplateRepository
 	OAuth              domain.OAuthRepository
 	Payouts            domain.PayoutRepository
+	CustomerOTP        domain.CustomerOTPRepository
 }
 
 // maxBodySize limits request bodies to 1MB to prevent OOM attacks.
@@ -121,12 +122,21 @@ r.Get("/v1/status", systemHealthH.Check)
 	r.Post("/v1/auth/refresh", authH.Refresh)
 	r.Post("/v1/team/invitations/accept", teamH.AcceptInvite)
 	r.Post("/v1/oauth/token", oauthH.IssueToken)
-	portalH := handlers.NewPortalHandler(deps.Customers, deps.Subscriptions, deps.Plans, ledgerSvc)
+	portalH := handlers.NewPortalHandler(deps.Customers, deps.Subscriptions, deps.Plans, deps.Invoices, deps.Tenants, ledgerSvc, deps.Payment)
+	portalAuthH := handlers.NewPortalAuthHandler(deps.Customers, deps.Tenants, deps.CustomerOTP, deps.EmailClient)
+	r.Post("/v1/portal/auth/request-otp", portalAuthH.RequestOTP)
+	r.Post("/v1/portal/auth/verify-otp", portalAuthH.VerifyOTP)
 r.Group(func(r chi.Router) {
     r.Get("/v1/portal", portalH.GetPortalData)
+    r.Get("/v1/portal/subscriptions", portalH.ListSubscriptions)
+    r.Get("/v1/portal/subscriptions/{id}", portalH.GetSubscription)
+    r.Get("/v1/portal/subscriptions/{id}/history", portalH.SubscriptionHistory)
     r.Post("/v1/portal/subscriptions/{id}/cancel", portalH.PortalCancel)
     r.Post("/v1/portal/subscriptions/{id}/pause", portalH.PortalPause)
     r.Post("/v1/portal/subscriptions/{id}/resume", portalH.PortalResume)
+    r.Post("/v1/portal/subscriptions/{id}/update-payment-method", portalH.UpdatePaymentMethod)
+    r.Get("/v1/portal/invoices", portalH.ListInvoices)
+    r.Get("/v1/portal/invoices/{id}/download", portalH.DownloadInvoice)
 })
 
 	// Dashboard API — JWT auth + per-tenant rate limiting

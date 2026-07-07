@@ -56,6 +56,49 @@ func (q *Queries) CancelSubscription(ctx context.Context, arg CancelSubscription
 	return i, err
 }
 
+const cancelSubscriptionAtPeriodEnd = `-- name: CancelSubscriptionAtPeriodEnd :one
+UPDATE subscriptions
+SET cancel_at_period_end = true, updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo
+`
+
+type CancelSubscriptionAtPeriodEndParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) CancelSubscriptionAtPeriodEnd(ctx context.Context, arg CancelSubscriptionAtPeriodEndParams) (Subscription, error) {
+	row := q.db.QueryRow(ctx, cancelSubscriptionAtPeriodEnd, arg.ID, arg.TenantID)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.CustomerID,
+		&i.PlanID,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.TrialEnd,
+		&i.PausedAt,
+		&i.CancelledAt,
+		&i.CancelAtPeriodEnd,
+		&i.DunningAttempt,
+		&i.NextRetryAt,
+		&i.IdempotencyKey,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TokenKey,
+		&i.MandateID,
+		&i.RecoveryRail,
+		&i.DiscountKobo,
+		&i.Mode,
+		&i.PauseCreditKobo,
+	)
+	return i, err
+}
+
 const createSubscription = `-- name: CreateSubscription :one
 INSERT INTO subscriptions (
     tenant_id, customer_id, plan_id, status,
@@ -849,6 +892,53 @@ type ResumeSubscriptionParams struct {
 
 func (q *Queries) ResumeSubscription(ctx context.Context, arg ResumeSubscriptionParams) (Subscription, error) {
 	row := q.db.QueryRow(ctx, resumeSubscription, arg.ID, arg.TenantID)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.CustomerID,
+		&i.PlanID,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.TrialEnd,
+		&i.PausedAt,
+		&i.CancelledAt,
+		&i.CancelAtPeriodEnd,
+		&i.DunningAttempt,
+		&i.NextRetryAt,
+		&i.IdempotencyKey,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TokenKey,
+		&i.MandateID,
+		&i.RecoveryRail,
+		&i.DiscountKobo,
+		&i.Mode,
+		&i.PauseCreditKobo,
+	)
+	return i, err
+}
+
+const setSubscriptionCancelReason = `-- name: SetSubscriptionCancelReason :one
+UPDATE subscriptions
+SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('cancel_reason', $3::text),
+    updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo
+`
+
+type SetSubscriptionCancelReasonParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+	Reason   string    `json:"reason"`
+}
+
+// Merges cancel_reason into existing metadata rather than overwriting it,
+// so any other metadata the subscription carries survives.
+func (q *Queries) SetSubscriptionCancelReason(ctx context.Context, arg SetSubscriptionCancelReasonParams) (Subscription, error) {
+	row := q.db.QueryRow(ctx, setSubscriptionCancelReason, arg.ID, arg.TenantID, arg.Reason)
 	var i Subscription
 	err := row.Scan(
 		&i.ID,

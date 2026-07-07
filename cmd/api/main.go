@@ -100,6 +100,7 @@ deps := api.Deps{
 		EmailTemplates: postgres.NewEmailTemplateRepo(pool),
 		OAuth:          postgres.NewOAuthRepo(pool),
 		Payouts:        postgres.NewPayoutRepo(pool),
+		CustomerOTP:    postgres.NewCustomerOTPRepo(pool),
     EmailClient:        email.NewResendClient(),
 		Pool: pool,
 }
