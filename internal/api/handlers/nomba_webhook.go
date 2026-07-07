@@ -312,6 +312,20 @@ func (h *NombaWebhookHandler) handlePaymentLinkSuccess(r *http.Request, orderRef
 	h.eventsRec.Record(ctx, link.TenantID, link.Mode, domain.EventPaymentLinkPaid, "payment_link", link.ID,
 		fmt.Sprintf("Payment link \"%s\" paid — %s", link.Title, formatNaira(amountKobo)))
 
+	if h.dispatcher != nil {
+		payload := map[string]interface{}{
+			"payment_link_id": link.ID,
+			"title":           link.Title,
+			"amount_kobo":     amountKobo,
+			"currency":        link.Currency,
+			"reference":       orderRef,
+			"paid_at":         time.Now().UTC(),
+		}
+		if err := h.dispatcher.DispatchAsync(ctx, link.TenantID, domain.EventPaymentLinkPaid, payload, link.Mode); err != nil {
+			log.Error().Err(err).Str("payment_link_id", linkID.String()).Msg("nomba webhook: failed to dispatch payment_link.paid webhook")
+		}
+	}
+
 	log.Info().
 		Str("payment_link_id", linkID.String()).
 		Int64("amount_kobo", amountKobo).
