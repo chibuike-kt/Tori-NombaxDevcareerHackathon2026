@@ -170,8 +170,17 @@ request GET "/v1/platform/plans" 200 "$APIKEY_HEADER"
 request GET "/v1/platform/customers" 200 "$APIKEY_HEADER"
 request GET "/v1/platform/subscriptions" 200 "$APIKEY_HEADER" "" "200 whether or not any exist yet"
 
+# The dashboard JWT plan created earlier is mode=live (no X-Tori-Mode header
+# is ever sent). Checking out against it with a test-mode API key would
+# create a mode=test subscription pointing at a mode=live plan — the backend
+# now rejects that (plan_mode_mismatch). Create a dedicated test-mode plan
+# via the Platform API itself so mode stays consistent end to end.
+request POST "/v1/platform/plans" 201 "$APIKEY_HEADER" \
+  '{"name":"Smoke Test Plan (test mode)","amount":100000,"currency":"NGN","interval":"monthly","trial_period_days":0}'
+TEST_PLAN_ID=$(json_get "d['data']['id']")
+
 request POST "/v1/platform/checkout" 201 "$APIKEY_HEADER" \
-  "$(printf '{"email":"smoketest+%s@tori.ng","plan_id":"%s","idempotency_key":"smoketest-%s"}' "$$" "$PLAN_ID" "$$")" \
+  "$(printf '{"email":"smoketest+%s@tori.ng","plan_id":"%s","idempotency_key":"smoketest-%s"}' "$$" "$TEST_PLAN_ID" "$$")" \
   "uses the test key — routes to Nomba sandbox only"
 SUB_ID=$(json_get "d['data']['subscription']['id']")
 
