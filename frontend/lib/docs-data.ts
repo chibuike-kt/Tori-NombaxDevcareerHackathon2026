@@ -1,3 +1,28 @@
+export type Field = { name: string; type: string; required?: boolean; description: string };
+
+export type EndpointBlock = {
+  type: "endpoint";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  path: string;
+  summary: string;
+  description: string;
+  auth?: "apiKeyAuth" | "bearerAuth" | "portalToken" | "none";
+  headers?: Field[];
+  query?: Field[];
+  body?: Field[];
+  examples: { curl: string; javascript: string; go?: string; python?: string };
+  responses: Record<string, string>;
+};
+
+export type WebhookEventBlock = {
+  type: "webhookEvent";
+  event: string;
+  firesWhen: string;
+  description: string;
+  payload: Field[];
+  example: string;
+};
+
 export type Block =
   | { type: "p"; text: string }
   | { type: "h2"; text: string; id: string }
@@ -7,7 +32,9 @@ export type Block =
   | { type: "table"; headers: string[]; rows: string[][] }
   | { type: "list"; items: string[] }
   | { type: "param"; name: string; paramType: string; required?: boolean; description: string }
-  | { type: "response"; status: number; description: string; body?: string };
+  | { type: "response"; status: number; description: string; body?: string }
+  | EndpointBlock
+  | WebhookEventBlock;
 
 export type Section = {
   id: string; label: string; icon: string;
@@ -1110,1961 +1137,297 @@ TORI_WEBHOOK_SECRET=whsec_...`,
     id: "api-reference",
     label: "API Reference",
     groups: [
+      // ═══════════════════════════════════════════════════════
+      // QUICKSTART
+      // ═══════════════════════════════════════════════════════
       {
-        group: "Basics",
+        group: "Quickstart",
         items: [
           {
-            id: "ref-conventions",
-            label: "Conventions",
-            icon: "ti-adjustments",
+            id: "quickstart",
+            label: "Quickstart",
+            icon: "ti-bolt",
             blocks: [
-              { type: "h2", text: "Base URL", id: "base-url" },
+              {
+                type: "p",
+                text: "The whole integration is one call: create a checkout, get back a URL, redirect the customer. Tori tokenises the card on that first payment and charges it automatically on every renewal from then on — no cron job, no retry logic, on your end.",
+              },
               {
                 type: "code",
                 lang: "bash",
-                code: `Production:  https://api.tori.ng
-Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
+                code: `curl -X POST https://api-production-3847.up.railway.app/v1/platform/checkout \\
+  -H "X-API-Key: tori_live_..." \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "email": "amaka@school.ng",
+    "plan_id": "4436225d-2eef-4d7b-9fbc-1b299c0d1cac",
+    "external_id": "school_001",
+    "callback_url": "https://yourapp.ng/payment/success"
+  }'`,
               },
-              { type: "h2", text: "Response envelope", id: "envelope" },
+              {
+                type: "p",
+                text: "The response includes checkout_url. Redirect the customer there — even during a free trial, so the card gets tokenised immediately.",
+              },
               {
                 type: "code",
                 lang: "json",
-                code: `// Single object
-{ "data": { "id": "...", "...": "..." }, "meta": { "request_id": "uuid", "api_version": "2026-06-01" } }
-
-// List
-{ "data": [...], "pagination": { "has_more": false, "total": 20 }, "meta": { ... } }
-
-// Error
-{ "error": { "code": "not_found", "message": "resource does not exist" }, "meta": { ... } }`,
-              },
-              { type: "h2", text: "Amounts are always in kobo", id: "money" },
-              {
-                type: "p",
-                text: "Every amount field is an integer in kobo. ₦15,000 = 1500000. ₦2,500 = 250000. No decimal amounts anywhere.",
-              },
-              { type: "h2", text: "Dates", id: "dates" },
-              {
-                type: "p",
-                text: "All timestamps are ISO 8601 UTC. Filter dates use YYYY-MM-DD: ?from=2026-06-01&to=2026-06-30.",
-              },
-              { type: "h2", text: "Pagination", id: "pagination" },
-              {
-                type: "code",
-                lang: "bash",
-                code: "GET /v1/customers?limit=50&offset=100",
-              },
-            ],
-          },
-          {
-            id: "ref-errors",
-            label: "Error codes",
-            icon: "ti-alert-triangle",
-            blocks: [
-              {
-                type: "p",
-                text: "Always branch on error.code  never on error.message. Codes are stable; messages may change.",
+                code: `{
+  "data": {
+    "subscription": { "id": "f6ffcc85-...", "status": "PENDING_PAYMENT" },
+    "checkout_url": "https://pay.nomba.com/checkout/abc123",
+    "customer_created": true
+  }
+}`,
               },
               {
-                type: "table",
-                headers: ["HTTP", "Code", "Meaning", "Fix"],
-                rows: [
-                  [
-                    "400",
-                    "invalid_body",
-                    "Request body not valid JSON",
-                    "Check body format",
-                  ],
-                  [
-                    "400",
-                    "missing_field",
-                    "Required field missing",
-                    "Add the field",
-                  ],
-                  [
-                    "400",
-                    "invalid_amount",
-                    "Amount zero or negative",
-                    "Send positive kobo integer",
-                  ],
-                  [
-                    "400",
-                    "invalid_field",
-                    "Field wrong type or format",
-                    "Check field format",
-                  ],
-                  [
-                    "401",
-                    "unauthorised",
-                    "Invalid or missing credentials",
-                    "Check X-API-Key or JWT",
-                  ],
-                  [
-                    "404",
-                    "not_found",
-                    "Resource does not exist",
-                    "Check the ID",
-                  ],
-                  [
-                    "409",
-                    "email_taken",
-                    "Customer email already exists",
-                    "Look up existing customer",
-                  ],
-                  [
-                    "422",
-                    "invalid_transition",
-                    "State machine rejected action",
-                    "Check current state",
-                  ],
-                  [
-                    "422",
-                    "plan_inactive",
-                    "Plan not accepting new subscribers",
-                    "Use active plan",
-                  ],
-                  [
-                    "429",
-                    "rate_limited",
-                    "Too many requests",
-                    "Back off until reset",
-                  ],
-                  [
-                    "500",
-                    "internal_error",
-                    "Unexpected server error",
-                    "Retry with backoff",
-                  ],
-                ],
+                type: "callout",
+                variant: "success",
+                text: "That's it. Register a webhook endpoint (Section 3 below) to find out when the payment clears, and you're done — Tori owns renewals, retries, and recovery from here.",
               },
             ],
           },
         ],
       },
+      // ═══════════════════════════════════════════════════════
+      // PLATFORM API
+      // ═══════════════════════════════════════════════════════
       {
-        group: "Authenticate",
-        items: [
-          {
-            id: "ref-register",
-            label: "Register",
-            icon: "ti-user-plus",
-            method: "POST",
-            endpoint: "/v1/auth/register",
-            blocks: [
-              {
-                type: "p",
-                text: "Create a new Tori tenant account. Returns JWT tokens immediately  no separate login needed.",
-              },
-              { type: "h2", text: "Headers", id: "register-headers" },
-              {
-                type: "param",
-                name: "Content-Type",
-                paramType: "string",
-                required: true,
-                description: "Must be application/json",
-              },
-              { type: "h2", text: "Body", id: "register-body" },
-              {
-                type: "param",
-                name: "name",
-                paramType: "string",
-                required: true,
-                description: "Your business name e.g. ClassPay",
-              },
-              {
-                type: "param",
-                name: "email",
-                paramType: "string",
-                required: true,
-                description: "Your business email address",
-              },
-              {
-                type: "param",
-                name: "password",
-                paramType: "string",
-                required: true,
-                description: "Minimum 8 characters",
-              },
-              { type: "h2", text: "Response", id: "register-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Account created successfully",
-                body: `{
-  "data": {
-    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "token_type": "Bearer"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "response",
-                status: 400,
-                description: "Validation failed",
-                body: `{ "error": { "code": "missing_field", "message": "email is required" }, "meta": { ... } }`,
-              },
-              {
-                type: "response",
-                status: 409,
-                description: "Email already registered",
-                body: `{ "error": { "code": "email_taken", "message": "an account with this email already exists" }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-login",
-            label: "Login",
-            icon: "ti-login",
-            method: "POST",
-            endpoint: "/v1/auth/login",
-            blocks: [
-              {
-                type: "p",
-                text: "Authenticate and receive JWT tokens for Dashboard API calls. Access tokens expire after 15 minutes.",
-              },
-              { type: "h2", text: "Headers", id: "login-headers" },
-              {
-                type: "param",
-                name: "Content-Type",
-                paramType: "string",
-                required: true,
-                description: "Must be application/json",
-              },
-              { type: "h2", text: "Body", id: "login-body" },
-              {
-                type: "param",
-                name: "email",
-                paramType: "string",
-                required: true,
-                description: "Your account email",
-              },
-              {
-                type: "param",
-                name: "password",
-                paramType: "string",
-                required: true,
-                description: "Your account password",
-              },
-              { type: "h2", text: "Response", id: "login-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Login successful",
-                body: `{
-  "data": {
-    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "token_type": "Bearer"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "response",
-                status: 401,
-                description: "Invalid credentials",
-                body: `{ "error": { "code": "unauthorised", "message": "invalid credentials" }, "meta": { ... } }`,
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "After 5 failed login attempts, the account is locked for 15 minutes. The counter resets on successful login.",
-              },
-            ],
-          },
-          {
-            id: "ref-refresh",
-            label: "Refresh token",
-            icon: "ti-refresh",
-            method: "POST",
-            endpoint: "/v1/auth/refresh",
-            blocks: [
-              {
-                type: "p",
-                text: "Exchange a refresh token for a new access token. Refresh tokens expire after 7 days.",
-              },
-              { type: "h2", text: "Body", id: "refresh-body" },
-              {
-                type: "param",
-                name: "refresh_token",
-                paramType: "string",
-                required: true,
-                description: "The refresh token from login or previous refresh",
-              },
-              { type: "h2", text: "Response", id: "refresh-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Token refreshed",
-                body: `{
-  "data": {
-    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "token_type": "Bearer"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "response",
-                status: 401,
-                description: "Refresh token invalid or expired",
-                body: `{ "error": { "code": "unauthorised", "message": "invalid or expired refresh token" }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-verify-email",
-            label: "Verify email",
-            icon: "ti-mail-check",
-            method: "POST",
-            endpoint: "/v1/auth/verify-email",
-            blocks: [
-              {
-                type: "p",
-                text: "Validates the 6-digit code emailed at registration and marks the tenant verified. Sends a welcome email on success.",
-              },
-              { type: "h2", text: "Headers", id: "verify-email-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Body", id: "verify-email-body" },
-              {
-                type: "param",
-                name: "code",
-                paramType: "string",
-                required: true,
-                description: "The 6-digit code emailed at registration",
-              },
-              { type: "h2", text: "Response", id: "verify-email-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Email verified",
-                body: `{ "data": { "email_verified": true, "message": "Email verified successfully. Welcome to Tori." }, "meta": { ... } }`,
-              },
-              {
-                type: "response",
-                status: 400,
-                description: "Code invalid, expired, or already used",
-                body: `{ "error": { "code": "code_expired", "message": "verification code has expired — request a new one" }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-resend-verification",
-            label: "Resend verification code",
-            icon: "ti-mail-forward",
-            method: "POST",
-            endpoint: "/v1/auth/resend-verification",
-            blocks: [
-              {
-                type: "p",
-                text: "Generates a fresh 6-digit code and deletes any unused codes for this tenant. The frontend enforces a 60-second cooldown between calls.",
-              },
-              {
-                type: "h2",
-                text: "Headers",
-                id: "resend-verification-headers",
-              },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Response",
-                id: "resend-verification-response",
-              },
-              {
-                type: "response",
-                status: 200,
-                description: "New code sent",
-                body: `{ "data": { "message": "Verification email sent. Check your inbox." }, "meta": { ... } }`,
-              },
-              {
-                type: "response",
-                status: 422,
-                description: "Already verified",
-                body: `{ "error": { "code": "already_verified", "message": "email address is already verified" }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-logout",
-            label: "Logout",
-            icon: "ti-logout",
-            method: "POST",
-            endpoint: "/v1/auth/logout",
-            blocks: [
-              {
-                type: "p",
-                text: "Revokes the access token in Redis immediately. Any subsequent request using the revoked token returns 401.",
-              },
-              { type: "h2", text: "Headers", id: "logout-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "logout-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Logged out",
-                body: `{ "data": { "message": "logged out successfully" }, "meta": { ... } }`,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "Sessions",
-        items: [
-          {
-            id: "ref-sessions-list",
-            label: "List active sessions",
-            icon: "ti-devices",
-            method: "GET",
-            endpoint: "/v1/auth/sessions",
-            blocks: [
-              {
-                type: "p",
-                text: "Every login creates a session record in Redis with the device's IP address and user agent. This endpoint lists every session that has not expired or been revoked, for the currently authenticated tenant.",
-              },
-              { type: "h2", text: "Headers", id: "sessions-list-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "sessions-list-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Sessions returned, most recently active first",
-                body: `{
-  "data": [
-    {
-      "id": "3ff914e2b8563b26910423b2c6e3e6d1",
-      "ip_address": "102.89.23.44",
-      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/128.0",
-      "created_at": "2026-07-05T00:41:23.259Z",
-      "last_seen_at": "2026-07-05T09:12:04.881Z",
-      "is_current": true
-    },
-    {
-      "id": "a1c2b3d4e5f60718293a4b5c6d7e8f90",
-      "ip_address": "197.210.54.12",
-      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0)",
-      "created_at": "2026-07-04T08:15:00.000Z",
-      "last_seen_at": "2026-07-04T18:30:00.000Z",
-      "is_current": false
-    }
-  ],
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "is_current tells you which session belongs to the request you just made. Use it to disable or hide the Revoke button for the session the user is currently looking at, so they cannot lock themselves out by accident.",
-              },
-            ],
-          },
-          {
-            id: "ref-sessions-revoke",
-            label: "Revoke a session",
-            icon: "ti-logout-2",
-            method: "DELETE",
-            endpoint: "/v1/auth/sessions/{id}",
-            blocks: [
-              {
-                type: "p",
-                text: "Immediately kill one session. Any access token or refresh token tied to that session stops working on its very next request, even if it has not expired yet. There is no 15-minute grace window.",
-              },
-              { type: "h2", text: "Headers", id: "sessions-revoke-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Path parameters",
-                id: "sessions-revoke-path",
-              },
-              {
-                type: "param",
-                name: "id",
-                paramType: "string",
-                required: true,
-                description: "The session ID from the sessions list",
-              },
-              { type: "h2", text: "Response", id: "sessions-revoke-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Session revoked",
-                body: `{ "data": { "status": "revoked" }, "meta": { ... } }`,
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "Revoking your own current session logs you out on your next request. The dashboard hides the Revoke button on the session marked is_current for this reason, but the API itself does not block it.",
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "Account",
-        items: [
-          {
-            id: "ref-me-get",
-            label: "Get account",
-            icon: "ti-building",
-            method: "GET",
-            endpoint: "/v1/me",
-            blocks: [
-              {
-                type: "p",
-                text: "Returns the authenticated tenant's own account record.",
-              },
-              { type: "h2", text: "Headers", id: "me-get-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "me-get-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Account returned",
-                body: `{
-  "data": {
-    "id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
-    "name": "ClassPay",
-    "email": "ops@classpay.ng",
-    "email_verified": true,
-    "created_at": "2026-06-26T00:00:00Z"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-            ],
-          },
-          {
-            id: "ref-me-update",
-            label: "Update account",
-            icon: "ti-edit",
-            method: "PATCH",
-            endpoint: "/v1/me",
-            blocks: [
-              {
-                type: "p",
-                text: "Update the tenant's business name or account email. Omit a field to leave it unchanged.",
-              },
-              { type: "h2", text: "Headers", id: "me-update-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Body", id: "me-update-body" },
-              {
-                type: "param",
-                name: "name",
-                paramType: "string",
-                required: false,
-                description: "New business name. Unchanged if omitted",
-              },
-              {
-                type: "param",
-                name: "email",
-                paramType: "string",
-                required: false,
-                description: "New account email. Unchanged if omitted",
-              },
-              { type: "h2", text: "Response", id: "me-update-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Account updated",
-                body: `{ "data": { "id": "2d9ff9ec-...", "name": "ClassPay Ltd", "email": "ops@classpay.ng" }, "meta": { ... } }`,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "API Keys",
-        items: [
-          {
-            id: "ref-apikeys-create",
-            label: "Create live API key",
-            icon: "ti-plus",
-            method: "POST",
-            endpoint: "/v1/api-keys",
-            blocks: [
-              {
-                type: "p",
-                text: "Generate a new live API key, or replace the existing one if you already have one. The full key is shown exactly once.",
-              },
-              { type: "h2", text: "Headers", id: "apikey-create-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "param",
-                name: "Content-Type",
-                paramType: "string",
-                required: true,
-                description: "application/json",
-              },
-              { type: "h2", text: "Body", id: "apikey-create-body" },
-              {
-                type: "param",
-                name: "name",
-                paramType: "string",
-                required: false,
-                description:
-                  "A label for this key, for example Production server. Defaults to Default",
-              },
-              { type: "h2", text: "Response", id: "apikey-create-response" },
-              {
-                type: "response",
-                status: 201,
-                description: "Key created, shown once",
-                body: `{
-  "data": {
-    "key":  "tori_live_a5eac054adef09a31a7d823d6e71b1245deffa7eb5c8a51c765e7678e9d578c0",
-    "name": "Production server",
-    "hint": "tori_live_a5ea...78c0",
-    "mode": "live"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "This is the only time the full key is shown. Tori stores only a SHA-256 hash. Copy it to your secret manager immediately. Calling this again replaces the current live key.",
-              },
-            ],
-          },
-          {
-            id: "ref-apikeys-test-create",
-            label: "Create test API key",
-            icon: "ti-flask",
-            method: "POST",
-            endpoint: "/v1/api-keys/test",
-            blocks: [
-              {
-                type: "p",
-                text: "Generate a new test API key, or replace the existing one. Requests signed with this key always hit Nomba sandbox, no matter what the server's live Nomba credentials are.",
-              },
-              { type: "h2", text: "Headers", id: "apikey-test-create-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Response",
-                id: "apikey-test-create-response",
-              },
-              {
-                type: "response",
-                status: 201,
-                description: "Test key created, shown once",
-                body: `{
-  "data": {
-    "key":  "tori_test_4d2c9f6e1a8b3d5c7e9f0a2b4d6e8f1a3c5e7d9f1b3d5e7f9a1c3e5d7f9b1a3c",
-    "name": "Test key",
-    "hint": "tori_test_4d2c...1a3c",
-    "mode": "test"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-            ],
-          },
-          {
-            id: "ref-apikeys-get",
-            label: "Get key hints",
-            icon: "ti-eye",
-            method: "GET",
-            endpoint: "/v1/api-keys",
-            blocks: [
-              {
-                type: "p",
-                text: "Returns the hint (first prefix plus last 4 characters) for both the live key and the test key. Either one may not exist yet. The full key is never retrievable after creation.",
-              },
-              { type: "h2", text: "Headers", id: "apikey-get-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "apikey-get-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Both key hints returned",
-                body: `{
-  "data": {
-    "live": { "hint": "tori_live_a5ea...78c0", "exists": true },
-    "test": { "hint": null, "exists": false }
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "p",
-                text: "hint is null and exists is false for any mode you have not generated a key for yet.",
-              },
-            ],
-          },
-          {
-            id: "ref-apikeys-rotate",
-            label: "Rotate live API key",
-            icon: "ti-rotate",
-            method: "POST",
-            endpoint: "/v1/api-keys/rotate",
-            blocks: [
-              {
-                type: "p",
-                text: "Generates a new live key and immediately invalidates the current one. Deploy the new key to all your servers before rotating.",
-              },
-              { type: "h2", text: "Headers", id: "apikey-rotate-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "apikey-rotate-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Key rotated, new key shown once",
-                body: `{
-  "data": {
-    "key":  "tori_live_x9y8z7...",
-    "name": "Rotated key",
-    "hint": "tori_live_x9y8...a1b2",
-    "mode": "live"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "The old key stops working the instant you rotate. Any server still using the old key receives 401 immediately.",
-              },
-            ],
-          },
-          {
-            id: "ref-apikeys-revoke",
-            label: "Revoke a key",
-            icon: "ti-trash",
-            method: "DELETE",
-            endpoint: "/v1/api-keys/{mode}",
-            blocks: [
-              {
-                type: "p",
-                text: "Revoke the live key or the test key. Revoking one does not affect the other. There is no undo, generate a new one afterward if you need to keep using that mode.",
-              },
-              { type: "h2", text: "Headers", id: "apikey-revoke-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Path parameters", id: "apikey-revoke-path" },
-              {
-                type: "param",
-                name: "mode",
-                paramType: "string",
-                required: true,
-                description: "live or test",
-              },
-              { type: "h2", text: "Response", id: "apikey-revoke-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Key revoked",
-                body: `{ "data": { "status": "revoked" }, "meta": { ... } }`,
-              },
-              {
-                type: "response",
-                status: 400,
-                description: "Invalid mode",
-                body: `{ "error": { "code": "invalid_mode", "message": "mode must be 'live' or 'test'" }, "meta": { ... } }`,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "OAuth",
+        group: "Platform API",
         items: [
           {
             id: "ref-oauth-token",
-            label: "Issue access token",
-            icon: "ti-shield-lock",
+            label: "Get access token",
+            icon: "ti-key",
             method: "POST",
             endpoint: "/v1/oauth/token",
             blocks: [
               {
-                type: "p",
-                text: "Exchange a client_id and client_secret for a short-lived bearer token, using the OAuth 2.0 client_credentials grant. This is a production-grade alternative to a raw `X-API-Key` header — create clients from the dashboard's OAuth Clients page. This endpoint is public; the client_id/client_secret pair is the credential.",
-              },
-              { type: "h2", text: "Body", id: "oauth-token-body" },
-              {
-                type: "param",
-                name: "grant_type",
-                paramType: "string",
-                required: true,
-                description: "Must be client_credentials",
-              },
-              {
-                type: "param",
-                name: "client_id",
-                paramType: "string",
-                required: true,
-                description:
-                  "The client_id shown when the OAuth client was created",
-              },
-              {
-                type: "param",
-                name: "client_secret",
-                paramType: "string",
-                required: true,
-                description:
-                  "The client_secret shown once when the OAuth client was created",
-              },
-              { type: "h2", text: "Response", id: "oauth-token-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Access token issued",
-                body: `{
+                type: "endpoint",
+                method: "POST",
+                path: "/v1/oauth/token",
+                summary: "Get an OAuth access token",
+                description: "Exchanges OAuth client credentials for a short-lived bearer token. This is one of two ways to authenticate Platform API calls — the simpler alternative is passing your API key directly in an X-API-Key header on every request, no token exchange needed. Use OAuth if you'd rather rotate a short-lived token than hold a long-lived secret in every request; use X-API-Key if you want the simplest possible integration.",
+                auth: "none",
+                body: [
+                  { name: "grant_type", type: "string", required: true, description: "Must be client_credentials" },
+                  { name: "client_id", type: "string", required: true, description: "From POST /v1/oauth/clients in the dashboard" },
+                  { name: "client_secret", type: "string", required: true, description: "Shown once, at client creation" },
+                ],
+                examples: {
+                  curl: `curl -X POST https://api-production-3847.up.railway.app/v1/oauth/token \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "grant_type": "client_credentials",
+    "client_id": "oauth_client_9913c788057e1c1f0310cd79",
+    "client_secret": "oauth_secret_a8f1454315f7bf5f204a90ad7ffe694c"
+  }'`,
+                  javascript: `const res = await fetch('https://api-production-3847.up.railway.app/v1/oauth/token', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    grant_type: 'client_credentials',
+    client_id: process.env.TORI_CLIENT_ID,
+    client_secret: process.env.TORI_CLIENT_SECRET,
+  }),
+});
+const { data } = await res.json();
+// data.access_token — use as: Authorization: Bearer <access_token>`,
+                  go: `resp, err := http.Post(
+  "https://api-production-3847.up.railway.app/v1/oauth/token",
+  "application/json",
+  strings.NewReader(\`{
+    "grant_type": "client_credentials",
+    "client_id": "oauth_client_...",
+    "client_secret": "oauth_secret_..."
+  }\`),
+)`,
+                  python: `import requests, os
+
+res = requests.post(
+  "https://api-production-3847.up.railway.app/v1/oauth/token",
+  json={
+    "grant_type": "client_credentials",
+    "client_id": os.environ["TORI_CLIENT_ID"],
+    "client_secret": os.environ["TORI_CLIENT_SECRET"],
+  },
+)`,
+                },
+                responses: {
+                  "200": `{
   "data": {
-    "access_token": "tori_oauth_4d2c9f6e1a8b3d5c7e9f0a2b4d6e8f1a3c5e7d9f1b3d5e7f9a1c3e5d7f9b1a3c",
+    "access_token": "tori_oauth_a8f1454315f7bf5f204a90ad7ffe694c34ff1c382b66edf061a6b96027ab92cd",
     "token_type": "Bearer",
     "expires_in": 1800,
     "mode": "live"
   },
   "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
 }`,
-              },
-              {
-                type: "response",
-                status: 401,
-                description: "Invalid or revoked client credentials",
-                body: `{ "error": { "code": "unauthorised", "message": "invalid client credentials" }, "meta": { ... } }`,
+                  "401": `{
+  "error": { "code": "unauthorized", "message": "invalid client credentials" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                },
               },
               {
                 type: "callout",
                 variant: "info",
-                text: "Tokens expire after 30 minutes (expires_in is in seconds). Request a new one when a Platform API call returns 401 — don't cache tokens past their expiry.",
-              },
-              { type: "h2", text: "Using the token", id: "oauth-token-usage" },
-              {
-                type: "code",
-                lang: "bash",
-                code: `curl https://api.tori.ng/v1/oauth/token \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "grant_type": "client_credentials",
-    "client_id": "oauth_client_...",
-    "client_secret": "oauth_secret_..."
-  }'
-
-curl https://api.tori.ng/v1/platform/checkout \\
-  -H "Authorization: Bearer tori_oauth_..." \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "email": "amaka@startup.ng",
-    "plan_id": "plan_...",
-    "external_id": "your-user-123"
-  }'`,
-              },
-              {
-                type: "p",
-                text: "Every Platform API route that accepts `X-API-Key` also accepts this bearer token — the two auth methods are interchangeable and lead to the same tenant/mode context.",
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "Plans",
-        items: [
-          {
-            id: "ref-plans-create",
-            label: "Create plan",
-            icon: "ti-plus",
-            method: "POST",
-            endpoint: "/v1/platform/plans",
-            blocks: [
-              {
-                type: "p",
-                text: "Create a pricing plan. Plans are reusable  create once, any number of customers can subscribe.",
-              },
-              { type: "h2", text: "Headers", id: "plans-create-headers" },
-              {
-                type: "param",
-                name: "X-API-Key",
-                paramType: "string",
-                required: true,
-                description: "Your secret API key",
-              },
-              {
-                type: "param",
-                name: "Content-Type",
-                paramType: "string",
-                required: true,
-                description: "application/json",
-              },
-              { type: "h2", text: "Body", id: "plans-create-body" },
-              {
-                type: "param",
-                name: "name",
-                paramType: "string",
-                required: true,
-                description: "Plan display name e.g. Pro, Business",
-              },
-              {
-                type: "param",
-                name: "amount",
-                paramType: "integer",
-                required: true,
-                description: "Amount in kobo. ₦15,000 = 1500000",
-              },
-              {
-                type: "param",
-                name: "currency",
-                paramType: "string",
-                required: false,
-                description: "Always NGN. Defaults to NGN",
-              },
-              {
-                type: "param",
-                name: "interval",
-                paramType: "string",
-                required: false,
-                description: "monthly | annual | custom. Defaults to monthly",
-              },
-              {
-                type: "param",
-                name: "interval_count",
-                paramType: "integer",
-                required: false,
-                description:
-                  "For custom interval: number of days between charges",
-              },
-              {
-                type: "param",
-                name: "trial_period_days",
-                paramType: "integer",
-                required: false,
-                description: "Free trial length in days. 0 = no trial",
-              },
-              { type: "h2", text: "Response", id: "plans-create-response" },
-              {
-                type: "response",
-                status: 201,
-                description: "Plan created",
-                body: `{
-  "data": {
-    "id": "afecaf33-ca8d-4e1c-86ef-c232bbf11bed",
-    "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
-    "name": "Pro",
-    "amount": 1500000,
-    "currency": "NGN",
-    "interval": "monthly",
-    "interval_count": 1,
-    "trial_period_days": 14,
-    "is_active": true,
-    "created_at": "2026-06-26T00:00:00Z"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "response",
-                status: 400,
-                description: "Validation failed",
-                body: `{ "error": { "code": "invalid_amount", "message": "amount must be a positive integer in kobo" }, "meta": { ... } }`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Also available at POST /v1/plans with Authorization: Bearer {access_token} for dashboard-side plan creation. Same handler, same response shape.",
+                text: "Tokens expire after 30 minutes. Either header works on every Platform API call below — pick one and stick with it: Authorization: Bearer <access_token>, or X-API-Key: tori_live_....",
               },
             ],
           },
           {
-            id: "ref-plans-update",
-            label: "Update plan",
-            icon: "ti-edit",
-            method: "PATCH",
-            endpoint: "/v1/plans/{plan_id}",
-            blocks: [
-              {
-                type: "p",
-                text: "Update a plan's name, description, amount, or trial length. Only affects new subscribers going forward — existing subscriptions keep the price they signed up at.",
-              },
-              { type: "h2", text: "Headers", id: "plans-update-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Path parameters", id: "plans-update-path" },
-              {
-                type: "param",
-                name: "plan_id",
-                paramType: "uuid",
-                required: true,
-                description: "The plan ID to update",
-              },
-              { type: "h2", text: "Body", id: "plans-update-body" },
-              {
-                type: "param",
-                name: "name",
-                paramType: "string",
-                required: false,
-                description: "New display name",
-              },
-              {
-                type: "param",
-                name: "description",
-                paramType: "string",
-                required: false,
-                description: "New description",
-              },
-              {
-                type: "param",
-                name: "amount",
-                paramType: "integer",
-                required: false,
-                description: "New amount in kobo",
-              },
-              {
-                type: "param",
-                name: "trial_period_days",
-                paramType: "integer",
-                required: false,
-                description: "New trial length in days",
-              },
-              { type: "h2", text: "Response", id: "plans-update-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Plan updated",
-                body: `{ "data": { "id": "afecaf33-...", "name": "Pro Plus", "amount": 2000000, "trial_period_days": 14 }, "meta": { ... } }`,
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "Changing amount only affects subscribers who sign up after this call. Existing subscriptions keep the price they were created with — there is no retroactive repricing.",
-              },
-            ],
-          },
-          {
-            id: "ref-plans-list",
-            label: "List plans",
-            icon: "ti-list",
-            method: "GET",
-            endpoint: "/v1/plans",
-            blocks: [
-              {
-                type: "p",
-                text: "Returns all plans for your account, sorted by creation date descending.",
-              },
-              { type: "h2", text: "Headers", id: "plans-list-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "plans-list-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Plans returned",
-                body: `{
-  "data": [
-    { "id": "fd0dccfd-...", "name": "Basic", "amount": 250000, "interval": "monthly", "trial_period_days": 0, "is_active": true },
-    { "id": "afecaf33-...", "name": "Pro", "amount": 1500000, "interval": "monthly", "trial_period_days": 14, "is_active": true }
-  ],
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-            ],
-          },
-          {
-            id: "ref-plans-get",
-            label: "Get plan",
-            icon: "ti-file-text",
-            method: "GET",
-            endpoint: "/v1/plans/{plan_id}",
-            blocks: [
-              { type: "p", text: "Fetch a single plan by ID." },
-              { type: "h2", text: "Headers", id: "plans-get-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Path parameters", id: "plans-get-path" },
-              {
-                type: "param",
-                name: "plan_id",
-                paramType: "uuid",
-                required: true,
-                description: "The plan ID",
-              },
-              { type: "h2", text: "Response", id: "plans-get-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Plan returned",
-                body: `{
-  "data": { "id": "afecaf33-...", "name": "Pro", "amount": 1500000, "currency": "NGN", "interval": "monthly", "trial_period_days": 14, "is_active": true },
-  "meta": { ... }
-}`,
-              },
-              {
-                type: "response",
-                status: 404,
-                description: "Plan not found",
-                body: `{ "error": { "code": "not_found", "message": "the requested resource does not exist" }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-plans-deactivate",
-            label: "Deactivate plan",
-            icon: "ti-ban",
-            method: "DELETE",
-            endpoint: "/v1/plans/{plan_id}",
-            blocks: [
-              {
-                type: "p",
-                text: "Deactivate a plan. New subscriptions cannot use it. Existing subscribers are unaffected.",
-              },
-              { type: "h2", text: "Headers", id: "plans-deactivate-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Path parameters",
-                id: "plans-deactivate-path",
-              },
-              {
-                type: "param",
-                name: "plan_id",
-                paramType: "uuid",
-                required: true,
-                description: "The plan ID to deactivate",
-              },
-              { type: "h2", text: "Response", id: "plans-deactivate-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Plan deactivated",
-                body: `{ "data": { "id": "afecaf33-...", "is_active": false }, "meta": { ... } }`,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "Customers",
-        items: [
-          {
-            id: "ref-customers-create",
-            label: "Create customer",
-            icon: "ti-user-plus",
-            method: "POST",
-            endpoint: "/v1/platform/customers",
-            blocks: [
-              {
-                type: "p",
-                text: "Create a customer. The checkout endpoint creates customers automatically  use this only for pre-creating customers before subscription.",
-              },
-              { type: "h2", text: "Headers", id: "customers-create-headers" },
-              {
-                type: "param",
-                name: "X-API-Key",
-                paramType: "string",
-                required: true,
-                description: "Your secret API key",
-              },
-              {
-                type: "param",
-                name: "Content-Type",
-                paramType: "string",
-                required: true,
-                description: "application/json",
-              },
-              { type: "h2", text: "Body", id: "customers-create-body" },
-              {
-                type: "param",
-                name: "email",
-                paramType: "string",
-                required: true,
-                description: "Customer email address",
-              },
-              {
-                type: "param",
-                name: "name",
-                paramType: "string",
-                required: false,
-                description: "Customer display name",
-              },
-              {
-                type: "param",
-                name: "external_id",
-                paramType: "string",
-                required: false,
-                description:
-                  "Your own user ID  allows lookup by your ID without storing Tori IDs",
-              },
-              { type: "h2", text: "Response", id: "customers-create-response" },
-              {
-                type: "response",
-                status: 201,
-                description: "Customer created",
-                body: `{
-  "data": {
-    "id": "2c8e91c2-e848-43d2-888c-b680c6909453",
-    "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
-    "email": "amaka@startup.ng",
-    "name": "Amaka Obi",
-    "external_id": "user_12345",
-    "created_at": "2026-06-26T00:00:00Z"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "response",
-                status: 409,
-                description: "Email already exists",
-                body: `{ "error": { "code": "email_taken", "message": "a customer with this email already exists" }, "meta": { ... } }`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Also available at POST /v1/customers with Authorization: Bearer {access_token} for dashboard-side customer creation.",
-              },
-            ],
-          },
-          {
-            id: "ref-customers-update",
-            label: "Update customer",
-            icon: "ti-edit",
-            method: "PATCH",
-            endpoint: "/v1/customers/{customer_id}",
-            blocks: [
-              {
-                type: "p",
-                text: "Update a customer's name or email address.",
-              },
-              { type: "h2", text: "Headers", id: "customers-update-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Path parameters",
-                id: "customers-update-path",
-              },
-              {
-                type: "param",
-                name: "customer_id",
-                paramType: "uuid",
-                required: true,
-                description: "The customer ID",
-              },
-              { type: "h2", text: "Body", id: "customers-update-body" },
-              {
-                type: "param",
-                name: "email",
-                paramType: "string",
-                required: false,
-                description: "New email address",
-              },
-              {
-                type: "param",
-                name: "name",
-                paramType: "string",
-                required: false,
-                description: "New display name",
-              },
-              { type: "h2", text: "Response", id: "customers-update-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Customer updated",
-                body: `{ "data": { "id": "2c8e91c2-...", "email": "amaka@newdomain.ng", "name": "Amaka Obi" }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-customers-archive",
-            label: "Archive customer",
-            icon: "ti-archive",
-            method: "POST",
-            endpoint: "/v1/customers/{customer_id}/archive",
-            blocks: [
-              {
-                type: "p",
-                text: "Archive a customer record. Does not touch their subscriptions — cancel those separately first if you want to stop billing them.",
-              },
-              {
-                type: "h2",
-                text: "Headers",
-                id: "customers-archive-headers",
-              },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Path parameters",
-                id: "customers-archive-path",
-              },
-              {
-                type: "param",
-                name: "customer_id",
-                paramType: "uuid",
-                required: true,
-                description: "The customer ID to archive",
-              },
-              {
-                type: "h2",
-                text: "Response",
-                id: "customers-archive-response",
-              },
-              {
-                type: "response",
-                status: 200,
-                description: "Customer archived",
-                body: `{ "data": { "status": "archived" }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-customers-list",
-            label: "List customers",
-            icon: "ti-users",
-            method: "GET",
-            endpoint: "/v1/customers",
-            blocks: [
-              {
-                type: "p",
-                text: "Returns all customers for your account, newest first.",
-              },
-              { type: "h2", text: "Headers", id: "customers-list-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Query parameters",
-                id: "customers-list-query",
-              },
-              {
-                type: "param",
-                name: "limit",
-                paramType: "integer",
-                required: false,
-                description: "Max results per page. Default 50, max 100",
-              },
-              {
-                type: "param",
-                name: "offset",
-                paramType: "integer",
-                required: false,
-                description: "Number of results to skip. Default 0",
-              },
-              {
-                type: "param",
-                name: "external_id",
-                paramType: "string",
-                required: false,
-                description: "Filter by your own user ID",
-              },
-              { type: "h2", text: "Response", id: "customers-list-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Customers returned",
-                body: `{
-  "data": [
-    { "id": "2c8e91c2-...", "email": "amaka@startup.ng", "name": "Amaka Obi", "external_id": "user_12345", "created_at": "2026-06-26T00:00:00Z" }
-  ],
-  "pagination": { "has_more": false, "total": 20 },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-            ],
-          },
-          {
-            id: "ref-customers-get",
-            label: "Get customer",
-            icon: "ti-user",
-            method: "GET",
-            endpoint: "/v1/platform/customers/{customer_id}",
-            blocks: [
-              { type: "p", text: "Fetch a single customer by Tori ID." },
-              { type: "h2", text: "Headers", id: "customers-get-headers" },
-              {
-                type: "param",
-                name: "X-API-Key",
-                paramType: "string",
-                required: true,
-                description: "Your secret API key",
-              },
-              { type: "h2", text: "Path parameters", id: "customers-get-path" },
-              {
-                type: "param",
-                name: "customer_id",
-                paramType: "uuid",
-                required: true,
-                description: "The customer ID",
-              },
-              { type: "h2", text: "Response", id: "customers-get-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Customer returned",
-                body: `{
-  "data": {
-    "id": "2c8e91c2-e848-43d2-888c-b680c6909453",
-    "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
-    "email": "amaka@startup.ng",
-    "name": "Amaka Obi",
-    "external_id": "user_12345",
-    "created_at": "2026-06-26T00:00:00Z"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "response",
-                status: 404,
-                description: "Customer not found",
-                body: `{ "error": { "code": "not_found", "message": "the requested resource does not exist" }, "meta": { ... } }`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Also available at GET /v1/customers/{customer_id} with Authorization: Bearer {access_token} for dashboard use.",
-              },
-            ],
-          },
-          {
-            id: "ref-customers-portal",
-            label: "Generate portal token",
-            icon: "ti-user-circle",
-            method: "GET",
-            endpoint: "/v1/platform/customers/{customer_id}/portal-token",
-            blocks: [
-              {
-                type: "p",
-                text: "Generate a short-lived portal token. Redirect the customer to /portal?token=... so they can manage their own subscription.",
-              },
-              { type: "h2", text: "Headers", id: "portal-headers" },
-              {
-                type: "param",
-                name: "X-API-Key",
-                paramType: "string",
-                required: true,
-                description: "Your secret API key",
-              },
-              { type: "h2", text: "Path parameters", id: "portal-path" },
-              {
-                type: "param",
-                name: "customer_id",
-                paramType: "uuid",
-                required: true,
-                description: "The customer ID",
-              },
-              { type: "h2", text: "Response", id: "portal-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Portal token generated",
-                body: `{
-  "data": {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "expires_in": "3600"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "Portal tokens expire after 1 hour. Generate a fresh token each time the customer visits your billing page. Never store or reuse portal tokens.",
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "Checkout",
-        items: [
-          {
-            id: "ref-checkout",
-            label: "Create checkout",
+            id: "ref-platform-checkout",
+            label: "Start a subscription",
             icon: "ti-shopping-cart",
             method: "POST",
             endpoint: "/v1/platform/checkout",
             blocks: [
               {
-                type: "p",
-                text: "The primary integration endpoint. Finds or creates the customer, starts the subscription, creates a Nomba checkout session, and returns the checkout URL  all in one call.",
-              },
-              { type: "h2", text: "Headers", id: "checkout-headers" },
-              {
-                type: "param",
-                name: "X-API-Key",
-                paramType: "string",
-                required: true,
-                description:
-                  "Your secret API key (Platform API)  OR  Authorization: Bearer {token} (Dashboard API)",
-              },
-              {
-                type: "param",
-                name: "Content-Type",
-                paramType: "string",
-                required: true,
-                description: "application/json",
-              },
-              { type: "h2", text: "Body", id: "checkout-body" },
-              {
-                type: "param",
-                name: "email",
-                paramType: "string",
-                required: true,
-                description:
-                  "Customer email. Tori finds an existing customer or creates a new one.",
-              },
-              {
-                type: "param",
-                name: "plan_id",
-                paramType: "uuid",
-                required: true,
-                description: "ID of the plan to subscribe to",
-              },
-              {
-                type: "param",
-                name: "name",
-                paramType: "string",
-                required: false,
-                description: "Customer name  used if creating a new customer",
-              },
-              {
-                type: "param",
-                name: "external_id",
-                paramType: "string",
-                required: false,
-                description:
-                  "Your own user ID  stored on the customer record for lookups",
-              },
-              {
-                type: "param",
-                name: "idempotency_key",
-                paramType: "string",
-                required: false,
-                description:
-                  "Prevents duplicate subscriptions on network retries. Strongly recommended.",
-              },
-              {
-                type: "param",
-                name: "callback_url",
-                paramType: "string",
-                required: false,
-                description:
-                  "Where Nomba redirects the customer after payment. Defaults to Tori success page.",
-              },
-              { type: "h2", text: "Response", id: "checkout-response" },
-              {
-                type: "response",
-                status: 201,
-                description: "Subscription started, checkout URL ready",
-                body: `{
+                type: "endpoint",
+                method: "POST",
+                path: "/v1/platform/checkout",
+                summary: "Start a subscription",
+                description: "Creates a subscription and returns a Nomba checkout URL. Finds or creates the customer by email, starts the subscription, opens a Nomba checkout session with card tokenisation on, and returns the URL to redirect to — all in one call. Idempotent via idempotency_key, so a network retry on your side returns the original subscription instead of creating a duplicate.",
+                auth: "apiKeyAuth",
+                headers: [
+                  { name: "X-API-Key", type: "string", required: true, description: "Your live or test API key" },
+                ],
+                body: [
+                  { name: "email", type: "string", required: true, description: "Customer email address" },
+                  { name: "plan_id", type: "uuid", required: true, description: "The plan to subscribe to" },
+                  { name: "name", type: "string", required: false, description: "Customer name — used if creating a new customer" },
+                  { name: "external_id", type: "string", required: false, description: "Your internal customer ID" },
+                  { name: "idempotency_key", type: "string", required: false, description: "Prevents duplicate subscriptions on network retries" },
+                  { name: "callback_url", type: "string", required: false, description: "URL to redirect after payment" },
+                  { name: "promo_code", type: "string", required: false, description: "Promo code to apply a discount to the first charge" },
+                  { name: "metadata", type: "object", required: false, description: "Arbitrary key-value pairs stored on the subscription" },
+                ],
+                examples: {
+                  curl: `curl -X POST https://api-production-3847.up.railway.app/v1/platform/checkout \\
+  -H "X-API-Key: tori_live_..." \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "email": "amaka@school.ng",
+    "plan_id": "4436225d-2eef-4d7b-9fbc-1b299c0d1cac",
+    "external_id": "school_001",
+    "callback_url": "https://yourapp.ng/payment/success"
+  }'`,
+                  javascript: `const res = await fetch('https://api-production-3847.up.railway.app/v1/platform/checkout', {
+  method: 'POST',
+  headers: {
+    'X-API-Key': process.env.TORI_API_KEY,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'amaka@school.ng',
+    plan_id: '4436225d-2eef-4d7b-9fbc-1b299c0d1cac',
+    external_id: 'school_001',
+    callback_url: 'https://yourapp.ng/payment/success',
+  }),
+});
+const { data } = await res.json();
+window.location.href = data.checkout_url;`,
+                  go: `resp, err := http.Post(
+  "https://api-production-3847.up.railway.app/v1/platform/checkout",
+  "application/json",
+  strings.NewReader(\`{
+    "email": "amaka@school.ng",
+    "plan_id": "4436225d-2eef-4d7b-9fbc-1b299c0d1cac",
+    "external_id": "school_001"
+  }\`),
+)`,
+                  python: `import requests, os
+
+res = requests.post(
+  "https://api-production-3847.up.railway.app/v1/platform/checkout",
+  headers={"X-API-Key": os.environ["TORI_API_KEY"]},
+  json={
+    "email": "amaka@school.ng",
+    "plan_id": "4436225d-2eef-4d7b-9fbc-1b299c0d1cac",
+    "external_id": "school_001",
+  },
+)`,
+                },
+                responses: {
+                  "201": `{
   "data": {
-    "customer": {
-      "id": "2c8e91c2-e848-43d2-888c-b680c6909453",
-      "email": "amaka@startup.ng",
-      "name": "Amaka Obi",
-      "external_id": "user_12345",
-      "created_at": "2026-06-26T00:00:00Z"
-    },
     "subscription": {
       "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
-      "status": "TRIALING",
-      "current_period_start": "2026-06-26T00:00:00Z",
-      "current_period_end": "2026-07-10T00:00:00Z",
-      "trial_end": "2026-07-10T00:00:00Z",
-      "dunning_attempt": 0
+      "status": "PENDING_PAYMENT",
+      "plan_name": "Basic Monthly",
+      "plan_amount": 250000
     },
+    "checkout_url": "https://pay.nomba.com/checkout/abc123",
+    "tori_checkout_url": "https://frontend-production-e3be.up.railway.app/checkout/abc123",
     "customer_created": true,
-    "checkout_url": "https://pay.nomba.com/sandbox/QMoj...",
-    "requires_payment_method": true
+    "promo_applied": false
   },
   "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
 }`,
-              },
-              {
-                type: "response",
-                status: 400,
-                description: "Missing required field",
-                body: `{ "error": { "code": "missing_field", "message": "plan_id is required" }, "meta": { ... } }`,
-              },
-              {
-                type: "response",
-                status: 422,
-                description: "Plan is inactive",
-                body: `{ "error": { "code": "plan_inactive", "message": "this plan is no longer accepting new subscriptions" }, "meta": { ... } }`,
+                  "400": `{
+  "error": { "code": "missing_field", "message": "plan_id is required" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                  "401": `{
+  "error": { "code": "unauthorized", "message": "invalid or missing API key" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                  "422": `{
+  "error": { "code": "plan_inactive", "message": "this plan is no longer accepting new subscriptions" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                },
               },
               {
                 type: "callout",
                 variant: "warn",
-                text: "Always redirect the customer to checkout_url immediately  even during a free trial. This tokenises the card now so Tori can charge automatically at trial end. Without a tokenKey at trial end, the subscription moves to PAST_DUE.",
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "customer_created is true if a new customer was just created, false if an existing customer was matched by email. Use this to decide whether to send a welcome email.",
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "The identical flow is also available at POST /v1/checkout with Authorization: Bearer {access_token} — this is what the dashboard itself uses to start a subscription for a customer without going through the Platform API.",
+                text: "Always redirect the customer to checkout_url immediately — even during a free trial. This tokenises the card now so Tori can charge automatically at trial end.",
               },
             ],
           },
           {
-            id: "ref-checkout-regenerate",
-            label: "Regenerate checkout URL",
-            icon: "ti-refresh-dot",
-            method: "POST",
-            endpoint: "/v1/platform/subscriptions/{subscription_id}/checkout",
-            blocks: [
-              {
-                type: "p",
-                text: "Generates a fresh Nomba checkout URL for a subscription that never got a payment method on file — for example the original checkout link expired before the customer used it. Only works while the subscription has no tokenKey yet.",
-              },
-              {
-                type: "h2",
-                text: "Headers",
-                id: "checkout-regenerate-headers",
-              },
-              {
-                type: "param",
-                name: "X-API-Key",
-                paramType: "string",
-                required: true,
-                description: "Your secret API key",
-              },
-              {
-                type: "h2",
-                text: "Path parameters",
-                id: "checkout-regenerate-path",
-              },
-              {
-                type: "param",
-                name: "subscription_id",
-                paramType: "uuid",
-                required: true,
-                description: "The subscription ID",
-              },
-              { type: "h2", text: "Body", id: "checkout-regenerate-body" },
-              {
-                type: "param",
-                name: "callback_url",
-                paramType: "string",
-                required: false,
-                description:
-                  "Where Nomba redirects after payment. Defaults to Tori's success page",
-              },
-              {
-                type: "h2",
-                text: "Response",
-                id: "checkout-regenerate-response",
-              },
-              {
-                type: "response",
-                status: 200,
-                description: "New checkout URL generated",
-                body: `{
-  "data": {
-    "checkout_url": "https://pay.nomba.com/sandbox/newlink...",
-    "requires_payment_method": true,
-    "subscription_id": "f6ffcc85-1642-46ef-9624-32fe545ea947"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "response",
-                status: 422,
-                description: "Subscription already has a payment method",
-                body: `{ "error": { "code": "already_has_payment_method", "message": "this subscription already has a payment method on file" }, "meta": { ... } }`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Also available at POST /v1/subscriptions/{subscription_id}/checkout with Authorization: Bearer {access_token} for dashboard use.",
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "Subscriptions",
-        items: [
-          {
-            id: "ref-subs-create",
-            label: "Create subscription",
-            icon: "ti-plus",
-            method: "POST",
-            endpoint: "/v1/platform/subscriptions",
-            blocks: [
-              {
-                type: "p",
-                text: "Creates a subscription directly for an existing customer and plan, without creating a Nomba checkout session. Use POST /v1/platform/checkout instead unless you already have a tokenised payment method for this customer from elsewhere and only need the billing record.",
-              },
-              { type: "h2", text: "Headers", id: "subs-create-headers" },
-              {
-                type: "param",
-                name: "X-API-Key",
-                paramType: "string",
-                required: true,
-                description: "Your secret API key",
-              },
-              {
-                type: "param",
-                name: "Content-Type",
-                paramType: "string",
-                required: true,
-                description: "application/json",
-              },
-              { type: "h2", text: "Body", id: "subs-create-body" },
-              {
-                type: "param",
-                name: "customer_id",
-                paramType: "uuid",
-                required: true,
-                description: "An existing customer's ID",
-              },
-              {
-                type: "param",
-                name: "plan_id",
-                paramType: "uuid",
-                required: true,
-                description: "The plan to subscribe the customer to",
-              },
-              {
-                type: "param",
-                name: "idempotency_key",
-                paramType: "string",
-                required: false,
-                description:
-                  "Prevents duplicate subscriptions on network retries",
-              },
-              { type: "h2", text: "Response", id: "subs-create-response" },
-              {
-                type: "response",
-                status: 201,
-                description: "Subscription created",
-                body: `{
-  "data": {
-    "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
-    "customer_id": "2c8e91c2-...",
-    "plan_id": "afecaf33-...",
-    "status": "ACTIVE",
-    "current_period_start": "2026-06-26T00:00:00Z",
-    "current_period_end": "2026-07-26T00:00:00Z"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "This does not tokenise a payment method. A subscription created this way has no tokenKey to charge at renewal unless one already exists on the customer from a prior checkout. For new signups, use POST /v1/platform/checkout, which handles both in one call.",
-              },
-            ],
-          },
-          {
-            id: "ref-subs-list",
-            label: "List subscriptions",
-            icon: "ti-list",
-            method: "GET",
-            endpoint: "/v1/subscriptions",
-            blocks: [
-              {
-                type: "p",
-                text: "Returns all subscriptions for your account. Filter by status to find everything in a specific billing state.",
-              },
-              { type: "h2", text: "Headers", id: "subs-list-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Query parameters", id: "subs-list-query" },
-              {
-                type: "param",
-                name: "status",
-                paramType: "string",
-                required: false,
-                description:
-                  "Filter by state: TRIALING | ACTIVE | GRACE_PERIOD | PAST_DUE | DUNNING | PAUSED | SUSPENDED | CANCELLED",
-              },
-              {
-                type: "param",
-                name: "limit",
-                paramType: "integer",
-                required: false,
-                description: "Max results. Default 20",
-              },
-              {
-                type: "param",
-                name: "offset",
-                paramType: "integer",
-                required: false,
-                description: "Results to skip. Default 0",
-              },
-              { type: "h2", text: "Response", id: "subs-list-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Subscriptions returned",
-                body: `{
-  "data": [
-    {
-      "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
-      "customer_id": "2c8e91c2-...",
-      "plan_id": "afecaf33-...",
-      "status": "ACTIVE",
-      "current_period_start": "2026-06-26T00:00:00Z",
-      "current_period_end": "2026-07-26T00:00:00Z",
-      "cancel_at_period_end": false,
-      "dunning_attempt": 0
-    }
-  ],
-  "pagination": { "has_more": false, "total": 20 },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-            ],
-          },
-          {
-            id: "ref-subs-get",
+            id: "ref-platform-subs-get",
             label: "Get subscription",
             icon: "ti-refresh",
             method: "GET",
-            endpoint: "/v1/platform/subscriptions/{subscription_id}",
+            endpoint: "/v1/platform/subscriptions/{id}",
             blocks: [
-              { type: "p", text: "Fetch a single subscription by ID." },
-              { type: "h2", text: "Headers", id: "subs-get-headers" },
               {
-                type: "param",
-                name: "X-API-Key",
-                paramType: "string",
-                required: true,
-                description: "Your secret API key",
-              },
-              { type: "h2", text: "Path parameters", id: "subs-get-path" },
-              {
-                type: "param",
-                name: "subscription_id",
-                paramType: "uuid",
-                required: true,
-                description: "The subscription ID",
-              },
-              { type: "h2", text: "Response", id: "subs-get-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Subscription returned",
-                body: `{
+                type: "endpoint",
+                method: "GET",
+                path: "/v1/platform/subscriptions/{id}",
+                summary: "Get subscription status",
+                description: "Fetch a single subscription by ID — plan_name and plan_amount are denormalised onto the response so you don't need a second call to look up the plan.",
+                auth: "apiKeyAuth",
+                headers: [
+                  { name: "X-API-Key", type: "string", required: true, description: "Your live or test API key" },
+                ],
+                examples: {
+                  curl: `curl https://api-production-3847.up.railway.app/v1/platform/subscriptions/f6ffcc85-1642-46ef-9624-32fe545ea947 \\
+  -H "X-API-Key: tori_live_..."`,
+                  javascript: `const res = await fetch(
+  \`https://api-production-3847.up.railway.app/v1/platform/subscriptions/\${subscriptionId}\`,
+  { headers: { 'X-API-Key': process.env.TORI_API_KEY } },
+);
+const { data } = await res.json();`,
+                  go: `req, _ := http.NewRequest("GET",
+  "https://api-production-3847.up.railway.app/v1/platform/subscriptions/"+subscriptionID, nil)
+req.Header.Set("X-API-Key", apiKey)
+resp, err := http.DefaultClient.Do(req)`,
+                  python: `res = requests.get(
+  f"https://api-production-3847.up.railway.app/v1/platform/subscriptions/{subscription_id}",
+  headers={"X-API-Key": os.environ["TORI_API_KEY"]},
+)`,
+                },
+                responses: {
+                  "200": `{
   "data": {
     "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
-    "tenant_id": "2d9ff9ec-...",
-    "customer_id": "2c8e91c2-...",
-    "plan_id": "afecaf33-...",
+    "customer_id": "2c8e91c2-e848-43d2-888c-b680c6909453",
+    "plan_id": "4436225d-2eef-4d7b-9fbc-1b299c0d1cac",
+    "plan_name": "Basic Monthly",
+    "plan_amount": 250000,
     "status": "DUNNING",
     "current_period_start": "2026-06-26T00:00:00Z",
     "current_period_end": "2026-07-26T00:00:00Z",
@@ -3072,2716 +1435,1385 @@ curl https://api.tori.ng/v1/platform/checkout \\
     "dunning_attempt": 2,
     "next_retry_at": "2026-07-03T00:00:00Z",
     "cancel_at_period_end": false,
-    "created_at": "2026-06-26T00:00:00Z",
-    "updated_at": "2026-07-03T00:00:00Z"
+    "recovery_rail": "card"
   },
   "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
 }`,
-              },
-              {
-                type: "table",
-                headers: ["Field", "Description"],
-                rows: [
-                  ["status", "Current state  one of 8 values"],
-                  [
-                    "dunning_attempt",
-                    "Number of failed payment attempts. 0 = healthy",
-                  ],
-                  [
-                    "next_retry_at",
-                    "When next retry fires. null if not in dunning",
-                  ],
-                  ["trial_end", "When trial ends. null if no trial"],
-                ],
-              },
-              {
-                type: "response",
-                status: 404,
-                description: "Subscription not found",
-                body: `{ "error": { "code": "not_found", "message": "the requested resource does not exist" }, "meta": { ... } }`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Also available at GET /v1/subscriptions/{subscription_id} with Authorization: Bearer {access_token} for dashboard use.",
+                  "401": `{
+  "error": { "code": "unauthorized", "message": "invalid or missing API key" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                  "404": `{
+  "error": { "code": "not_found", "message": "the requested resource does not exist" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                },
               },
             ],
           },
           {
-            id: "ref-subs-cancel",
+            id: "ref-platform-subs-list",
+            label: "List subscriptions",
+            icon: "ti-list",
+            method: "GET",
+            endpoint: "/v1/platform/subscriptions",
+            blocks: [
+              {
+                type: "endpoint",
+                method: "GET",
+                path: "/v1/platform/subscriptions",
+                summary: "List subscriptions",
+                description: "Returns every subscription for your account, newest first. Filter by status to find everything in a specific billing state.",
+                auth: "apiKeyAuth",
+                headers: [
+                  { name: "X-API-Key", type: "string", required: true, description: "Your live or test API key" },
+                ],
+                query: [
+                  { name: "status", type: "string", required: false, description: "TRIALING | ACTIVE | GRACE_PERIOD | PAST_DUE | DUNNING | PAUSED | SUSPENDED | CANCELLED" },
+                  { name: "limit", type: "integer", required: false, description: "Max results. Default 20" },
+                  { name: "offset", type: "integer", required: false, description: "Results to skip. Default 0" },
+                ],
+                examples: {
+                  curl: `curl "https://api-production-3847.up.railway.app/v1/platform/subscriptions?status=ACTIVE&limit=20" \\
+  -H "X-API-Key: tori_live_..."`,
+                  javascript: `const res = await fetch(
+  'https://api-production-3847.up.railway.app/v1/platform/subscriptions?status=ACTIVE',
+  { headers: { 'X-API-Key': process.env.TORI_API_KEY } },
+);
+const { data } = await res.json();`,
+                  go: `req, _ := http.NewRequest("GET",
+  "https://api-production-3847.up.railway.app/v1/platform/subscriptions?status=ACTIVE", nil)
+req.Header.Set("X-API-Key", apiKey)`,
+                  python: `res = requests.get(
+  "https://api-production-3847.up.railway.app/v1/platform/subscriptions",
+  headers={"X-API-Key": os.environ["TORI_API_KEY"]},
+  params={"status": "ACTIVE"},
+)`,
+                },
+                responses: {
+                  "200": `{
+  "data": [
+    {
+      "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+      "customer_id": "2c8e91c2-...",
+      "plan_name": "Basic Monthly",
+      "plan_amount": 250000,
+      "status": "ACTIVE",
+      "current_period_end": "2026-07-26T00:00:00Z",
+      "cancel_at_period_end": false
+    }
+  ],
+  "pagination": { "has_more": false, "total": 1 },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                  "401": `{
+  "error": { "code": "unauthorized", "message": "invalid or missing API key" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                },
+              },
+            ],
+          },
+          {
+            id: "ref-platform-subs-cancel",
             label: "Cancel subscription",
             icon: "ti-x",
             method: "POST",
-            endpoint: "/v1/platform/subscriptions/{subscription_id}/cancel",
+            endpoint: "/v1/platform/subscriptions/{id}/cancel",
             blocks: [
               {
-                type: "p",
-                text: "Permanently cancel a subscription. This is terminal  cancelled subscriptions cannot be reactivated. If a customer wants to return, create a new subscription.",
-              },
-              { type: "h2", text: "Headers", id: "subs-cancel-headers" },
-              {
-                type: "param",
-                name: "X-API-Key",
-                paramType: "string",
-                required: true,
-                description: "Your secret API key",
-              },
-              { type: "h2", text: "Path parameters", id: "subs-cancel-path" },
-              {
-                type: "param",
-                name: "subscription_id",
-                paramType: "uuid",
-                required: true,
-                description: "The subscription ID",
-              },
-              { type: "h2", text: "Response", id: "subs-cancel-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Subscription cancelled",
-                body: `{ "data": { "id": "f6ffcc85-...", "status": "CANCELLED", "cancelled_at": "2026-06-26T00:00:00Z" }, "meta": { ... } }`,
-              },
-              {
-                type: "response",
-                status: 422,
-                description: "Already cancelled",
-                body: `{ "error": { "code": "invalid_transition", "message": "subscription is already cancelled" }, "meta": { ... } }`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Also available at POST /v1/subscriptions/{subscription_id}/cancel with Authorization: Bearer {access_token} for dashboard use. Accepts the same optional immediate body field.",
-              },
-            ],
-          },
-          {
-            id: "ref-subs-pause",
-            label: "Pause subscription",
-            icon: "ti-player-pause",
-            method: "POST",
-            endpoint: "/v1/platform/subscriptions/{subscription_id}/pause",
-            blocks: [
-              {
-                type: "p",
-                text: "Pause billing. No charges fire until resumed. The subscription record is kept.",
-              },
-              { type: "h2", text: "Headers", id: "subs-pause-headers" },
-              {
-                type: "param",
-                name: "X-API-Key",
-                paramType: "string",
-                required: true,
-                description: "Your secret API key",
-              },
-              { type: "h2", text: "Response", id: "subs-pause-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Subscription paused",
-                body: `{ "data": { "id": "f6ffcc85-...", "status": "PAUSED" }, "meta": { ... } }`,
-              },
-              {
-                type: "response",
-                status: 422,
-                description: "Invalid transition",
-                body: `{ "error": { "code": "invalid_transition", "message": "only active subscriptions can be paused" }, "meta": { ... } }`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Also available at POST /v1/subscriptions/{subscription_id}/pause with Authorization: Bearer {access_token} for dashboard use.",
-              },
-            ],
-          },
-          {
-            id: "ref-subs-resume",
-            label: "Resume subscription",
-            icon: "ti-player-play",
-            method: "POST",
-            endpoint: "/v1/platform/subscriptions/{subscription_id}/resume",
-            blocks: [
-              {
-                type: "p",
-                text: "Resume a paused subscription. Billing restarts on the next normal cycle.",
-              },
-              { type: "h2", text: "Headers", id: "subs-resume-headers" },
-              {
-                type: "param",
-                name: "X-API-Key",
-                paramType: "string",
-                required: true,
-                description: "Your secret API key",
-              },
-              { type: "h2", text: "Response", id: "subs-resume-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Subscription resumed",
-                body: `{ "data": { "id": "f6ffcc85-...", "status": "ACTIVE" }, "meta": { ... } }`,
-              },
-              {
-                type: "response",
-                status: 422,
-                description: "Not paused",
-                body: `{ "error": { "code": "invalid_transition", "message": "only paused subscriptions can be resumed" }, "meta": { ... } }`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Also available at POST /v1/subscriptions/{subscription_id}/resume with Authorization: Bearer {access_token} for dashboard use.",
-              },
-            ],
-          },
-          {
-            id: "ref-plan-change",
-            label: "Change plan",
-            icon: "ti-arrows-exchange",
-            method: "PATCH",
-            endpoint: "/v1/platform/subscriptions/{subscription_id}/plan",
-            blocks: [
-              {
-                type: "p",
-                text: "Change the subscription's plan mid-cycle with exact proration. Both credit and charge are written to the immutable ledger.",
-              },
-              { type: "h2", text: "Headers", id: "plan-change-headers" },
-              {
-                type: "param",
-                name: "X-API-Key",
-                paramType: "string",
-                required: true,
-                description: "Your secret API key",
-              },
-              {
-                type: "param",
-                name: "Content-Type",
-                paramType: "string",
-                required: true,
-                description: "application/json",
-              },
-              { type: "h2", text: "Body", id: "plan-change-body" },
-              {
-                type: "param",
-                name: "plan_id",
-                paramType: "uuid",
-                required: true,
-                description: "ID of the new plan to switch to",
-              },
-              { type: "h2", text: "Response", id: "plan-change-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Plan changed with proration",
-                body: `{
-  "data": {
-    "subscription": { "id": "f6ffcc85-...", "plan_id": "5c9a4529-...", "status": "ACTIVE" },
-    "proration": { "credit_kobo": 750000, "charge_kobo": 1125000, "net_adjustment_kobo": 375000 },
-    "description": "Upgraded plan  proration charge applied"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "response",
-                status: 422,
-                description: "Plan change not allowed",
-                body: `{ "error": { "code": "invalid_status", "message": "plan changes are only allowed on active subscriptions" }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-subs-transitions",
-            label: "Transition history",
-            icon: "ti-history",
-            method: "GET",
-            endpoint: "/v1/subscriptions/{subscription_id}/transitions",
-            blocks: [
-              {
-                type: "p",
-                text: "Every time a subscription's status changes, Tori writes a row recording the old status, the new status, why it changed, and who or what triggered it. This endpoint returns that history, newest first.",
-              },
-              { type: "h2", text: "Headers", id: "subs-transitions-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Path parameters",
-                id: "subs-transitions-path",
-              },
-              {
-                type: "param",
-                name: "subscription_id",
-                paramType: "uuid",
-                required: true,
-                description: "The subscription ID",
-              },
-              {
-                type: "h2",
-                text: "Response",
-                id: "subs-transitions-response",
-              },
-              {
-                type: "response",
-                status: 200,
-                description: "Transition history returned",
-                body: `{
-  "data": [
-    {
-      "id": "9c1e2f3a-4b5c-6d7e-8f90-1a2b3c4d5e6f",
-      "subscription_id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
-      "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
-      "from_status": "ACTIVE",
-      "to_status": "GRACE_PERIOD",
-      "reason": "status_update",
-      "actor": "system",
-      "created_at": "2026-07-03T00:00:00Z"
-    },
-    {
-      "id": "7a8b9c0d-1e2f-3a4b-5c6d-7e8f90a1b2c3",
-      "subscription_id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
-      "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
-      "from_status": "TRIALING",
-      "to_status": "ACTIVE",
-      "reason": "renewal",
-      "actor": "system",
-      "created_at": "2026-06-26T00:00:00Z"
-    }
-  ],
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "table",
-                headers: ["Field", "Meaning"],
-                rows: [
-                  [
-                    "reason",
-                    "'status_update' for a direct status change, 'renewal' for a billing cycle renewal",
-                  ],
-                  [
-                    "actor",
-                    "'system' for anything triggered by a webhook or a background job. There is no operator-attributed actor yet",
-                  ],
+                type: "endpoint",
+                method: "POST",
+                path: "/v1/platform/subscriptions/{id}/cancel",
+                summary: "Cancel a subscription",
+                description: "Cancels a subscription. Defaults to end-of-period — access continues until current_period_end. Pass immediate: true to cancel right now instead.",
+                auth: "apiKeyAuth",
+                headers: [
+                  { name: "X-API-Key", type: "string", required: true, description: "Your live or test API key" },
                 ],
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "This history starts from the day the feature shipped. Status changes that happened before that are not backfilled, only new ones are recorded going forward.",
-              },
-            ],
-          },
-          {
-            id: "ref-subs-retry-now",
-            label: "Retry now",
-            icon: "ti-refresh-dot",
-            method: "POST",
-            endpoint: "/v1/subscriptions/{subscription_id}/retry-now",
-            blocks: [
-              {
-                type: "p",
-                text: "An operator action from the Recovery Command Center. Queues an immediate payment retry instead of waiting for the next scheduled dunning attempt (Day 3, 7, 14, or 21).",
-              },
-              { type: "h2", text: "Headers", id: "subs-retry-now-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "subs-retry-now-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Retry queued",
-                body: `{ "data": { "message": "retry queued", "subscription_id": "f6ffcc85-..." }, "meta": { ... } }`,
-              },
-              {
-                type: "p",
-                text: "The retry runs on the next worker poll cycle, not synchronously in this request. Check the subscription's status or its transition history a few seconds later to see the outcome.",
+                body: [
+                  { name: "immediate", type: "boolean", required: false, description: "Cancel right now instead of at period end. Defaults to false" },
+                ],
+                examples: {
+                  curl: `curl -X POST https://api-production-3847.up.railway.app/v1/platform/subscriptions/f6ffcc85-.../cancel \\
+  -H "X-API-Key: tori_live_..."`,
+                  javascript: `const res = await fetch(
+  \`https://api-production-3847.up.railway.app/v1/platform/subscriptions/\${subscriptionId}/cancel\`,
+  { method: 'POST', headers: { 'X-API-Key': process.env.TORI_API_KEY } },
+);`,
+                  go: `req, _ := http.NewRequest("POST",
+  "https://api-production-3847.up.railway.app/v1/platform/subscriptions/"+subscriptionID+"/cancel", nil)
+req.Header.Set("X-API-Key", apiKey)`,
+                  python: `res = requests.post(
+  f"https://api-production-3847.up.railway.app/v1/platform/subscriptions/{subscription_id}/cancel",
+  headers={"X-API-Key": os.environ["TORI_API_KEY"]},
+)`,
+                },
+                responses: {
+                  "200": `{
+  "data": { "id": "f6ffcc85-...", "status": "ACTIVE", "cancel_at_period_end": true },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                  "401": `{
+  "error": { "code": "unauthorized", "message": "invalid or missing API key" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                  "404": `{
+  "error": { "code": "not_found", "message": "the requested resource does not exist" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                },
               },
             ],
           },
           {
-            id: "ref-subs-send-pay-link",
-            label: "Send pay link",
-            icon: "ti-link",
-            method: "POST",
-            endpoint: "/v1/subscriptions/{subscription_id}/send-pay-link",
+            id: "ref-platform-customers-get",
+            label: "Get customer",
+            icon: "ti-user",
+            method: "GET",
+            endpoint: "/v1/platform/customers/{id}",
             blocks: [
               {
-                type: "p",
-                text: "An operator action for when card retries and mandate charges have both failed. Marks the subscription's recovery rail as manual and fires a payment.action_required webhook with a fresh checkout link, so you can email or message the customer directly.",
-              },
-              {
-                type: "h2",
-                text: "Headers",
-                id: "subs-send-pay-link-headers",
-              },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Response",
-                id: "subs-send-pay-link-response",
-              },
-              {
-                type: "response",
-                status: 200,
-                description: "Pay link webhook queued",
-                body: `{ "data": { "message": "pay link webhook queued", "subscription_id": "f6ffcc85-..." }, "meta": { ... } }`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Handle payment.action_required in your webhook handler the same way you handle dunning.started: show the customer a payment prompt using the checkout link in the event payload.",
-              },
-            ],
-          },
-          {
-            id: "ref-subs-recover",
-            label: "Recover subscription",
-            icon: "ti-first-aid-kit",
-            method: "POST",
-            endpoint: "/v1/subscriptions/{subscription_id}/recover",
-            blocks: [
-              {
-                type: "p",
-                text: "Manually move a SUSPENDED subscription back to ACTIVE. Use this after you have confirmed payment out of band, for example the customer paid by bank transfer and told you directly.",
-              },
-              { type: "h2", text: "Headers", id: "subs-recover-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "subs-recover-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Subscription reactivated",
-                body: `{ "data": { "id": "f6ffcc85-...", "status": "ACTIVE" }, "meta": { ... } }`,
-              },
-              {
-                type: "response",
-                status: 422,
-                description: "Not suspended",
-                body: `{ "error": { "code": "invalid_transition", "message": "only suspended subscriptions can be manually recovered" }, "meta": { ... } }`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Also available at POST /v1/platform/subscriptions/{subscription_id}/recover with an X-API-Key.",
-              },
-            ],
-          },
-          {
-            id: "ref-subs-refund",
-            label: "Issue refund",
-            icon: "ti-receipt-refund",
-            method: "POST",
-            endpoint: "/v1/subscriptions/{subscription_id}/refund",
-            blocks: [
-              {
-                type: "p",
-                text: "Refunds a subscription's most recent paid charge through Nomba and records a REFUND entry in the ledger. Looks up the Nomba transactionId from the subscription's paid invoice — you never need to know it yourself.",
-              },
-              { type: "h2", text: "Headers", id: "subs-refund-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "param",
-                name: "Content-Type",
-                paramType: "string",
-                required: true,
-                description: "application/json",
-              },
-              { type: "h2", text: "Body", id: "subs-refund-body" },
-              {
-                type: "param",
-                name: "amount",
-                paramType: "integer",
-                required: false,
-                description:
-                  "Kobo amount to refund. Omit for a full refund of the charge",
-              },
-              {
-                type: "param",
-                name: "reason",
-                paramType: "string",
-                required: true,
-                description:
-                  "Shown on the ledger entry — required for every refund",
-              },
-              {
-                type: "param",
-                name: "invoice_id",
-                paramType: "uuid",
-                required: false,
-                description:
-                  "Refund a specific invoice instead of the most recent paid one",
-              },
-              { type: "h2", text: "Response", id: "subs-refund-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Refund issued and recorded",
-                body: `{
+                type: "endpoint",
+                method: "GET",
+                path: "/v1/platform/customers/{id}",
+                summary: "Get a customer",
+                description: "Fetch a single customer by their Tori ID.",
+                auth: "apiKeyAuth",
+                headers: [
+                  { name: "X-API-Key", type: "string", required: true, description: "Your live or test API key" },
+                ],
+                examples: {
+                  curl: `curl https://api-production-3847.up.railway.app/v1/platform/customers/2c8e91c2-e848-43d2-888c-b680c6909453 \\
+  -H "X-API-Key: tori_live_..."`,
+                  javascript: `const res = await fetch(
+  \`https://api-production-3847.up.railway.app/v1/platform/customers/\${customerId}\`,
+  { headers: { 'X-API-Key': process.env.TORI_API_KEY } },
+);
+const { data } = await res.json();`,
+                  go: `req, _ := http.NewRequest("GET",
+  "https://api-production-3847.up.railway.app/v1/platform/customers/"+customerID, nil)
+req.Header.Set("X-API-Key", apiKey)`,
+                  python: `res = requests.get(
+  f"https://api-production-3847.up.railway.app/v1/platform/customers/{customer_id}",
+  headers={"X-API-Key": os.environ["TORI_API_KEY"]},
+)`,
+                },
+                responses: {
+                  "200": `{
   "data": {
-    "refund": {
-      "subscription_id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
-      "nomba_transaction_id": "WEB-ONLINE_C-abc123",
-      "amount_kobo": 1500000,
-      "amount_naira": "₦15000.00",
-      "reason": "Customer requested downgrade credit",
-      "ledger_entry_id": "a1b2c3d4-...",
-      "status": "refunded",
-      "note": "Card refunds take T+7 business days. Use bank transfer for instant refunds."
-    }
+    "id": "2c8e91c2-e848-43d2-888c-b680c6909453",
+    "email": "amaka@school.ng",
+    "name": "Amaka Obi",
+    "external_id": "school_001",
+    "created_at": "2026-06-26T00:00:00Z"
   },
   "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
 }`,
+                  "401": `{
+  "error": { "code": "unauthorized", "message": "invalid or missing API key" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                  "404": `{
+  "error": { "code": "not_found", "message": "the requested resource does not exist" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                },
               },
+            ],
+          },
+          {
+            id: "ref-platform-customers-list",
+            label: "List customers",
+            icon: "ti-users",
+            method: "GET",
+            endpoint: "/v1/platform/customers",
+            blocks: [
               {
-                type: "response",
-                status: 422,
-                description: "No Nomba transaction ID on record",
-                body: `{ "error": { "code": "no_charge_ref", "message": "no Nomba transaction ID found for this subscription — cannot process refund" }, "meta": { ... } }`,
+                type: "endpoint",
+                method: "GET",
+                path: "/v1/platform/customers",
+                summary: "List customers",
+                description: "Returns every customer for your account, newest first.",
+                auth: "apiKeyAuth",
+                headers: [
+                  { name: "X-API-Key", type: "string", required: true, description: "Your live or test API key" },
+                ],
+                query: [
+                  { name: "limit", type: "integer", required: false, description: "Max results per page. Default 50, max 100" },
+                  { name: "offset", type: "integer", required: false, description: "Results to skip. Default 0" },
+                  { name: "external_id", type: "string", required: false, description: "Filter by your own user ID" },
+                ],
+                examples: {
+                  curl: `curl "https://api-production-3847.up.railway.app/v1/platform/customers?limit=50" \\
+  -H "X-API-Key: tori_live_..."`,
+                  javascript: `const res = await fetch(
+  'https://api-production-3847.up.railway.app/v1/platform/customers?limit=50',
+  { headers: { 'X-API-Key': process.env.TORI_API_KEY } },
+);
+const { data } = await res.json();`,
+                  go: `req, _ := http.NewRequest("GET",
+  "https://api-production-3847.up.railway.app/v1/platform/customers?limit=50", nil)
+req.Header.Set("X-API-Key", apiKey)`,
+                  python: `res = requests.get(
+  "https://api-production-3847.up.railway.app/v1/platform/customers",
+  headers={"X-API-Key": os.environ["TORI_API_KEY"]},
+  params={"limit": 50},
+)`,
+                },
+                responses: {
+                  "200": `{
+  "data": [
+    { "id": "2c8e91c2-...", "email": "amaka@school.ng", "name": "Amaka Obi", "external_id": "school_001", "created_at": "2026-06-26T00:00:00Z" }
+  ],
+  "pagination": { "has_more": false, "total": 1 },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                  "401": `{
+  "error": { "code": "unauthorized", "message": "invalid or missing API key" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                },
               },
+            ],
+          },
+          {
+            id: "ref-platform-portal-token",
+            label: "Generate portal token",
+            icon: "ti-user-circle",
+            method: "GET",
+            endpoint: "/v1/platform/customers/{id}/portal-token",
+            blocks: [
               {
-                type: "callout",
-                variant: "info",
-                text: "Also available at POST /v1/platform/subscriptions/{subscription_id}/refund with an X-API-Key.",
+                type: "endpoint",
+                method: "GET",
+                path: "/v1/platform/customers/{id}/portal-token",
+                summary: "Generate a customer portal token",
+                description: "Issues a one-hour scoped JWT that lets this specific customer view, pause, resume, or cancel their own subscription through /v1/portal/* — without a support ticket and without you building any of that UI yourself. Alternative to the OTP login flow in Section 4, for when you already have the customer logged into your own product and just want to embed the portal.",
+                auth: "apiKeyAuth",
+                headers: [
+                  { name: "X-API-Key", type: "string", required: true, description: "Your live or test API key" },
+                ],
+                examples: {
+                  curl: `curl https://api-production-3847.up.railway.app/v1/platform/customers/2c8e91c2-.../portal-token \\
+  -H "X-API-Key: tori_live_..."`,
+                  javascript: `const res = await fetch(
+  \`https://api-production-3847.up.railway.app/v1/platform/customers/\${customerId}/portal-token\`,
+  { headers: { 'X-API-Key': process.env.TORI_API_KEY } },
+);
+const { data } = await res.json();
+// redirect to: https://yourapp.ng/billing?token=\${data.token}`,
+                  go: `req, _ := http.NewRequest("GET",
+  "https://api-production-3847.up.railway.app/v1/platform/customers/"+customerID+"/portal-token", nil)
+req.Header.Set("X-API-Key", apiKey)`,
+                  python: `res = requests.get(
+  f"https://api-production-3847.up.railway.app/v1/platform/customers/{customer_id}/portal-token",
+  headers={"X-API-Key": os.environ["TORI_API_KEY"]},
+)`,
+                },
+                responses: {
+                  "200": `{
+  "data": { "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...", "expires_in": "3600" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                  "401": `{
+  "error": { "code": "unauthorized", "message": "invalid or missing API key" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                },
               },
               {
                 type: "callout",
                 variant: "warn",
-                text: "Card refunds through Nomba take T+7 business days to reach the customer. The ledger entry is written immediately regardless — the REFUND row reflects that a refund was issued, not that funds have already landed on the customer's card.",
+                text: "Portal tokens expire after 1 hour. Generate a fresh one each time the customer visits your billing page — never store or reuse them.",
               },
             ],
           },
-        ],
-      },
-      {
-        group: "Invoices",
-        items: [
           {
-            id: "ref-invoices-list",
-            label: "List invoices",
-            icon: "ti-receipt",
+            id: "ref-platform-plans-list",
+            label: "List plans",
+            icon: "ti-list",
             method: "GET",
-            endpoint: "/v1/invoices",
+            endpoint: "/v1/platform/plans",
             blocks: [
               {
-                type: "p",
-                text: "Returns all invoices for your account. Filter by status to find open, paid, or voided invoices.",
-              },
-              { type: "h2", text: "Headers", id: "invoices-list-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Query parameters",
-                id: "invoices-list-query",
-              },
-              {
-                type: "param",
-                name: "status",
-                paramType: "string",
-                required: false,
-                description: "draft | open | paid | void | uncollectible",
-              },
-              {
-                type: "param",
-                name: "limit",
-                paramType: "integer",
-                required: false,
-                description: "Max results. Default 50",
-              },
-              { type: "h2", text: "Response", id: "invoices-list-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Invoices returned",
-                body: `{
+                type: "endpoint",
+                method: "GET",
+                path: "/v1/platform/plans",
+                summary: "List your plans",
+                description: "Returns every pricing plan on your account. Create plans from the dashboard — plans are reusable, so you'll typically call this to populate a pricing page rather than creating them from your integration.",
+                auth: "apiKeyAuth",
+                headers: [
+                  { name: "X-API-Key", type: "string", required: true, description: "Your live or test API key" },
+                ],
+                examples: {
+                  curl: `curl https://api-production-3847.up.railway.app/v1/platform/plans \\
+  -H "X-API-Key: tori_live_..."`,
+                  javascript: `const res = await fetch('https://api-production-3847.up.railway.app/v1/platform/plans', {
+  headers: { 'X-API-Key': process.env.TORI_API_KEY },
+});
+const { data } = await res.json();`,
+                  go: `req, _ := http.NewRequest("GET",
+  "https://api-production-3847.up.railway.app/v1/platform/plans", nil)
+req.Header.Set("X-API-Key", apiKey)`,
+                  python: `res = requests.get(
+  "https://api-production-3847.up.railway.app/v1/platform/plans",
+  headers={"X-API-Key": os.environ["TORI_API_KEY"]},
+)`,
+                },
+                responses: {
+                  "200": `{
   "data": [
     {
-      "id": "bb7a9109-5b64-40b1-afe6-7b8197163ad9",
-      "subscription_id": "f938d703-...",
-      "customer_id": "7eeeec64-...",
+      "id": "4436225d-2eef-4d7b-9fbc-1b299c0d1cac",
+      "name": "Basic Monthly",
       "amount": 250000,
       "currency": "NGN",
-      "status": "paid",
-      "due_date": "2026-06-23T00:00:00Z",
-      "paid_at": "2026-06-24T00:00:00Z",
-      "nomba_charge_ref": "WEB-ONLINE_C-abc123",
-      "line_items": [{ "description": "Basic  monthly billing", "amount": 250000, "currency": "NGN" }],
-      "created_at": "2026-06-23T00:00:00Z"
+      "interval": "monthly",
+      "trial_period_days": 0,
+      "is_active": true
     }
   ],
-  "pagination": { "has_more": false, "total": 20 },
+  "pagination": { "has_more": false, "total": 1 },
   "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
 }`,
-              },
-              {
-                type: "table",
-                headers: ["Status", "Meaning"],
-                rows: [
-                  ["draft", "Created but not yet finalised"],
-                  ["open", "Issued, payment pending"],
-                  [
-                    "paid",
-                    "Payment received  paid_at and nomba_charge_ref populated",
-                  ],
-                  ["void", "Voided  subscription cancelled before payment"],
-                  ["uncollectible", "Dunning exhausted, payment unrecoverable"],
-                ],
-              },
-            ],
-          },
-          {
-            id: "ref-invoices-get",
-            label: "Get invoice",
-            icon: "ti-file-invoice",
-            method: "GET",
-            endpoint: "/v1/invoices/{invoice_id}",
-            blocks: [
-              { type: "p", text: "Fetch a single invoice by ID." },
-              { type: "h2", text: "Headers", id: "invoices-get-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Path parameters", id: "invoices-get-path" },
-              {
-                type: "param",
-                name: "invoice_id",
-                paramType: "uuid",
-                required: true,
-                description: "The invoice ID",
-              },
-              { type: "h2", text: "Response", id: "invoices-get-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Invoice returned",
-                body: `{
-  "data": {
-    "id": "bb7a9109-...", "subscription_id": "f938d703-...", "customer_id": "7eeeec64-...",
-    "amount": 250000, "currency": "NGN", "status": "paid",
-    "due_date": "2026-06-23T00:00:00Z", "paid_at": "2026-06-24T00:00:00Z",
-    "line_items": [{ "description": "Basic  monthly billing", "amount": 250000, "currency": "NGN" }]
-  },
-  "meta": { ... }
-}`,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "Ledger",
-        items: [
-          {
-            id: "ref-ledger-list",
-            label: "List entries",
-            icon: "ti-book",
-            method: "GET",
-            endpoint: "/v1/ledger",
-            blocks: [
-              {
-                type: "p",
-                text: "Returns all ledger entries for your account in a date range, newest first. The ledger is append-only  no entries are ever edited or deleted.",
-              },
-              { type: "h2", text: "Headers", id: "ledger-list-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Query parameters", id: "ledger-list-query" },
-              {
-                type: "param",
-                name: "from",
-                paramType: "string",
-                required: false,
-                description: "Start date in YYYY-MM-DD format",
-              },
-              {
-                type: "param",
-                name: "to",
-                paramType: "string",
-                required: false,
-                description: "End date in YYYY-MM-DD format",
-              },
-              {
-                type: "param",
-                name: "limit",
-                paramType: "integer",
-                required: false,
-                description: "Max results. Default 50",
-              },
-              { type: "h2", text: "Response", id: "ledger-list-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Ledger entries returned",
-                body: `{
-  "data": [
-    {
-      "id": "a1b2c3d4-...", "entry_type": "CHARGE", "direction": "DEBIT",
-      "amount": 1500000, "currency": "NGN",
-      "description": "Subscription renewal  month 1",
-      "subscription_id": "f6ffcc85-...", "customer_id": "2c8e91c2-...",
-      "created_at": "2026-06-26T00:00:00Z"
-    }
-  ],
-  "pagination": { "has_more": false, "total": 44 },
+                  "401": `{
+  "error": { "code": "unauthorized", "message": "invalid or missing API key" },
   "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
 }`,
+                },
               },
             ],
           },
           {
-            id: "ref-ledger-get",
-            label: "Get ledger entry",
+            id: "ref-platform-plans-get",
+            label: "Get a plan",
             icon: "ti-file-text",
             method: "GET",
-            endpoint: "/v1/ledger/{entry_id}",
+            endpoint: "/v1/platform/plans/{id}",
             blocks: [
               {
-                type: "p",
-                text: "Fetch a single ledger entry by ID.",
-              },
-              { type: "h2", text: "Headers", id: "ledger-get-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Path parameters", id: "ledger-get-path" },
-              {
-                type: "param",
-                name: "entry_id",
-                paramType: "uuid",
-                required: true,
-                description: "The ledger entry ID",
-              },
-              { type: "h2", text: "Response", id: "ledger-get-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Ledger entry returned",
-                body: `{
+                type: "endpoint",
+                method: "GET",
+                path: "/v1/platform/plans/{id}",
+                summary: "Get a plan",
+                description: "Fetch a single pricing plan by ID.",
+                auth: "apiKeyAuth",
+                headers: [
+                  { name: "X-API-Key", type: "string", required: true, description: "Your live or test API key" },
+                ],
+                examples: {
+                  curl: `curl https://api-production-3847.up.railway.app/v1/platform/plans/4436225d-2eef-4d7b-9fbc-1b299c0d1cac \\
+  -H "X-API-Key: tori_live_..."`,
+                  javascript: `const res = await fetch(
+  \`https://api-production-3847.up.railway.app/v1/platform/plans/\${planId}\`,
+  { headers: { 'X-API-Key': process.env.TORI_API_KEY } },
+);
+const { data } = await res.json();`,
+                  go: `req, _ := http.NewRequest("GET",
+  "https://api-production-3847.up.railway.app/v1/platform/plans/"+planID, nil)
+req.Header.Set("X-API-Key", apiKey)`,
+                  python: `res = requests.get(
+  f"https://api-production-3847.up.railway.app/v1/platform/plans/{plan_id}",
+  headers={"X-API-Key": os.environ["TORI_API_KEY"]},
+)`,
+                },
+                responses: {
+                  "200": `{
   "data": {
-    "id": "a1b2c3d4-...", "entry_type": "CHARGE", "direction": "DEBIT",
-    "amount": 1500000, "currency": "NGN",
-    "description": "Subscription renewal  month 1",
-    "subscription_id": "f6ffcc85-...", "customer_id": "2c8e91c2-...",
-    "idempotency_key": "renewal-f6ffcc85-2026-07",
-    "created_at": "2026-06-26T00:00:00Z"
+    "id": "4436225d-2eef-4d7b-9fbc-1b299c0d1cac",
+    "name": "Basic Monthly",
+    "amount": 250000,
+    "currency": "NGN",
+    "interval": "monthly",
+    "trial_period_days": 0,
+    "is_active": true
   },
-  "meta": { ... }
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
 }`,
-              },
-              {
-                type: "response",
-                status: 404,
-                description: "Entry not found",
-                body: `{ "error": { "code": "not_found", "message": "the requested resource does not exist" }, "meta": { ... } }`,
+                  "404": `{
+  "error": { "code": "not_found", "message": "the requested resource does not exist" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                },
               },
             ],
           },
           {
-            id: "ref-ledger-monthly",
-            label: "Monthly revenue",
-            icon: "ti-calendar-stats",
-            method: "GET",
-            endpoint: "/v1/ledger/monthly",
+            id: "ref-platform-payment-link-checkout",
+            label: "Collect a one-time payment",
+            icon: "ti-link",
+            method: "POST",
+            endpoint: "/v1/platform/payment-links/{id}/checkout",
             blocks: [
               {
-                type: "p",
-                text: "Returns net revenue grouped by calendar month for a date range. Powers the monthly trend chart on the Finance dashboard page.",
-              },
-              { type: "h2", text: "Headers", id: "ledger-monthly-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Query parameters",
-                id: "ledger-monthly-query",
-              },
-              {
-                type: "param",
-                name: "from",
-                paramType: "string",
-                required: false,
-                description: "Start date YYYY-MM-DD. Defaults to 12 months ago",
-              },
-              {
-                type: "param",
-                name: "to",
-                paramType: "string",
-                required: false,
-                description: "End date YYYY-MM-DD. Defaults to today",
-              },
-              { type: "h2", text: "Response", id: "ledger-monthly-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Monthly breakdown returned, oldest first",
-                body: `{
-  "data": [
-    { "month": "2026-05", "gross_kobo": 12500000, "refunds_kobo": 0, "net_kobo": 12500000 },
-    { "month": "2026-06", "gross_kobo": 18750000, "refunds_kobo": 750000, "net_kobo": 18000000 }
-  ],
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-            ],
-          },
-          {
-            id: "ref-ledger-summary",
-            label: "Ledger summary",
-            icon: "ti-chart-pie",
-            method: "GET",
-            endpoint: "/v1/ledger/summary",
-            blocks: [
-              {
-                type: "p",
-                text: "Returns aggregated totals for a period. This is the source of all revenue dashboard numbers.",
-              },
-              { type: "h2", text: "Headers", id: "ledger-summary-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Query parameters",
-                id: "ledger-summary-query",
-              },
-              {
-                type: "param",
-                name: "from",
-                paramType: "string",
-                required: true,
-                description: "Start date YYYY-MM-DD",
-              },
-              {
-                type: "param",
-                name: "to",
-                paramType: "string",
-                required: true,
-                description: "End date YYYY-MM-DD",
-              },
-              { type: "h2", text: "Response", id: "ledger-summary-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Summary returned",
-                body: `{
+                type: "endpoint",
+                method: "POST",
+                path: "/v1/platform/payment-links/{id}/checkout",
+                summary: "Collect a one-time payment via a payment link",
+                description: "Starts a Nomba checkout for a payment link you created in the dashboard — no subscription or plan involved. Same shape as the subscription checkout above: get back a checkout_url, redirect the customer there. Payment links can also be shared as bare, unauthenticated URLs — see the Payment Links section in the docs for the public /v1/payment-links/{id}/pay endpoint, which needs no API key at all.",
+                auth: "apiKeyAuth",
+                headers: [
+                  { name: "X-API-Key", type: "string", required: true, description: "Your live or test API key" },
+                ],
+                body: [
+                  { name: "email", type: "string", required: false, description: "Customer email, prefilled on the Nomba checkout" },
+                ],
+                examples: {
+                  curl: `curl -X POST https://api-production-3847.up.railway.app/v1/platform/payment-links/7ca2eaf5-.../checkout \\
+  -H "X-API-Key: tori_live_..." \\
+  -H "Content-Type: application/json" \\
+  -d '{ "email": "amaka@school.ng" }'`,
+                  javascript: `const res = await fetch(
+  \`https://api-production-3847.up.railway.app/v1/platform/payment-links/\${linkId}/checkout\`,
+  {
+    method: 'POST',
+    headers: {
+      'X-API-Key': process.env.TORI_API_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email: 'amaka@school.ng' }),
+  },
+);
+const { data } = await res.json();
+window.location.href = data.checkout_url;`,
+                  go: `resp, err := http.Post(
+  "https://api-production-3847.up.railway.app/v1/platform/payment-links/"+linkID+"/checkout",
+  "application/json",
+  strings.NewReader(\`{"email": "amaka@school.ng"}\`),
+)`,
+                  python: `res = requests.post(
+  f"https://api-production-3847.up.railway.app/v1/platform/payment-links/{link_id}/checkout",
+  headers={"X-API-Key": os.environ["TORI_API_KEY"]},
+  json={"email": "amaka@school.ng"},
+)`,
+                },
+                responses: {
+                  "201": `{
   "data": {
-    "total_charged": 91500000,
-    "total_refunded": 750000,
-    "total_credits_applied": 0,
-    "net_revenue": 90750000,
-    "entry_count": 44,
-    "currency": "NGN"
+    "checkout_url": "https://pay.nomba.com/sandbox/QMoj...",
+    "tori_checkout_url": "https://frontend-production-e3be.up.railway.app/checkout/QMoj...",
+    "reference": "pl_7ca2eaf5-a4cb-4852-8d7a-f389de2ef1d0_19ffb1f0656737ba",
+    "title": "ClassPay Setup Fee",
+    "amount_kobo": 500000,
+    "merchant_name": "ClassPay"
   },
   "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
 }`,
+                  "401": `{
+  "error": { "code": "unauthorized", "message": "invalid or missing API key" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                  "422": `{
+  "error": { "code": "link_inactive", "message": "this payment link is no longer active" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                },
               },
             ],
           },
         ],
       },
+      // ═══════════════════════════════════════════════════════
+      // WEBHOOKS
+      // ═══════════════════════════════════════════════════════
       {
         group: "Webhooks",
         items: [
           {
-            id: "ref-webhooks-create",
-            label: "Register endpoint",
-            icon: "ti-plus",
-            method: "POST",
-            endpoint: "/v1/webhooks/endpoints",
+            id: "webhooks-overview",
+            label: "Overview & signature",
+            icon: "ti-webhook",
             blocks: [
               {
                 type: "p",
-                text: "Register a URL to receive webhook deliveries. The response includes a signing secret  save it immediately, it is shown once.",
-              },
-              { type: "h2", text: "Headers", id: "webhooks-create-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
+                text: "Register a URL in the dashboard (Webhooks → Add endpoint) and Tori POSTs a JSON payload to it for every billing event below. The payload shape is always the same envelope: an event_type string and a data object whose contents depend on the event.",
               },
               {
-                type: "param",
-                name: "Content-Type",
-                paramType: "string",
-                required: true,
-                description: "application/json",
-              },
-              { type: "h2", text: "Body", id: "webhooks-create-body" },
-              {
-                type: "param",
-                name: "url",
-                paramType: "string",
-                required: true,
-                description: "Your HTTPS endpoint URL",
-              },
-              {
-                type: "param",
-                name: "events",
-                paramType: "array",
-                required: false,
-                description: `List of event types to subscribe to. ["*"] subscribes to all events.`,
-              },
-              { type: "h2", text: "Response", id: "webhooks-create-response" },
-              {
-                type: "response",
-                status: 201,
-                description: "Endpoint registered  secret shown once",
-                body: `{
-  "data": {
-    "endpoint": {
-      "id": "ep_abc123-...", "url": "https://yourapp.ng/webhooks/tori",
-      "is_active": true, "api_version": "2026-06-01", "created_at": "2026-06-26T00:00:00Z"
-    },
-    "secret": "whsec_a1b2c3d4e5f...."
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+                type: "code",
+                lang: "json",
+                code: `{
+  "event_type": "subscription.activated",
+  "data": { "...": "..." }
 }`,
+              },
+              { type: "h2", text: "Verify the signature", id: "webhook-sig" },
+              {
+                type: "p",
+                text: "Every request carries an X-Tori-Signature header — HMAC-SHA256 over the raw request body, using the signing secret shown once when you registered the endpoint. Verify it before trusting the payload, using a timing-safe comparison, not ==.",
+              },
+              {
+                type: "code",
+                lang: "javascript",
+                code: `app.post('/webhooks/tori', (req, res) => {
+  const sig = req.headers['x-tori-signature'];
+  const expected = 'sha256=' + crypto
+    .createHmac('sha256', process.env.TORI_WEBHOOK_SECRET)
+    .update(req.body) // raw body, not the parsed object
+    .digest('hex');
+
+  if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))) {
+    return res.status(401).send('Invalid signature');
+  }
+
+  const { event_type, data } = JSON.parse(req.body);
+  // ... handle event_type
+  res.status(200).send('ok'); // always 200 immediately, handle async
+});`,
               },
               {
                 type: "callout",
                 variant: "warn",
-                text: "The webhook secret is shown exactly once. If you lose it, delete the endpoint and create a new one.",
+                text: "Return 200 immediately, before doing any slow work. Tori retries failed deliveries at 5 minutes, 30 minutes, 2 hours, and 6 hours — after 10 consecutive failures in 24 hours the endpoint is auto-disabled, so a slow handler that times out looks identical to a dead one.",
               },
             ],
           },
           {
-            id: "ref-webhooks-update",
-            label: "Update endpoint",
-            icon: "ti-edit",
-            method: "PATCH",
-            endpoint: "/v1/webhooks/endpoints/{endpoint_id}",
+            id: "webhook-subscription-activated",
+            label: "subscription.activated",
+            icon: "ti-circle-check",
             blocks: [
               {
-                type: "p",
-                text: "Change an endpoint's URL, its subscribed events, or toggle it active. Toggling is how you manually re-enable an endpoint the circuit breaker disabled after 10 consecutive failures.",
-              },
-              { type: "h2", text: "Headers", id: "webhooks-update-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Path parameters",
-                id: "webhooks-update-path",
-              },
-              {
-                type: "param",
-                name: "endpoint_id",
-                paramType: "uuid",
-                required: true,
-                description: "The webhook endpoint's ID",
-              },
-              { type: "h2", text: "Body", id: "webhooks-update-body" },
-              {
-                type: "param",
-                name: "url",
-                paramType: "string",
-                required: false,
-                description: "New destination URL",
-              },
-              {
-                type: "param",
-                name: "events",
-                paramType: "array",
-                required: false,
-                description: `New list of subscribed event types. ["*"] for all events`,
-              },
-              {
-                type: "param",
-                name: "is_active",
-                paramType: "boolean",
-                required: false,
-                description:
-                  "Set false to pause deliveries, true to re-enable after a circuit-breaker trip",
-              },
-              { type: "h2", text: "Response", id: "webhooks-update-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Endpoint updated",
-                body: `{ "data": { "id": "ep_abc123-...", "url": "https://yourapp.ng/webhooks/tori-v2", "is_active": true }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-webhooks-list",
-            label: "List endpoints",
-            icon: "ti-list",
-            method: "GET",
-            endpoint: "/v1/webhooks/endpoints",
-            blocks: [
-              {
-                type: "p",
-                text: "Returns all registered webhook endpoints for your account.",
-              },
-              { type: "h2", text: "Headers", id: "webhooks-list-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "webhooks-list-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Endpoints returned",
-                body: `{
-  "data": [{ "id": "ep_abc123-...", "url": "https://yourapp.ng/webhooks/tori", "is_active": true, "api_version": "2026-06-01" }],
-  "meta": { ... }
-}`,
-              },
-            ],
-          },
-          {
-            id: "ref-webhooks-logs",
-            label: "Delivery logs",
-            icon: "ti-clipboard-list",
-            method: "GET",
-            endpoint: "/v1/webhooks/logs",
-            blocks: [
-              {
-                type: "p",
-                text: "Returns all webhook delivery attempts, newest first. Each shows event type, delivery status, attempt count, and response from your server.",
-              },
-              { type: "h2", text: "Headers", id: "webhooks-logs-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "webhooks-logs-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Delivery logs returned",
-                body: `{
-  "data": [
-    { "id": "del_xyz789-...", "endpoint_id": "ep_abc123-...", "event_type": "payment.succeeded", "status": "delivered", "attempt_count": 1, "response_status": 200, "created_at": "2026-06-26T00:00:00Z" },
-    { "id": "del_xyz790-...", "event_type": "payment.failed", "status": "failed", "attempt_count": 3, "response_status": 500, "created_at": "2026-06-26T00:00:00Z" }
-  ],
-  "meta": { ... }
-}`,
-              },
-            ],
-          },
-          {
-            id: "ref-webhooks-retry",
-            label: "Retry delivery",
-            icon: "ti-refresh",
-            method: "POST",
-            endpoint: "/v1/webhooks/logs/{delivery_id}/retry",
-            blocks: [
-              {
-                type: "p",
-                text: "Immediately re-attempt a failed webhook delivery. Useful when your server was temporarily down.",
-              },
-              { type: "h2", text: "Headers", id: "webhooks-retry-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Path parameters",
-                id: "webhooks-retry-path",
-              },
-              {
-                type: "param",
-                name: "delivery_id",
-                paramType: "uuid",
-                required: true,
-                description: "The delivery log ID",
-              },
-              { type: "h2", text: "Response", id: "webhooks-retry-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Retry queued",
-                body: `{ "data": { "status": "queued" }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-webhooks-delete",
-            label: "Delete endpoint",
-            icon: "ti-trash",
-            method: "DELETE",
-            endpoint: "/v1/webhooks/endpoints/{endpoint_id}",
-            blocks: [
-              {
-                type: "p",
-                text: "Delete a webhook endpoint and all associated delivery logs.",
-              },
-              { type: "h2", text: "Headers", id: "webhooks-delete-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "webhooks-delete-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Endpoint deleted",
-                body: `{ "data": { "status": "deleted" }, "meta": { ... } }`,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "Team Management",
-        items: [
-          {
-            id: "ref-team-list",
-            label: "List members",
-            icon: "ti-users-group",
-            method: "GET",
-            endpoint: "/v1/team/members",
-            blocks: [
-              {
-                type: "p",
-                text: "Returns every active member of your team plus every invitation that has not been accepted yet. The tenant owner is a member too, with role owner.",
-              },
-              { type: "h2", text: "Headers", id: "team-list-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "team-list-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Members and invitations returned",
-                body: `{
-  "data": {
-    "members": [
-      {
-        "id": "cc6307db-a4a1-4a7e-9d61-742a6d1641b8",
-        "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
-        "email": "dev@tori.ng",
-        "name": "Tori Demo",
-        "role": "owner",
-        "status": "active",
-        "last_login_at": "2026-07-05T09:12:04.881Z",
-        "created_at": "2026-06-30T23:44:16.663Z",
-        "updated_at": "2026-07-05T09:12:04.881Z"
-      }
-    ],
-    "invitations": [
-      {
-        "id": "d1e2f3a4-b5c6-7d8e-9f01-2a3b4c5d6e7f",
-        "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
-        "email": "newdev@startup.ng",
-        "role": "developer",
-        "expires_at": "2026-07-08T09:00:00Z",
-        "created_at": "2026-07-05T09:00:00Z"
-      }
-    ]
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "table",
-                headers: ["Role", "Can do"],
-                rows: [
-                  ["owner", "Everything. Cannot be removed"],
-                  ["admin", "Everything except removing the owner"],
-                  [
-                    "developer",
-                    "Manage plans, customers, subscriptions, API keys, webhooks",
-                  ],
-                  ["viewer", "Read-only access to the dashboard"],
+                type: "webhookEvent",
+                event: "subscription.activated",
+                firesWhen: "Trial ends and the first charge succeeds, or a no-trial checkout completes",
+                description: "The customer has paid. Grant access now.",
+                payload: [
+                  { name: "id", type: "uuid", description: "Subscription ID" },
+                  { name: "customer_id", type: "uuid", description: "The customer this subscription belongs to" },
+                  { name: "plan_id", type: "uuid", description: "The plan being billed" },
+                  { name: "status", type: "string", description: "Always ACTIVE for this event" },
+                  { name: "current_period_start", type: "string", description: "ISO-8601 timestamp" },
+                  { name: "current_period_end", type: "string", description: "ISO-8601 timestamp — when the next charge is due" },
                 ],
-              },
-            ],
-          },
-          {
-            id: "ref-team-invite",
-            label: "Invite a member",
-            icon: "ti-user-plus",
-            method: "POST",
-            endpoint: "/v1/team/members/invite",
-            blocks: [
-              {
-                type: "p",
-                text: "Sends an email invite with a link to accept-invite on your dashboard. The invite token is valid for 72 hours.",
-              },
-              { type: "h2", text: "Headers", id: "team-invite-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Body", id: "team-invite-body" },
-              {
-                type: "param",
-                name: "email",
-                paramType: "string",
-                required: true,
-                description: "The teammate's email address",
-              },
-              {
-                type: "param",
-                name: "role",
-                paramType: "string",
-                required: false,
-                description:
-                  "owner | admin | developer | viewer. Defaults to developer",
-              },
-              { type: "h2", text: "Response", id: "team-invite-response" },
-              {
-                type: "response",
-                status: 201,
-                description: "Invitation created and emailed",
-                body: `{
+                example: `{
+  "event_type": "subscription.activated",
   "data": {
-    "id": "d1e2f3a4-b5c6-7d8e-9f01-2a3b4c5d6e7f",
-    "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
-    "email": "newdev@startup.ng",
-    "role": "developer",
-    "token": "9f8e7d6c5b4a3928f1e0d9c8b7a695847362514f",
-    "expires_at": "2026-07-08T09:00:00Z",
-    "created_at": "2026-07-05T09:00:00Z"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+    "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+    "customer_id": "2c8e91c2-e848-43d2-888c-b680c6909453",
+    "plan_id": "4436225d-2eef-4d7b-9fbc-1b299c0d1cac",
+    "status": "ACTIVE",
+    "current_period_start": "2026-07-08T00:00:00Z",
+    "current_period_end": "2026-08-08T00:00:00Z"
+  }
 }`,
               },
-              {
-                type: "response",
-                status: 400,
-                description: "Already a member",
-                body: `{ "error": { "code": "already_member", "message": "this email is already a team member" }, "meta": { ... } }`,
-              },
             ],
           },
           {
-            id: "ref-team-role",
-            label: "Update member role",
-            icon: "ti-shield-check",
-            method: "PATCH",
-            endpoint: "/v1/team/members/{member_id}/role",
+            id: "webhook-payment-succeeded",
+            label: "payment.succeeded",
+            icon: "ti-cash",
             blocks: [
               {
-                type: "p",
-                text: "Change what a team member is allowed to do.",
-              },
-              { type: "h2", text: "Headers", id: "team-role-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Body", id: "team-role-body" },
-              {
-                type: "param",
-                name: "role",
-                paramType: "string",
-                required: true,
-                description: "owner | admin | developer | viewer",
-              },
-              { type: "h2", text: "Response", id: "team-role-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Role updated",
-                body: `{ "data": { "id": "cc6307db-...", "role": "admin" }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-team-remove",
-            label: "Remove member",
-            icon: "ti-user-minus",
-            method: "DELETE",
-            endpoint: "/v1/team/members/{member_id}",
-            blocks: [
-              {
-                type: "p",
-                text: "Removes a team member's access. The workspace owner cannot be removed this way.",
-              },
-              { type: "h2", text: "Headers", id: "team-remove-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "team-remove-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Member removed",
-                body: `{ "data": { "status": "removed" }, "meta": { ... } }`,
-              },
-              {
-                type: "response",
-                status: 400,
-                description: "Tried to remove the owner",
-                body: `{ "error": { "code": "cannot_remove_owner", "message": "workspace owner cannot be removed" }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-team-revoke-invite",
-            label: "Revoke invitation",
-            icon: "ti-mail-x",
-            method: "DELETE",
-            endpoint: "/v1/team/invitations/{invitation_id}",
-            blocks: [
-              {
-                type: "p",
-                text: "Cancels a pending invitation before it is accepted. The invite link stops working immediately.",
-              },
-              {
-                type: "h2",
-                text: "Headers",
-                id: "team-revoke-invite-headers",
-              },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Response",
-                id: "team-revoke-invite-response",
-              },
-              {
-                type: "response",
-                status: 200,
-                description: "Invitation revoked",
-                body: `{ "data": { "status": "revoked" }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-team-accept-invite",
-            label: "Accept invitation",
-            icon: "ti-check",
-            method: "POST",
-            endpoint: "/v1/team/invitations/accept",
-            blocks: [
-              {
-                type: "p",
-                text: "Public endpoint, no authentication required. This is what the accept-invite page on your dashboard calls when an invited teammate sets their name and password.",
-              },
-              { type: "h2", text: "Body", id: "team-accept-invite-body" },
-              {
-                type: "param",
-                name: "token",
-                paramType: "string",
-                required: true,
-                description: "The token from the invite email link",
-              },
-              {
-                type: "param",
-                name: "name",
-                paramType: "string",
-                required: false,
-                description: "The new member's display name",
-              },
-              {
-                type: "param",
-                name: "password",
-                paramType: "string",
-                required: true,
-                description: "Minimum 8 characters",
-              },
-              {
-                type: "h2",
-                text: "Response",
-                id: "team-accept-invite-response",
-              },
-              {
-                type: "response",
-                status: 201,
-                description: "Member created, invitation marked accepted",
-                body: `{ "data": { "message": "Invitation accepted. You can now log in." }, "meta": { ... } }`,
-              },
-              {
-                type: "response",
-                status: 400,
-                description: "Token invalid, expired, or already used",
-                body: `{ "error": { "code": "invitation_expired", "message": "this invitation has expired" }, "meta": { ... } }`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "After this call succeeds, the new member logs in through the normal POST /v1/auth/login with the email the invite was sent to. There is no separate member login endpoint.",
-              },
-            ],
-          },
-          {
-            id: "ref-team-audit-log",
-            label: "Audit log",
-            icon: "ti-clipboard-list",
-            method: "GET",
-            endpoint: "/v1/team/audit-log",
-            blocks: [
-              {
-                type: "p",
-                text: "Every admin action (invite, role change, removal) writes one row here with who did it, from what IP, and when.",
-              },
-              { type: "h2", text: "Headers", id: "team-audit-log-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "team-audit-log-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Audit log returned, newest first",
-                body: `{
+                type: "webhookEvent",
+                event: "payment.succeeded",
+                firesWhen: "Any charge clears — a normal renewal, or a dunning recovery",
+                description: "A renewal charge succeeded. Nothing for you to do beyond your own bookkeeping — access was already granted at subscription.activated and stays on.",
+                payload: [
+                  { name: "id", type: "uuid", description: "Subscription ID" },
+                  { name: "customer_id", type: "uuid", description: "The customer that was charged" },
+                  { name: "status", type: "string", description: "ACTIVE" },
+                  { name: "current_period_end", type: "string", description: "The new period end after this charge" },
+                ],
+                example: `{
+  "event_type": "payment.succeeded",
   "data": {
-    "data": [
-      {
-        "id": "5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b",
-        "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
-        "actor_email": "dev@tori.ng",
-        "action": "member.invited",
-        "target": "newdev@startup.ng",
-        "ip_address": "102.89.23.44",
-        "created_at": "2026-07-05T09:00:00Z"
-      }
-    ]
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+    "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+    "customer_id": "2c8e91c2-e848-43d2-888c-b680c6909453",
+    "status": "ACTIVE",
+    "current_period_end": "2026-09-08T00:00:00Z"
+  }
 }`,
               },
             ],
           },
-        ],
-      },
-      {
-        group: "Promo Codes",
-        items: [
           {
-            id: "ref-promo-create",
-            label: "Create promo code",
-            icon: "ti-discount",
-            method: "POST",
-            endpoint: "/v1/promo-codes",
+            id: "webhook-payment-failed",
+            label: "payment.failed",
+            icon: "ti-alert-circle",
             blocks: [
               {
-                type: "p",
-                text: "Create a discount code customers can redeem at checkout by passing promo_code on POST /v1/platform/checkout.",
-              },
-              { type: "h2", text: "Headers", id: "promo-create-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Body", id: "promo-create-body" },
-              {
-                type: "param",
-                name: "code",
-                paramType: "string",
-                required: true,
-                description:
-                  "4 to 20 letters and numbers. Tori uppercases it automatically, SAVE20 and save20 are the same code",
-              },
-              {
-                type: "param",
-                name: "description",
-                paramType: "string",
-                required: false,
-                description: "Internal note, not shown to the customer",
-              },
-              {
-                type: "param",
-                name: "discount_type",
-                paramType: "string",
-                required: true,
-                description: "percentage or fixed",
-              },
-              {
-                type: "param",
-                name: "discount_value",
-                paramType: "integer",
-                required: true,
-                description:
-                  "For percentage: 1 to 100. For fixed: kobo amount, minimum 100",
-              },
-              {
-                type: "param",
-                name: "plan_id",
-                paramType: "uuid",
-                required: false,
-                description:
-                  "Restrict the code to one plan. Omit for all plans",
-              },
-              {
-                type: "param",
-                name: "max_uses",
-                paramType: "integer",
-                required: false,
-                description: "Total redemptions allowed. Omit for unlimited",
-              },
-              {
-                type: "param",
-                name: "expires_at",
-                paramType: "string",
-                required: false,
-                description:
-                  "RFC3339 timestamp. Omit for a code that never expires",
-              },
-              { type: "h2", text: "Response", id: "promo-create-response" },
-              {
-                type: "response",
-                status: 201,
-                description: "Promo code created",
-                body: `{
+                type: "webhookEvent",
+                event: "payment.failed",
+                firesWhen: "A charge attempt fails — first failure, or any retry",
+                description: "A charge failed. Access should stay on for now — the first failure enters a silent 48-hour grace retry, so don't restrict access on the first payment.failed alone. Watch for dunning.exhausted to know when recovery has genuinely run out.",
+                payload: [
+                  { name: "id", type: "uuid", description: "Subscription ID" },
+                  { name: "customer_id", type: "uuid", description: "The customer whose charge failed" },
+                  { name: "status", type: "string", description: "GRACE_PERIOD, PAST_DUE, or DUNNING depending on attempt count" },
+                  { name: "dunning_attempt", type: "integer", description: "How many retries have been attempted so far" },
+                ],
+                example: `{
+  "event_type": "payment.failed",
   "data": {
-    "id": "f16df6ab-1e54-4f33-a91d-3182efa81a15",
-    "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97",
-    "code": "SAVE20",
-    "description": "Launch discount",
-    "discount_type": "percentage",
-    "discount_value": 20,
-    "plan_id": null,
-    "max_uses": null,
-    "use_count": 0,
-    "expires_at": null,
-    "is_active": true,
-    "created_at": "2026-07-05T01:08:47.056Z",
-    "updated_at": "2026-07-05T01:08:47.056Z"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+    "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+    "customer_id": "2c8e91c2-e848-43d2-888c-b680c6909453",
+    "status": "DUNNING",
+    "dunning_attempt": 1
+  }
 }`,
-              },
-              {
-                type: "response",
-                status: 409,
-                description: "Code already exists for this tenant",
-                body: `{ "error": { "code": "code_already_exists", "message": "a promo code with this code already exists" }, "meta": { ... } }`,
-              },
-              {
-                type: "response",
-                status: 400,
-                description: "Invalid discount value",
-                body: `{ "error": { "code": "invalid_discount_value", "message": "percentage discount must be between 1 and 100" }, "meta": { ... } }`,
               },
             ],
           },
           {
-            id: "ref-promo-list",
-            label: "List promo codes",
-            icon: "ti-list",
-            method: "GET",
-            endpoint: "/v1/promo-codes",
+            id: "webhook-dunning-started",
+            label: "dunning.started",
+            icon: "ti-refresh-alert",
             blocks: [
               {
-                type: "p",
-                text: "Returns every promo code for your account, active and inactive, newest first.",
-              },
-              { type: "h2", text: "Headers", id: "promo-list-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "promo-list-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Promo codes returned",
-                body: `{
-  "data": [
-    {
-      "id": "f16df6ab-1e54-4f33-a91d-3182efa81a15",
-      "code": "SAVE20",
-      "discount_type": "percentage",
-      "discount_value": 20,
-      "plan_id": null,
-      "max_uses": null,
-      "use_count": 1,
-      "expires_at": null,
-      "is_active": true,
-      "created_at": "2026-07-05T01:08:47.056Z"
-    }
-  ],
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+                type: "webhookEvent",
+                event: "dunning.started",
+                firesWhen: "The first scheduled dunning retry fires, after the silent grace-period retry has also failed",
+                description: "Retries are underway on the payday-aligned schedule (Day 3, 7, 14, 21). Good moment to show the customer a payment-failed banner in your own product, if you want to.",
+                payload: [
+                  { name: "id", type: "uuid", description: "Subscription ID" },
+                  { name: "customer_id", type: "uuid", description: "The customer being retried" },
+                  { name: "status", type: "string", description: "DUNNING" },
+                  { name: "next_retry_at", type: "string", description: "ISO-8601 timestamp of the next scheduled attempt" },
+                ],
+                example: `{
+  "event_type": "dunning.started",
+  "data": {
+    "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+    "customer_id": "2c8e91c2-e848-43d2-888c-b680c6909453",
+    "status": "DUNNING",
+    "next_retry_at": "2026-07-11T00:00:00Z"
+  }
 }`,
-              },
-              {
-                type: "p",
-                text: "The dashboard computes a display status from these fields: Active, Expired (past expires_at), Depleted (use_count reached max_uses), or Inactive (is_active is false). Tori does not send a status field, you derive it the same way.",
               },
             ],
           },
           {
-            id: "ref-promo-deactivate",
-            label: "Deactivate promo code",
+            id: "webhook-dunning-recovered",
+            label: "dunning.recovered",
+            icon: "ti-heart",
+            blocks: [
+              {
+                type: "webhookEvent",
+                event: "dunning.recovered",
+                firesWhen: "A retry succeeds after at least one prior failure",
+                description: "The customer paid on a retry. Restore full access if you restricted it on an earlier payment.failed or dunning.started.",
+                payload: [
+                  { name: "id", type: "uuid", description: "Subscription ID" },
+                  { name: "customer_id", type: "uuid", description: "The customer that recovered" },
+                  { name: "status", type: "string", description: "ACTIVE" },
+                  { name: "recovery_rail", type: "string", description: "Which rail recovered the charge — wallet, card, mandate, or manual" },
+                ],
+                example: `{
+  "event_type": "dunning.recovered",
+  "data": {
+    "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+    "customer_id": "2c8e91c2-e848-43d2-888c-b680c6909453",
+    "status": "ACTIVE",
+    "recovery_rail": "card"
+  }
+}`,
+              },
+            ],
+          },
+          {
+            id: "webhook-dunning-exhausted",
+            label: "dunning.exhausted",
+            icon: "ti-circle-x",
+            blocks: [
+              {
+                type: "webhookEvent",
+                event: "dunning.exhausted",
+                firesWhen: "Every configured retry attempt has failed — the subscription moves to SUSPENDED",
+                description: "Recovery has genuinely run out on every automatic rail. Revoke access now.",
+                payload: [
+                  { name: "id", type: "uuid", description: "Subscription ID" },
+                  { name: "customer_id", type: "uuid", description: "The customer to revoke access for" },
+                  { name: "status", type: "string", description: "SUSPENDED" },
+                  { name: "dunning_attempt", type: "integer", description: "Total retries attempted before giving up" },
+                ],
+                example: `{
+  "event_type": "dunning.exhausted",
+  "data": {
+    "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+    "customer_id": "2c8e91c2-e848-43d2-888c-b680c6909453",
+    "status": "SUSPENDED",
+    "dunning_attempt": 4
+  }
+}`,
+              },
+            ],
+          },
+          {
+            id: "webhook-payment-action-required",
+            label: "payment.action_required",
+            icon: "ti-hand-click",
+            blocks: [
+              {
+                type: "webhookEvent",
+                event: "payment.action_required",
+                firesWhen: "Recovery escalates to the manual pay-link rail — card and mandate retries are both exhausted",
+                description: "Automatic recovery has stopped. Email or message the customer the included checkout_url directly, or surface it in your product — this is the last rail before dunning.exhausted.",
+                payload: [
+                  { name: "id", type: "uuid", description: "Subscription ID" },
+                  { name: "customer_id", type: "uuid", description: "The customer who needs to pay manually" },
+                  { name: "status", type: "string", description: "DUNNING, recovery_rail is manual" },
+                  { name: "checkout_url", type: "string", description: "A fresh Nomba checkout link for the customer to pay directly" },
+                ],
+                example: `{
+  "event_type": "payment.action_required",
+  "data": {
+    "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+    "customer_id": "2c8e91c2-e848-43d2-888c-b680c6909453",
+    "status": "DUNNING",
+    "recovery_rail": "manual",
+    "checkout_url": "https://pay.nomba.com/checkout/xyz789"
+  }
+}`,
+              },
+            ],
+          },
+          {
+            id: "webhook-subscription-cancelled",
+            label: "subscription.cancelled",
             icon: "ti-ban",
-            method: "DELETE",
-            endpoint: "/v1/promo-codes/{promo_id}",
             blocks: [
               {
-                type: "p",
-                text: "Soft delete only. Sets is_active to false so the code can no longer be redeemed. There is no hard delete from the API or the dashboard, the code and its use_count history stay for record keeping.",
-              },
-              { type: "h2", text: "Headers", id: "promo-deactivate-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Path parameters",
-                id: "promo-deactivate-path",
-              },
-              {
-                type: "param",
-                name: "promo_id",
-                paramType: "uuid",
-                required: true,
-                description: "The promo code's ID",
-              },
-              {
-                type: "h2",
-                text: "Response",
-                id: "promo-deactivate-response",
-              },
-              {
-                type: "response",
-                status: 200,
-                description: "Promo code deactivated",
-                body: `{ "data": { "id": "f16df6ab-...", "is_active": false }, "meta": { ... } }`,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "Email Templates",
-        items: [
-          {
-            id: "ref-email-templates-list",
-            label: "List templates",
-            icon: "ti-mail",
-            method: "GET",
-            endpoint: "/v1/email-templates",
-            blocks: [
-              {
-                type: "p",
-                text: "Returns all 7 supported billing email events with their current configuration. Events you have not customised come back with use_default: true and Tori's built-in copy rendered with sample data, so the response is always ready to preview.",
-              },
-              {
-                type: "h2",
-                text: "Headers",
-                id: "email-templates-list-headers",
-              },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Response",
-                id: "email-templates-list-response",
-              },
-              {
-                type: "response",
-                status: 200,
-                description: "All 7 templates returned",
-                body: `{
-  "data": [
-    {
-      "event_type": "subscription.activated",
-      "label": "Welcome email",
-      "description": "Sent when a subscription activates: welcome, you're subscribed",
-      "is_enabled": true,
-      "use_default": true,
-      "subject": "Welcome to Pro",
-      "html_body": "<html>...</html>"
-    },
-    {
-      "event_type": "payment.succeeded",
-      "label": "Payment receipt",
-      "description": "Receipt with the amount charged and the next billing date",
-      "is_enabled": true,
-      "use_default": false,
-      "subject": "Your ClassPay receipt",
-      "html_body": "<html>...</html>"
-    }
-  ],
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "table",
-                headers: ["event_type", "Fires when"],
-                rows: [
-                  [
-                    "subscription.activated",
-                    "Trial ends and charge succeeds, or no-trial checkout completes",
-                  ],
-                  [
-                    "payment.succeeded",
-                    "Any charge goes through — renewal, dunning recovery, or first payment",
-                  ],
-                  ["payment.failed", "A charge attempt fails"],
-                  ["dunning.started", "The first dunning retry is scheduled"],
-                  [
-                    "payment.action_required",
-                    "Recovery escalates to a manual pay link",
-                  ],
-                  [
-                    "subscription.cancelled",
-                    "A subscription is permanently cancelled",
-                  ],
-                  [
-                    "trial.ending_soon",
-                    "3 days before a trial's trial_end, handled by its own scheduled job rather than the webhook dispatcher",
-                  ],
+                type: "webhookEvent",
+                event: "subscription.cancelled",
+                firesWhen: "A cancellation completes — either immediately, or when a deferred end-of-period cancellation reaches its period end",
+                description: "Access should end now — for an end-of-period cancellation, this fires exactly when the paid-for period runs out, not when the customer clicked cancel.",
+                payload: [
+                  { name: "id", type: "uuid", description: "Subscription ID" },
+                  { name: "customer_id", type: "uuid", description: "The customer to offboard" },
+                  { name: "status", type: "string", description: "CANCELLED" },
+                  { name: "cancelled_at", type: "string", description: "ISO-8601 timestamp of the actual cancellation" },
                 ],
-              },
-            ],
-          },
-          {
-            id: "ref-email-templates-update",
-            label: "Update template",
-            icon: "ti-edit",
-            method: "PUT",
-            endpoint: "/v1/email-templates/{event_type}",
-            blocks: [
-              {
-                type: "p",
-                text: "Configure one event's email: switch it between Tori's default copy and your own subject and HTML body, and enable or disable it entirely.",
-              },
-              {
-                type: "h2",
-                text: "Headers",
-                id: "email-templates-update-headers",
-              },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "param",
-                name: "Content-Type",
-                paramType: "string",
-                required: true,
-                description: "application/json",
-              },
-              {
-                type: "h2",
-                text: "Path parameters",
-                id: "email-templates-update-path",
-              },
-              {
-                type: "param",
-                name: "event_type",
-                paramType: "string",
-                required: true,
-                description:
-                  "One of the 7 supported event types, e.g. payment.succeeded",
-              },
-              { type: "h2", text: "Body", id: "email-templates-update-body" },
-              {
-                type: "param",
-                name: "use_default",
-                paramType: "boolean",
-                required: true,
-                description:
-                  "true to use Tori's built-in copy for this event, false to use subject and html_body below",
-              },
-              {
-                type: "param",
-                name: "subject",
-                paramType: "string",
-                required: false,
-                description:
-                  "Required when use_default is false. Supports {{customer_email}}, {{plan_name}}, {{amount}}, {{next_billing_date}}, {{pay_link}}, {{product_name}}",
-              },
-              {
-                type: "param",
-                name: "html_body",
-                paramType: "string",
-                required: false,
-                description:
-                  "Required when use_default is false. Same placeholders as subject",
-              },
-              {
-                type: "param",
-                name: "is_enabled",
-                paramType: "boolean",
-                required: true,
-                description:
-                  "false stops this event from sending an email at all, default or custom",
-              },
-              {
-                type: "h2",
-                text: "Response",
-                id: "email-templates-update-response",
-              },
-              {
-                type: "response",
-                status: 200,
-                description: "Template saved",
-                body: `{
+                example: `{
+  "event_type": "subscription.cancelled",
   "data": {
-    "event_type": "payment.succeeded",
-    "is_enabled": true,
-    "use_default": false,
-    "subject": "Your ClassPay receipt",
-    "html_body": "<html>...</html>"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+    "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+    "customer_id": "2c8e91c2-e848-43d2-888c-b680c6909453",
+    "status": "CANCELLED",
+    "cancelled_at": "2026-08-08T00:00:00Z"
+  }
 }`,
               },
+            ],
+          },
+          {
+            id: "webhook-subscription-paused",
+            label: "subscription.paused",
+            icon: "ti-player-pause",
+            blocks: [
               {
-                type: "response",
-                status: 400,
-                description: "Custom copy missing subject or body",
-                body: `{ "error": { "code": "missing_field", "message": "subject and html_body are required when use_default is false" }, "meta": { ... } }`,
+                type: "webhookEvent",
+                event: "subscription.paused",
+                firesWhen: "A customer or operator pauses a subscription",
+                description: "Billing has stopped. Whether to restrict access while paused is your call — Tori doesn't take a position on it.",
+                payload: [
+                  { name: "id", type: "uuid", description: "Subscription ID" },
+                  { name: "customer_id", type: "uuid", description: "The customer whose subscription paused" },
+                  { name: "status", type: "string", description: "PAUSED" },
+                ],
+                example: `{
+  "event_type": "subscription.paused",
+  "data": {
+    "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+    "customer_id": "2c8e91c2-e848-43d2-888c-b680c6909453",
+    "status": "PAUSED"
+  }
+}`,
               },
             ],
           },
           {
-            id: "ref-email-templates-test",
-            label: "Send test email",
-            icon: "ti-send",
-            method: "POST",
-            endpoint: "/v1/email-templates/{event_type}/test",
+            id: "webhook-subscription-resumed",
+            label: "subscription.resumed",
+            icon: "ti-player-play",
             blocks: [
               {
-                type: "p",
-                text: "Sends the configured template — default or custom, whichever is active — to your own tenant email, with sample billing data filled in. Useful for previewing exactly what a customer will see before you go live with custom copy.",
+                type: "webhookEvent",
+                event: "subscription.resumed",
+                firesWhen: "A paused subscription resumes",
+                description: "Billing has restarted, on a fresh period starting now — resuming never back-bills the paused months. Restore access if you'd restricted it.",
+                payload: [
+                  { name: "id", type: "uuid", description: "Subscription ID" },
+                  { name: "customer_id", type: "uuid", description: "The customer whose subscription resumed" },
+                  { name: "status", type: "string", description: "ACTIVE" },
+                  { name: "current_period_start", type: "string", description: "Always now — resuming fast-forwards to the current period" },
+                ],
+                example: `{
+  "event_type": "subscription.resumed",
+  "data": {
+    "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+    "customer_id": "2c8e91c2-e848-43d2-888c-b680c6909453",
+    "status": "ACTIVE",
+    "current_period_start": "2026-07-08T00:00:00Z"
+  }
+}`,
               },
+            ],
+          },
+          {
+            id: "webhook-payout-completed",
+            label: "payout.completed",
+            icon: "ti-building-bank",
+            blocks: [
               {
-                type: "h2",
-                text: "Headers",
-                id: "email-templates-test-headers",
+                type: "webhookEvent",
+                event: "payout.completed",
+                firesWhen: "A requested bank transfer withdrawal is confirmed by Nomba",
+                description: "Your payout landed. Useful if you reconcile payouts against your own accounting system automatically.",
+                payload: [
+                  { name: "id", type: "uuid", description: "Payout ID" },
+                  { name: "amount_kobo", type: "integer", description: "Amount transferred, in kobo" },
+                  { name: "bank_name", type: "string", description: "Destination bank" },
+                  { name: "status", type: "string", description: "completed" },
+                  { name: "completed_at", type: "string", description: "ISO-8601 timestamp" },
+                ],
+                example: `{
+  "event_type": "payout.completed",
+  "data": {
+    "id": "d1a2b3c4-5678-90ab-cdef-1234567890ab",
+    "amount_kobo": 1000000,
+    "bank_name": "Access Bank",
+    "status": "completed",
+    "completed_at": "2026-07-08T09:00:00Z"
+  }
+}`,
               },
+            ],
+          },
+          {
+            id: "webhook-payout-failed",
+            label: "payout.failed",
+            icon: "ti-alert-triangle",
+            blocks: [
               {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
+                type: "webhookEvent",
+                event: "payout.failed",
+                firesWhen: "A requested bank transfer fails on Nomba's side",
+                description: "The transfer didn't go through — check failure_reason and, if it's something fixable (wrong account details), let the operator retry from the dashboard.",
+                payload: [
+                  { name: "id", type: "uuid", description: "Payout ID" },
+                  { name: "amount_kobo", type: "integer", description: "Amount that failed to transfer, in kobo" },
+                  { name: "status", type: "string", description: "failed" },
+                  { name: "failure_reason", type: "string", description: "Why Nomba rejected the transfer" },
+                ],
+                example: `{
+  "event_type": "payout.failed",
+  "data": {
+    "id": "d1a2b3c4-5678-90ab-cdef-1234567890ab",
+    "amount_kobo": 1000000,
+    "status": "failed",
+    "failure_reason": "invalid account number"
+  }
+}`,
               },
+            ],
+          },
+          {
+            id: "webhook-payment-link-paid",
+            label: "payment_link.paid",
+            icon: "ti-link",
+            blocks: [
               {
-                type: "h2",
-                text: "Path parameters",
-                id: "email-templates-test-path",
-              },
-              {
-                type: "param",
-                name: "event_type",
-                paramType: "string",
-                required: true,
-                description: "One of the 7 supported event types",
-              },
-              {
-                type: "h2",
-                text: "Response",
-                id: "email-templates-test-response",
-              },
-              {
-                type: "response",
-                status: 200,
-                description: "Test email sent",
-                body: `{ "data": { "status": "sent", "sent_to": "ops@classpay.ng" }, "meta": { ... } }`,
-              },
-              {
-                type: "callout",
-                variant: "warn",
-                text: "Sent via Resend to your own tenant email address. On the Resend free tier this only delivers to the account owner's verified address — sending to arbitrary customer addresses requires a verified sending domain.",
+                type: "webhookEvent",
+                event: "payment_link.paid",
+                firesWhen: "A customer pays a payment link — either through your own Platform API checkout call, or by paying the bare shareable link directly",
+                description: "This is the only way to know a payment link was paid — a payment link isn't a subscription, so it never fires subscription.activated or payment.succeeded. If you're using payment links for something like a one-time onboarding fee, this is the event that tells you to unlock whatever that fee unlocks.",
+                payload: [
+                  { name: "payment_link_id", type: "uuid", description: "The payment link that was paid" },
+                  { name: "title", type: "string", description: "The link's title, e.g. \"Setup Fee\"" },
+                  { name: "amount_kobo", type: "integer", description: "Amount collected, in kobo" },
+                  { name: "currency", type: "string", description: "NGN" },
+                  { name: "reference", type: "string", description: "The Nomba order reference for this specific payment" },
+                  { name: "paid_at", type: "string", description: "ISO-8601 timestamp" },
+                ],
+                example: `{
+  "event_type": "payment_link.paid",
+  "data": {
+    "payment_link_id": "7ca2eaf5-a4cb-4852-8d7a-f389de2ef1d0",
+    "title": "ClassPay Setup Fee",
+    "amount_kobo": 500000,
+    "currency": "NGN",
+    "reference": "pl_7ca2eaf5-a4cb-4852-8d7a-f389de2ef1d0_19ffb1f0656737ba",
+    "paid_at": "2026-07-08T10:15:00Z"
+  }
+}`,
               },
             ],
           },
         ],
       },
+      // ═══════════════════════════════════════════════════════
+      // CUSTOMER PORTAL
+      // ═══════════════════════════════════════════════════════
       {
         group: "Customer Portal",
         items: [
           {
-            id: "ref-portal-get",
-            label: "Get portal data",
-            icon: "ti-user-circle",
-            method: "GET",
-            endpoint: "/v1/portal",
+            id: "ref-portal-request-otp",
+            label: "Request login code",
+            icon: "ti-mail",
+            method: "POST",
+            endpoint: "/v1/portal/auth/request-otp",
             blocks: [
               {
-                type: "p",
-                text: "Returns the customer and all of their non-cancelled subscriptions, each enriched with its plan. This is what the /portal page on your dashboard calls with the token generated by GET /v1/platform/customers/{customer_id}/portal-token.",
-              },
-              { type: "h2", text: "Query parameters", id: "portal-get-query" },
-              {
-                type: "param",
-                name: "token",
-                paramType: "string",
-                required: true,
-                description:
-                  "The portal token, passed as ?token=... or as an Authorization: Bearer header",
-              },
-              { type: "h2", text: "Response", id: "portal-get-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Portal data returned",
-                body: `{
-  "data": {
-    "customer": { "id": "2c8e91c2-...", "email": "amaka@startup.ng", "name": "Amaka Obi" },
-    "subscriptions": [
-      {
-        "id": "f6ffcc85-...", "status": "ACTIVE",
-        "current_period_end": "2026-07-26T00:00:00Z",
-        "plan": { "id": "afecaf33-...", "name": "Pro", "amount": 1500000, "interval": "monthly" }
-      }
-    ]
-  },
+                type: "endpoint",
+                method: "POST",
+                path: "/v1/portal/auth/request-otp",
+                summary: "Let a customer authenticate themselves",
+                description: "Public — no API key needed. Emails a 6-digit code to the customer's address on file, scoped to your tenant. Use this when the customer is arriving cold (an email link, a support conversation) with no existing session from your own product — if you already have the customer logged into your product, generating a portal token server-side (Platform API section above) is simpler and skips the email round-trip entirely.",
+                auth: "none",
+                body: [
+                  { name: "email", type: "string", required: true, description: "The customer's email address" },
+                  { name: "tenant_id", type: "uuid", required: true, description: "Your tenant ID" },
+                ],
+                examples: {
+                  curl: `curl -X POST https://api-production-3847.up.railway.app/v1/portal/auth/request-otp \\
+  -H "Content-Type: application/json" \\
+  -d '{ "email": "amaka@school.ng", "tenant_id": "2d9ff9ec-90db-41cf-9dd6-a5c92f054f97" }'`,
+                  javascript: `const res = await fetch('https://api-production-3847.up.railway.app/v1/portal/auth/request-otp', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: 'amaka@school.ng', tenant_id: TORI_TENANT_ID }),
+});`,
+                  go: `resp, err := http.Post(
+  "https://api-production-3847.up.railway.app/v1/portal/auth/request-otp",
+  "application/json",
+  strings.NewReader(\`{"email": "amaka@school.ng", "tenant_id": "2d9ff9ec-..."}\`),
+)`,
+                  python: `res = requests.post(
+  "https://api-production-3847.up.railway.app/v1/portal/auth/request-otp",
+  json={"email": "amaka@school.ng", "tenant_id": TORI_TENANT_ID},
+)`,
+                },
+                responses: {
+                  "200": `{
+  "data": { "status": "sent" },
   "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
 }`,
-              },
-              {
-                type: "response",
-                status: 401,
-                description: "Token invalid or expired",
-                body: `{ "error": { "code": "unauthorised", "message": "invalid or expired portal token" }, "meta": { ... } }`,
+                  "404": `{
+  "error": { "code": "not_found", "message": "no customer with this email" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                },
               },
             ],
           },
           {
-            id: "ref-portal-cancel",
-            label: "Cancel via portal",
+            id: "ref-portal-verify-otp",
+            label: "Verify login code",
+            icon: "ti-shield-check",
+            method: "POST",
+            endpoint: "/v1/portal/auth/verify-otp",
+            blocks: [
+              {
+                type: "endpoint",
+                method: "POST",
+                path: "/v1/portal/auth/verify-otp",
+                summary: "Verify the OTP and get a portal session",
+                description: "Public — no API key needed. Exchanges a valid, unused, unexpired code for a portal session token, usable on every other /v1/portal/* endpoint below.",
+                auth: "none",
+                body: [
+                  { name: "email", type: "string", required: true, description: "The customer's email address" },
+                  { name: "tenant_id", type: "uuid", required: true, description: "Your tenant ID" },
+                  { name: "code", type: "string", required: true, description: "The 6-digit code from the email" },
+                ],
+                examples: {
+                  curl: `curl -X POST https://api-production-3847.up.railway.app/v1/portal/auth/verify-otp \\
+  -H "Content-Type: application/json" \\
+  -d '{ "email": "amaka@school.ng", "tenant_id": "2d9ff9ec-...", "code": "482913" }'`,
+                  javascript: `const res = await fetch('https://api-production-3847.up.railway.app/v1/portal/auth/verify-otp', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: 'amaka@school.ng', tenant_id: TORI_TENANT_ID, code: '482913' }),
+});
+const { data } = await res.json();
+// data.token — pass as Authorization: Bearer <token> on every /v1/portal/* call`,
+                  go: `resp, err := http.Post(
+  "https://api-production-3847.up.railway.app/v1/portal/auth/verify-otp",
+  "application/json",
+  strings.NewReader(\`{"email": "amaka@school.ng", "tenant_id": "2d9ff9ec-...", "code": "482913"}\`),
+)`,
+                  python: `res = requests.post(
+  "https://api-production-3847.up.railway.app/v1/portal/auth/verify-otp",
+  json={"email": "amaka@school.ng", "tenant_id": TORI_TENANT_ID, "code": "482913"},
+)`,
+                },
+                responses: {
+                  "200": `{
+  "data": { "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                  "400": `{
+  "error": { "code": "invalid_code", "message": "code is incorrect, expired, or already used" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                },
+              },
+            ],
+          },
+          {
+            id: "ref-portal-subs-list",
+            label: "List my subscriptions",
+            icon: "ti-list",
+            method: "GET",
+            endpoint: "/v1/portal/subscriptions",
+            blocks: [
+              {
+                type: "endpoint",
+                method: "GET",
+                path: "/v1/portal/subscriptions",
+                summary: "The customer's own subscriptions",
+                description: "Returns every subscription belonging to the authenticated customer.",
+                auth: "portalToken",
+                headers: [
+                  { name: "Authorization", type: "string", required: true, description: "Bearer <portal_token>" },
+                ],
+                examples: {
+                  curl: `curl https://api-production-3847.up.railway.app/v1/portal/subscriptions \\
+  -H "Authorization: Bearer <portal_token>"`,
+                  javascript: `const res = await fetch('https://api-production-3847.up.railway.app/v1/portal/subscriptions', {
+  headers: { Authorization: \`Bearer \${portalToken}\` },
+});
+const { data } = await res.json();`,
+                  go: `req, _ := http.NewRequest("GET",
+  "https://api-production-3847.up.railway.app/v1/portal/subscriptions", nil)
+req.Header.Set("Authorization", "Bearer "+portalToken)`,
+                  python: `res = requests.get(
+  "https://api-production-3847.up.railway.app/v1/portal/subscriptions",
+  headers={"Authorization": f"Bearer {portal_token}"},
+)`,
+                },
+                responses: {
+                  "200": `{
+  "data": [
+    {
+      "id": "f6ffcc85-1642-46ef-9624-32fe545ea947",
+      "status": "ACTIVE",
+      "plan_name": "Basic Monthly",
+      "plan_amount": 250000,
+      "current_period_end": "2026-08-08T00:00:00Z"
+    }
+  ],
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                  "401": `{
+  "error": { "code": "unauthorized", "message": "invalid or expired portal token" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                },
+              },
+            ],
+          },
+          {
+            id: "ref-portal-subs-cancel",
+            label: "Cancel my subscription",
             icon: "ti-x",
             method: "POST",
-            endpoint: "/v1/portal/subscriptions/{subscription_id}/cancel",
+            endpoint: "/v1/portal/subscriptions/{id}/cancel",
             blocks: [
               {
-                type: "p",
-                text: "Customer self-service cancel. Always cancels at period end — access continues until current_period_end, matching how the dashboard's own cancel endpoint behaves for customer-initiated cancellations.",
-              },
-              {
-                type: "h2",
-                text: "Query parameters",
-                id: "portal-cancel-query",
-              },
-              {
-                type: "param",
-                name: "token",
-                paramType: "string",
-                required: true,
-                description: "The customer's portal token",
-              },
-              {
-                type: "h2",
-                text: "Path parameters",
-                id: "portal-cancel-path",
-              },
-              {
-                type: "param",
-                name: "subscription_id",
-                paramType: "uuid",
-                required: true,
-                description: "Must belong to the customer in the token",
-              },
-              { type: "h2", text: "Response", id: "portal-cancel-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Cancellation scheduled at period end",
-                body: `{ "data": { "id": "f6ffcc85-...", "status": "ACTIVE", "cancel_at_period_end": true }, "meta": { ... } }`,
-              },
-              {
-                type: "response",
-                status: 401,
-                description: "Subscription belongs to a different customer",
-                body: `{ "error": { "code": "unauthorised", "message": "subscription does not belong to this customer" }, "meta": { ... } }`,
+                type: "endpoint",
+                method: "POST",
+                path: "/v1/portal/subscriptions/{id}/cancel",
+                summary: "Customer self-service cancel",
+                description: "Always cancels at period end — access continues until current_period_end, matching how customer-initiated cancellation works everywhere else in Tori. The subscription must belong to the customer in the token.",
+                auth: "portalToken",
+                headers: [
+                  { name: "Authorization", type: "string", required: true, description: "Bearer <portal_token>" },
+                ],
+                examples: {
+                  curl: `curl -X POST https://api-production-3847.up.railway.app/v1/portal/subscriptions/f6ffcc85-.../cancel \\
+  -H "Authorization: Bearer <portal_token>"`,
+                  javascript: `const res = await fetch(
+  \`https://api-production-3847.up.railway.app/v1/portal/subscriptions/\${subscriptionId}/cancel\`,
+  { method: 'POST', headers: { Authorization: \`Bearer \${portalToken}\` } },
+);`,
+                  go: `req, _ := http.NewRequest("POST",
+  "https://api-production-3847.up.railway.app/v1/portal/subscriptions/"+subscriptionID+"/cancel", nil)
+req.Header.Set("Authorization", "Bearer "+portalToken)`,
+                  python: `res = requests.post(
+  f"https://api-production-3847.up.railway.app/v1/portal/subscriptions/{subscription_id}/cancel",
+  headers={"Authorization": f"Bearer {portal_token}"},
+)`,
+                },
+                responses: {
+                  "200": `{
+  "data": { "id": "f6ffcc85-...", "status": "ACTIVE", "cancel_at_period_end": true },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                  "401": `{
+  "error": { "code": "unauthorized", "message": "subscription does not belong to this customer" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                },
               },
             ],
           },
           {
-            id: "ref-portal-pause",
-            label: "Pause via portal",
-            icon: "ti-player-pause",
+            id: "ref-portal-update-payment-method",
+            label: "Update payment method",
+            icon: "ti-credit-card",
             method: "POST",
-            endpoint: "/v1/portal/subscriptions/{subscription_id}/pause",
+            endpoint: "/v1/portal/subscriptions/{id}/update-payment-method",
             blocks: [
               {
-                type: "p",
-                text: "Customer self-service pause. Same rules as the operator pause endpoint — only active subscriptions can be paused.",
-              },
-              {
-                type: "h2",
-                text: "Query parameters",
-                id: "portal-pause-query",
-              },
-              {
-                type: "param",
-                name: "token",
-                paramType: "string",
-                required: true,
-                description: "The customer's portal token",
-              },
-              { type: "h2", text: "Response", id: "portal-pause-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Subscription paused",
-                body: `{ "data": { "id": "f6ffcc85-...", "status": "PAUSED" }, "meta": { ... } }`,
+                type: "endpoint",
+                method: "POST",
+                path: "/v1/portal/subscriptions/{id}/update-payment-method",
+                summary: "Update the card on file",
+                description: "Opens a fresh Nomba tokenization checkout for this subscription. Redirect the customer to checkout_url — raw card data never touches Tori or your servers.",
+                auth: "portalToken",
+                headers: [
+                  { name: "Authorization", type: "string", required: true, description: "Bearer <portal_token>" },
+                ],
+                examples: {
+                  curl: `curl -X POST https://api-production-3847.up.railway.app/v1/portal/subscriptions/f6ffcc85-.../update-payment-method \\
+  -H "Authorization: Bearer <portal_token>"`,
+                  javascript: `const res = await fetch(
+  \`https://api-production-3847.up.railway.app/v1/portal/subscriptions/\${subscriptionId}/update-payment-method\`,
+  { method: 'POST', headers: { Authorization: \`Bearer \${portalToken}\` } },
+);
+const { data } = await res.json();
+window.location.href = data.checkout_url;`,
+                  go: `req, _ := http.NewRequest("POST",
+  "https://api-production-3847.up.railway.app/v1/portal/subscriptions/"+subscriptionID+"/update-payment-method", nil)
+req.Header.Set("Authorization", "Bearer "+portalToken)`,
+                  python: `res = requests.post(
+  f"https://api-production-3847.up.railway.app/v1/portal/subscriptions/{subscription_id}/update-payment-method",
+  headers={"Authorization": f"Bearer {portal_token}"},
+)`,
+                },
+                responses: {
+                  "200": `{
+  "data": { "checkout_url": "https://pay.nomba.com/checkout/def456" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                  "401": `{
+  "error": { "code": "unauthorized", "message": "invalid or expired portal token" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                },
               },
             ],
           },
           {
-            id: "ref-portal-resume",
-            label: "Resume via portal",
-            icon: "ti-player-play",
-            method: "POST",
-            endpoint: "/v1/portal/subscriptions/{subscription_id}/resume",
+            id: "ref-portal-invoices",
+            label: "List my invoices",
+            icon: "ti-receipt",
+            method: "GET",
+            endpoint: "/v1/portal/invoices",
             blocks: [
               {
-                type: "p",
-                text: "Customer self-service resume of a paused subscription.",
+                type: "endpoint",
+                method: "GET",
+                path: "/v1/portal/invoices",
+                summary: "The customer's own invoices",
+                description: "Returns every invoice belonging to the authenticated customer, newest first.",
+                auth: "portalToken",
+                headers: [
+                  { name: "Authorization", type: "string", required: true, description: "Bearer <portal_token>" },
+                ],
+                examples: {
+                  curl: `curl https://api-production-3847.up.railway.app/v1/portal/invoices \\
+  -H "Authorization: Bearer <portal_token>"`,
+                  javascript: `const res = await fetch('https://api-production-3847.up.railway.app/v1/portal/invoices', {
+  headers: { Authorization: \`Bearer \${portalToken}\` },
+});
+const { data } = await res.json();`,
+                  go: `req, _ := http.NewRequest("GET",
+  "https://api-production-3847.up.railway.app/v1/portal/invoices", nil)
+req.Header.Set("Authorization", "Bearer "+portalToken)`,
+                  python: `res = requests.get(
+  "https://api-production-3847.up.railway.app/v1/portal/invoices",
+  headers={"Authorization": f"Bearer {portal_token}"},
+)`,
+                },
+                responses: {
+                  "200": `{
+  "data": [
+    {
+      "id": "3ef83506-6d7d-42cb-bf8c-68cd1ca352df",
+      "amount": 250000,
+      "currency": "NGN",
+      "status": "paid",
+      "paid_at": "2026-07-08T00:00:00Z"
+    }
+  ],
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                  "401": `{
+  "error": { "code": "unauthorized", "message": "invalid or expired portal token" },
+  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+}`,
+                },
               },
-              {
-                type: "h2",
-                text: "Query parameters",
-                id: "portal-resume-query",
-              },
-              {
-                type: "param",
-                name: "token",
-                paramType: "string",
-                required: true,
-                description: "The customer's portal token",
-              },
-              { type: "h2", text: "Response", id: "portal-resume-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Subscription resumed",
-                body: `{ "data": { "id": "f6ffcc85-...", "status": "ACTIVE" }, "meta": { ... } }`,
-              },
+            ],
+          },
+        ],
+      },
+      // ═══════════════════════════════════════════════════════
+      // DASHBOARD API (secondary)
+      // ═══════════════════════════════════════════════════════
+      {
+        group: "Dashboard API",
+        items: [
+          {
+            id: "dashboard-api-overview",
+            label: "Dashboard-only endpoints",
+            icon: "ti-layout-dashboard",
+            blocks: [
               {
                 type: "callout",
                 variant: "info",
-                text: "All three portal actions verify the subscription's customer_id matches the customer_id embedded in the portal token before making any change — a customer can never act on someone else's subscription even with a guessed subscription ID.",
+                text: "These endpoints power the Tori dashboard itself. You don't need them to integrate Tori into your product — they're documented here in case you want to build your own operator tooling on top of Tori instead of using the dashboard.",
               },
-            ],
-          },
-        ],
-      },
-      {
-        group: "Billing Health",
-        items: [
-          {
-            id: "ref-health",
-            label: "Portfolio health",
-            icon: "ti-heartbeat",
-            method: "GET",
-            endpoint: "/v1/health",
-            blocks: [
-              {
-                type: "p",
-                text: "Returns real-time health scores and churn predictions for all active subscriptions.",
-              },
-              { type: "h2", text: "Headers", id: "health-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "health-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Health data returned",
-                body: `{
-  "data": {
-    "average_score": 74,
-    "healthy_count": 9, "at_risk_count": 2, "critical_count": 1, "churn_risk_count": 2,
-    "subscriptions": [
-      {
-        "id": "f6ffcc85-...", "status": "DUNNING",
-        "health": { "score": 28, "label": "At risk", "color": "#EA580C", "reason": "Payment failing. Retries in progress." },
-        "churn": { "signal": "high", "score": 65, "reasons": ["Two failed attempts", "Period ends in 4 days"], "recommended_action": "Contact the customer immediately." }
-      }
-    ]
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
+              { type: "h2", text: "Auth & account", id: "dash-auth" },
               {
                 type: "table",
-                headers: ["Factor", "Deduction"],
+                headers: ["Method", "Path", "What it does"],
                 rows: [
-                  ["DUNNING state", "-40"],
-                  ["SUSPENDED state", "-60"],
-                  ["PAST_DUE state", "-20"],
-                  ["GRACE_PERIOD state", "-10"],
-                  ["PAUSED state", "-10"],
-                  ["Each dunning attempt", "-10 (capped at -40)"],
-                  ["Subscription under 30 days", "-5"],
-                  ["Previously recovered from dunning", "-10"],
+                  ["POST", "/v1/auth/register", "Create a tenant account"],
+                  ["POST", "/v1/auth/login", "Log in, get a dashboard session"],
+                  ["POST", "/v1/auth/refresh", "Refresh an access token"],
+                  ["POST", "/v1/auth/logout", "Revoke the current session"],
+                  ["POST", "/v1/auth/verify-email", "Verify account email with a 6-digit code"],
+                  ["POST", "/v1/auth/resend-verification", "Resend the verification code"],
+                  ["GET/DELETE", "/v1/auth/sessions", "List and revoke active login sessions"],
+                  ["GET/PATCH", "/v1/me", "View or update your own tenant account"],
                 ],
               },
-            ],
-          },
-          {
-            id: "ref-health-forecast",
-            label: "Revenue forecast",
-            icon: "ti-chart-arrows-vertical",
-            method: "GET",
-            endpoint: "/v1/health/forecast",
-            blocks: [
-              {
-                type: "p",
-                text: "Next month's expected revenue in three estimates with confidence level.",
-              },
-              { type: "h2", text: "Headers", id: "forecast-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "forecast-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Forecast returned",
-                body: `{
-  "data": {
-    "period_label": "July 2026",
-    "expected_low": 18740000, "expected_mid": 23420000, "expected_high": 24600000,
-    "active_subscriptions": 12, "at_risk_revenue": 10040000,
-    "recovery_rate_pct": 65, "confidence": "medium",
-    "note": "Forecast includes dunning recovery estimate based on historical retry success rate."
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "Finance",
-        items: [
-          {
-            id: "ref-finance-mrr",
-            label: "MRR",
-            icon: "ti-currency-naira",
-            method: "GET",
-            endpoint: "/v1/finance/mrr",
-            blocks: [
-              {
-                type: "p",
-                text: "Monthly recurring revenue for a given calendar month, computed from ledger CHARGE entries.",
-              },
-              { type: "h2", text: "Headers", id: "finance-mrr-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Query parameters", id: "finance-mrr-query" },
-              {
-                type: "param",
-                name: "period",
-                paramType: "string",
-                required: false,
-                description:
-                  "Month in YYYY-MM format. Defaults to the current month",
-              },
-              { type: "h2", text: "Response", id: "finance-mrr-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "MRR returned",
-                body: `{ "data": { "mrr_kobo": 17500000, "currency": "NGN", "period": "2026-07" }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-finance-arr",
-            label: "ARR",
-            icon: "ti-chart-line",
-            method: "GET",
-            endpoint: "/v1/finance/arr",
-            blocks: [
-              {
-                type: "p",
-                text: "Annual recurring revenue — MRR for the given month multiplied by 12.",
-              },
-              { type: "h2", text: "Headers", id: "finance-arr-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Query parameters", id: "finance-arr-query" },
-              {
-                type: "param",
-                name: "period",
-                paramType: "string",
-                required: false,
-                description:
-                  "Month in YYYY-MM format. Defaults to the current month",
-              },
-              { type: "h2", text: "Response", id: "finance-arr-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "ARR returned",
-                body: `{ "data": { "arr_kobo": 210000000, "currency": "NGN", "period": "2026-07" }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-finance-churn",
-            label: "Churn rate",
-            icon: "ti-trending-down",
-            method: "GET",
-            endpoint: "/v1/finance/churn",
-            blocks: [
-              {
-                type: "p",
-                text: "Percentage of subscriptions cancelled in a date range, against active plus cancelled subscriptions in that range.",
-              },
-              { type: "h2", text: "Headers", id: "finance-churn-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Query parameters",
-                id: "finance-churn-query",
-              },
-              {
-                type: "param",
-                name: "from",
-                paramType: "string",
-                required: false,
-                description: "Start date YYYY-MM-DD. Defaults to 1 month ago",
-              },
-              {
-                type: "param",
-                name: "to",
-                paramType: "string",
-                required: false,
-                description: "End date YYYY-MM-DD. Defaults to today",
-              },
-              { type: "h2", text: "Response", id: "finance-churn-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Churn rate returned",
-                body: `{ "data": { "churn_rate_pct": 4.2, "cancelled_count": 3, "period": "2026-06-05 to 2026-07-05" }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-finance-dunning-recovery",
-            label: "Dunning recovery",
-            icon: "ti-rotate-clockwise",
-            method: "GET",
-            endpoint: "/v1/finance/dunning-recovery",
-            blocks: [
-              {
-                type: "p",
-                text: "Total kobo successfully charged during a date range — the revenue the dunning engine brought back that would otherwise have been lost to a failed first attempt.",
-              },
-              {
-                type: "h2",
-                text: "Headers",
-                id: "finance-dunning-recovery-headers",
-              },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Query parameters",
-                id: "finance-dunning-recovery-query",
-              },
-              {
-                type: "param",
-                name: "from",
-                paramType: "string",
-                required: false,
-                description: "Start date YYYY-MM-DD. Defaults to 1 month ago",
-              },
-              {
-                type: "param",
-                name: "to",
-                paramType: "string",
-                required: false,
-                description: "End date YYYY-MM-DD. Defaults to today",
-              },
-              {
-                type: "h2",
-                text: "Response",
-                id: "finance-dunning-recovery-response",
-              },
-              {
-                type: "response",
-                status: 200,
-                description: "Recovered revenue returned",
-                body: `{ "data": { "recovered_kobo": 4250000, "currency": "NGN" }, "meta": { ... } }`,
-              },
-            ],
-          },
-          {
-            id: "ref-finance-revenue-report",
-            label: "Revenue report",
-            icon: "ti-report-money",
-            method: "GET",
-            endpoint: "/v1/finance/revenue-report",
-            blocks: [
-              {
-                type: "p",
-                text: "Gross revenue, refunds, credits, and net revenue for a date range — the same aggregation behind the Finance dashboard's headline numbers.",
-              },
-              {
-                type: "h2",
-                text: "Headers",
-                id: "finance-revenue-report-headers",
-              },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Query parameters",
-                id: "finance-revenue-report-query",
-              },
-              {
-                type: "param",
-                name: "from",
-                paramType: "string",
-                required: false,
-                description: "Start date YYYY-MM-DD. Defaults to 1 month ago",
-              },
-              {
-                type: "param",
-                name: "to",
-                paramType: "string",
-                required: false,
-                description: "End date YYYY-MM-DD. Defaults to today",
-              },
-              {
-                type: "h2",
-                text: "Response",
-                id: "finance-revenue-report-response",
-              },
-              {
-                type: "response",
-                status: 200,
-                description: "Revenue report returned",
-                body: `{
-  "data": {
-    "gross_revenue_kobo": 91500000,
-    "refunds_kobo": 750000,
-    "credits_kobo": 0,
-    "net_revenue_kobo": 90750000,
-    "currency": "NGN"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-            ],
-          },
-          {
-            id: "ref-recovery-center",
-            label: "Recovery Command Center",
-            icon: "ti-refresh-alert",
-            method: "GET",
-            endpoint: "/v1/finance/recovery-center",
-            blocks: [
-              {
-                type: "p",
-                text: "One call that answers 'how much revenue is at risk right now, and how much have we gotten back'. Splits every non-healthy subscription into at risk, recovering, and recovered buckets.",
-              },
-              {
-                type: "h2",
-                text: "Headers",
-                id: "recovery-center-headers",
-              },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              {
-                type: "h2",
-                text: "Response",
-                id: "recovery-center-response",
-              },
-              {
-                type: "response",
-                status: 200,
-                description: "Recovery pipeline returned",
-                body: `{
-  "data": {
-    "at_risk_kobo": 12500000,
-    "recovered_kobo": 0,
-    "recovery_rate_pct": 0,
-    "at_risk_count": 5,
-    "recovering_count": 2,
-    "recovered_count": 0,
-    "at_risk": [
-      {
-        "subscription_id": "aa860e3c-500f-4aeb-bd6b-d6725371fdd4",
-        "customer_id": "e949b34d-0c87-4409-a2be-824cf90e2888",
-        "customer_email": "chibueze@test.com",
-        "status": "PAST_DUE",
-        "amount_kobo": 500000,
-        "recovery_rail": "card",
-        "dunning_attempt": 0,
-        "plan_name": "Starter"
-      }
-    ],
-    "recovering": [
-      {
-        "subscription_id": "ae2723a6-a5f1-4b9b-acd2-5ce138afce56",
-        "customer_id": "0a43124f-9b60-43f6-94ab-848641781b4c",
-        "customer_email": "hauwa@food.ng",
-        "status": "DUNNING",
-        "amount_kobo": 5000000,
-        "recovery_rail": "card",
-        "dunning_attempt": 2,
-        "next_retry_at": "2026-07-05T23:44:41.825Z",
-        "plan_name": "Business"
-      }
-    ],
-    "recovered": [],
-    "currency": "NGN",
-    "generated_at": "2026-07-05T00:23:26.428Z"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
+              { type: "h2", text: "API keys & OAuth clients", id: "dash-keys" },
               {
                 type: "table",
-                headers: ["Bucket", "Meaning"],
+                headers: ["Method", "Path", "What it does"],
                 rows: [
-                  [
-                    "at_risk",
-                    "GRACE_PERIOD or PAST_DUE. Not retrying on a schedule yet, or the first retry hasn't fired",
-                  ],
-                  [
-                    "recovering",
-                    "DUNNING. Actively retrying on the payday schedule",
-                  ],
-                  [
-                    "recovered",
-                    "Came back to ACTIVE from GRACE_PERIOD, PAST_DUE, or DUNNING within this reporting window",
-                  ],
+                  ["GET", "/v1/api-keys", "Get hints for your live/test keys"],
+                  ["POST", "/v1/api-keys", "Generate or rotate the live key"],
+                  ["POST", "/v1/api-keys/test", "Generate or rotate the test key"],
+                  ["POST", "/v1/api-keys/rotate", "Rotate the live key"],
+                  ["DELETE", "/v1/api-keys/{mode}", "Revoke a key"],
+                  ["POST/GET/DELETE", "/v1/oauth/clients", "Manage OAuth clients — creating one is a Platform API concern, covered above"],
                 ],
               },
+              { type: "h2", text: "Catalog & customers", id: "dash-catalog" },
               {
-                type: "p",
-                text: "recovery_rail on each item is card, mandate, or manual. It tells you where that subscription currently sits on the recovery ladder. See the Dunning and retries section for how the ladder escalates from one rail to the next.",
+                type: "table",
+                headers: ["Method", "Path", "What it does"],
+                rows: [
+                  ["POST/PATCH/DELETE", "/v1/plans", "Create, update, deactivate plans"],
+                  ["POST/PATCH", "/v1/customers", "Create or update customers from the dashboard"],
+                  ["POST", "/v1/customers/{id}/archive", "Archive a customer record"],
+                  ["POST/GET/DELETE", "/v1/promo-codes", "Create, list, deactivate promo codes"],
+                ],
               },
-            ],
-          },
-        ],
-      },
-      {
-        group: "Settings",
-        items: [
-          {
-            id: "ref-dunning-config",
-            label: "Update dunning configuration",
-            icon: "ti-adjustments",
-            method: "PATCH",
-            endpoint: "/v1/dunning-config",
-            blocks: [
+              { type: "h2", text: "Subscriptions (operator actions)", id: "dash-subs" },
               {
-                type: "p",
-                text: "Override the default retry schedule and behaviour for your tenant. Applies to every subscription you own.",
+                type: "table",
+                headers: ["Method", "Path", "What it does"],
+                rows: [
+                  ["POST", "/v1/checkout", "Dashboard-side checkout — same handler as the Platform API's checkout"],
+                  ["POST", "/v1/subscriptions/{id}/checkout", "Regenerate a checkout URL"],
+                  ["PATCH", "/v1/subscriptions/{id}/plan", "Change plan with proration"],
+                  ["GET", "/v1/subscriptions/{id}/transitions", "Full status-change audit trail"],
+                  ["POST", "/v1/subscriptions/{id}/retry-now", "Operator: force an immediate retry"],
+                  ["POST", "/v1/subscriptions/{id}/send-pay-link", "Operator: jump straight to the manual pay-link rail"],
+                  ["POST", "/v1/subscriptions/{id}/recover", "Operator: manually mark a suspended subscription recovered"],
+                  ["POST", "/v1/subscriptions/{id}/refund", "Issue a refund"],
+                ],
               },
+              { type: "h2", text: "Invoices & ledger", id: "dash-ledger" },
               {
-                type: "h2",
-                text: "Headers",
-                id: "dunning-config-headers",
+                type: "table",
+                headers: ["Method", "Path", "What it does"],
+                rows: [
+                  ["GET", "/v1/invoices", "List invoices — operators use this; customers use /v1/portal/invoices"],
+                  ["GET", "/v1/invoices/{id}", "Get one invoice"],
+                  ["GET", "/v1/ledger", "List raw ledger entries"],
+                  ["GET", "/v1/ledger/{id}", "Get one ledger entry"],
+                  ["GET", "/v1/ledger/monthly", "Monthly revenue breakdown"],
+                  ["GET", "/v1/ledger/summary", "Aggregate totals for a date range"],
+                ],
               },
+              { type: "h2", text: "Webhook management", id: "dash-webhooks" },
               {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
+                type: "table",
+                headers: ["Method", "Path", "What it does"],
+                rows: [
+                  ["POST/GET/PATCH/DELETE", "/v1/webhooks/endpoints", "Register, list, update, delete webhook endpoints"],
+                  ["GET", "/v1/webhooks/logs", "Delivery log — payload, response, status, attempt count"],
+                  ["POST", "/v1/webhooks/logs/{id}/retry", "Manually retry a failed delivery"],
+                ],
               },
-              { type: "h2", text: "Body", id: "dunning-config-body" },
+              { type: "h2", text: "Team & audit", id: "dash-team" },
               {
-                type: "param",
-                name: "retry_intervals_days",
-                paramType: "array",
-                required: true,
-                description:
-                  "Days after failure to retry, for example [3, 7, 14, 21]",
+                type: "table",
+                headers: ["Method", "Path", "What it does"],
+                rows: [
+                  ["GET", "/v1/team/members", "List team members"],
+                  ["POST", "/v1/team/members/invite", "Invite a teammate"],
+                  ["PATCH/DELETE", "/v1/team/members/{id}", "Change role / remove a member"],
+                  ["DELETE", "/v1/team/invitations/{id}", "Revoke a pending invite"],
+                  ["POST", "/v1/team/invitations/accept", "Accept an invite (public)"],
+                  ["GET", "/v1/team/audit-log", "Every administrative action, with actor and IP"],
+                ],
               },
+              { type: "h2", text: "Email templates", id: "dash-email" },
               {
-                type: "param",
-                name: "max_attempts",
-                paramType: "integer",
-                required: true,
-                description: "1 to 10",
+                type: "table",
+                headers: ["Method", "Path", "What it does"],
+                rows: [
+                  ["GET", "/v1/email-templates", "List all 7 billing email templates"],
+                  ["PUT", "/v1/email-templates/{event_type}", "Configure one template"],
+                  ["POST", "/v1/email-templates/{event_type}/test", "Send a test email to yourself"],
+                ],
               },
+              { type: "h2", text: "Finance & billing health", id: "dash-finance" },
               {
-                type: "param",
-                name: "suspension_action",
-                paramType: "string",
-                required: false,
-                description:
-                  "suspend or cancel. What happens after retries are exhausted",
+                type: "table",
+                headers: ["Method", "Path", "What it does"],
+                rows: [
+                  ["GET", "/v1/finance/mrr", "Monthly recurring revenue"],
+                  ["GET", "/v1/finance/arr", "Annual recurring revenue"],
+                  ["GET", "/v1/finance/churn", "Churn rate"],
+                  ["GET", "/v1/finance/dunning-recovery", "Recovery rate from dunning"],
+                  ["GET", "/v1/finance/revenue-report", "Full revenue breakdown"],
+                  ["GET", "/v1/finance/recovery-center", "At-risk / recovering / recovered subscriptions"],
+                  ["GET", "/v1/finance/balance", "Settled vs. pending (T+1) balance"],
+                  ["GET", "/v1/health", "Billing health score"],
+                  ["GET", "/v1/health/forecast", "Churn and revenue forecast"],
+                ],
               },
+              { type: "h2", text: "Payouts", id: "dash-payouts" },
               {
-                type: "param",
-                name: "notify_customer",
-                paramType: "boolean",
-                required: false,
-                description:
-                  "Fire dunning webhooks the customer-facing product should show",
+                type: "table",
+                headers: ["Method", "Path", "What it does"],
+                rows: [
+                  ["GET/POST", "/v1/payouts", "List or request a bank transfer withdrawal"],
+                  ["GET", "/v1/payouts/{id}", "Get one payout"],
+                  ["GET", "/v1/payouts/banks", "Supported bank list"],
+                  ["GET", "/v1/payouts/resolve-account", "Resolve an account holder's name"],
+                ],
               },
+              { type: "h2", text: "Payment links (management)", id: "dash-paylinks" },
               {
-                type: "param",
-                name: "notify_merchant",
-                paramType: "boolean",
-                required: false,
-                description: "Fire dunning webhooks for internal alerting",
+                type: "table",
+                headers: ["Method", "Path", "What it does"],
+                rows: [
+                  ["GET/POST", "/v1/payment-links", "List or create payment links — collecting a payment is the Platform API concern covered above"],
+                  ["GET/DELETE", "/v1/payment-links/{id}", "Get or deactivate a payment link"],
+                ],
               },
+              { type: "h2", text: "Settings & system", id: "dash-settings" },
               {
-                type: "param",
-                name: "smart_retry",
-                paramType: "boolean",
-                required: false,
-                description:
-                  "Use Nigerian failure classification to skip retries on permanent declines",
-              },
-              { type: "h2", text: "Response", id: "dunning-config-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Config updated",
-                body: `{
-  "data": {
-    "retry_intervals_days": [3, 7, 14, 21],
-    "max_attempts": 4,
-    "suspension_action": "suspend",
-    "notify_customer": true,
-    "notify_merchant": true,
-    "smart_retry": true
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "response",
-                status: 400,
-                description: "Invalid config",
-                body: `{ "error": { "code": "invalid_field", "message": "max_attempts must be between 1 and 10" }, "meta": { ... } }`,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        group: "System",
-        items: [
-          {
-            id: "ref-health-check",
-            label: "Health check",
-            icon: "ti-activity",
-            method: "GET",
-            endpoint: "/v1/status",
-            blocks: [
-              {
-                type: "p",
-                text: "Returns the current status of the Tori API. No authentication required. Use this to verify the API is reachable from your server.",
-              },
-              { type: "h2", text: "Response", id: "healthcheck-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "API is healthy",
-                body: `{
-  "data": {
-    "status": "ok",
-    "service": "tori-api",
-    "version": "1.0.0",
-    "timestamp": "2026-06-26T21:00:00Z",
-    "checks": { "api": "ok", "nomba": "connected" }
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
-              },
-              {
-                type: "callout",
-                variant: "info",
-                text: "Also available at GET /health (no version prefix). Both return identical responses.",
-              },
-            ],
-          },
-          {
-            id: "ref-metrics",
-            label: "Metrics",
-            icon: "ti-chart-bar",
-            method: "GET",
-            endpoint: "/v1/metrics",
-            blocks: [
-              {
-                type: "p",
-                text: "Operational intelligence for the authenticated tenant in one call: subscription counts by state, MRR, this month's revenue, charge success rate, and worker queue health. Requires a JWT, unlike the unauthenticated status check.",
-              },
-              { type: "h2", text: "Headers", id: "metrics-headers" },
-              {
-                type: "param",
-                name: "Authorization",
-                paramType: "string",
-                required: true,
-                description: "Bearer {access_token}",
-              },
-              { type: "h2", text: "Response", id: "metrics-response" },
-              {
-                type: "response",
-                status: 200,
-                description: "Metrics returned",
-                body: `{
-  "data": {
-    "period": { "from": "2026-07-01", "to": "2026-08-01" },
-    "subscriptions": {
-      "total": 14, "by_status": { "ACTIVE": 13, "PAST_DUE": 1 },
-      "active": 13, "trialing": 0, "pending_payment": 0,
-      "dunning": 1, "suspended": 0, "cancelled": 0
-    },
-    "revenue": {
-      "mrr_kobo": 5000, "mrr_naira": 50,
-      "gross_this_month": 422500, "refunds_this_month": 0, "net_this_month": 422500
-    },
-    "billing": { "charge_success_rate_pct": 92.86, "at_risk_count": 1 },
-    "worker": { "queue_depth": 0, "failed_jobs_count": 0 },
-    "generated_at": "2026-07-05T09:00:00Z"
-  },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
-}`,
+                type: "table",
+                headers: ["Method", "Path", "What it does"],
+                rows: [
+                  ["PATCH", "/v1/dunning-config", "Configure retry days, max attempts, suspension action"],
+                  ["GET", "/v1/events", "Tenant activity feed — OAuth, payout, payment-link lifecycle"],
+                  ["GET", "/v1/status", "Unauthenticated liveness check"],
+                  ["GET", "/v1/metrics", "Operational snapshot: subscriptions, MRR, queue health"],
+                ],
               },
             ],
           },
