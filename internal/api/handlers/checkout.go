@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -62,11 +63,51 @@ type checkoutResponse struct {
 	Subscription          *domain.Subscription `json:"subscription"`
 	CustomerCreated       bool                 `json:"customer_created"`
 	CheckoutURL           string               `json:"checkout_url,omitempty"`
+	ToriCheckoutURL       string               `json:"tori_checkout_url,omitempty"`
 	RequiresPaymentMethod bool                 `json:"requires_payment_method"`
 	PromoApplied          bool                 `json:"promo_applied,omitempty"`
 	DiscountKobo          int64                `json:"discount_kobo,omitempty"`
 	OriginalAmountKobo    int64                `json:"original_amount_kobo,omitempty"`
 	FinalAmountKobo       int64                `json:"final_amount_kobo,omitempty"`
+}
+
+// extractCheckoutToken pulls the last path segment off a Nomba checkout URL
+// — the token the Tori-branded checkout shell embeds in an iframe.
+func extractCheckoutToken(checkoutURL string) string {
+	u, err := url.Parse(checkoutURL)
+	if err != nil {
+		return ""
+	}
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	if len(parts) == 0 {
+		return ""
+	}
+	return parts[len(parts)-1]
+}
+
+// buildToriCheckoutURL wraps a raw Nomba checkout link in Tori's branded
+// checkout shell — a page showing the merchant/plan/amount before embedding
+// the real Nomba checkout in an iframe. Returns "" if the checkout URL has
+// no extractable token (e.g. checkout creation failed upstream).
+func buildToriCheckoutURL(nombaCheckoutURL, merchantName, planName string, amountKobo int64) string {
+	token := extractCheckoutToken(nombaCheckoutURL)
+	if token == "" {
+		return ""
+	}
+	base := os.Getenv("FRONTEND_URL")
+	if base == "" {
+		base = "https://frontend-production-e3be.up.railway.app"
+	}
+	amountNaira := fmt.Sprintf("%.2f", float64(amountKobo)/100)
+	q := url.Values{}
+	q.Set("merchant", merchantName)
+	q.Set("plan", planName)
+	q.Set("amount", amountNaira)
+	// The real Nomba checkout link's base path varies by environment
+	// (production vs. sandbox) — pass it through in full so the shell embeds
+	// the exact URL Nomba issued rather than guessing a fixed base from the token.
+	q.Set("nomba_url", nombaCheckoutURL)
+	return fmt.Sprintf("%s/checkout/%s?%s", base, url.PathEscape(token), q.Encode())
 }
 
 // minChargeKobo is the floor a discounted checkout amount can never drop
@@ -293,6 +334,7 @@ if plan.TrialPeriodDays > 0 {
 	// Create Nomba checkout session
 	// subscription ID is the orderReference so we can match payment_success webhook back
 	checkoutURL := ""
+	toriCheckoutURL := ""
 	nombaResp, err := h.payment.InitiateCheckout(r.Context(), payment.CheckoutRequest{
 		CustomerEmail: customer.Email,
 		CustomerID:    customer.ID.String(),
@@ -316,6 +358,11 @@ if plan.TrialPeriodDays > 0 {
 			Msg("checkout: failed to create Nomba checkout session")
 	} else {
 		checkoutURL = nombaResp.CheckoutURL
+		merchantName := ""
+		if tenant := middleware.GetTenant(r.Context()); tenant != nil {
+			merchantName = tenant.Name
+		}
+		toriCheckoutURL = buildToriCheckoutURL(checkoutURL, merchantName, plan.Name, checkoutAmount)
 		log.Info().
 				Str("sub_id", sub.ID.String()).
 				Str("checkout_url", checkoutURL).
@@ -362,6 +409,7 @@ if plan.TrialPeriodDays > 0 {
 		Subscription:          sub,
 		CustomerCreated:       customerCreated,
 		CheckoutURL:           checkoutURL,
+		ToriCheckoutURL:       toriCheckoutURL,
 		RequiresPaymentMethod: checkoutURL != "",
 	}
 	if promo != nil {

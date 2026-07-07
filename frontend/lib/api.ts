@@ -228,6 +228,9 @@ export const createCheckout = (
       customer: Customer;
       subscription: Subscription;
       customer_created: boolean;
+      checkout_url?: string;
+      tori_checkout_url?: string;
+      requires_payment_method?: boolean;
     };
   }>("/v1/checkout", { email, plan_id: planId, name, external_id: externalId });
 
