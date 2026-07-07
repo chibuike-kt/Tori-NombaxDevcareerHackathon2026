@@ -124,7 +124,10 @@ func (q *Queries) CreateSubscription(ctx context.Context, arg CreateSubscription
 }
 
 const getSubscriptionByID = `-- name: GetSubscriptionByID :one
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo FROM subscriptions WHERE id = $1 AND tenant_id = $2
+SELECT s.id, s.tenant_id, s.customer_id, s.plan_id, s.status, s.current_period_start, s.current_period_end, s.trial_end, s.paused_at, s.cancelled_at, s.cancel_at_period_end, s.dunning_attempt, s.next_retry_at, s.idempotency_key, s.metadata, s.created_at, s.updated_at, s.token_key, s.mandate_id, s.recovery_rail, s.discount_kobo, s.mode, s.pause_credit_kobo, p.name AS plan_name, p.amount AS plan_amount, p.currency AS plan_currency, p.interval AS plan_interval
+FROM subscriptions s
+LEFT JOIN plans p ON p.id = s.plan_id
+WHERE s.id = $1 AND s.tenant_id = $2
 `
 
 type GetSubscriptionByIDParams struct {
@@ -132,9 +135,42 @@ type GetSubscriptionByIDParams struct {
 	TenantID uuid.UUID `json:"tenant_id"`
 }
 
-func (q *Queries) GetSubscriptionByID(ctx context.Context, arg GetSubscriptionByIDParams) (Subscription, error) {
+type GetSubscriptionByIDRow struct {
+	ID                 uuid.UUID          `json:"id"`
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	CustomerID         uuid.UUID          `json:"customer_id"`
+	PlanID             uuid.UUID          `json:"plan_id"`
+	Status             string             `json:"status"`
+	CurrentPeriodStart time.Time          `json:"current_period_start"`
+	CurrentPeriodEnd   time.Time          `json:"current_period_end"`
+	TrialEnd           pgtype.Timestamptz `json:"trial_end"`
+	PausedAt           pgtype.Timestamptz `json:"paused_at"`
+	CancelledAt        pgtype.Timestamptz `json:"cancelled_at"`
+	CancelAtPeriodEnd  bool               `json:"cancel_at_period_end"`
+	DunningAttempt     int32              `json:"dunning_attempt"`
+	NextRetryAt        pgtype.Timestamptz `json:"next_retry_at"`
+	IdempotencyKey     pgtype.Text        `json:"idempotency_key"`
+	Metadata           []byte             `json:"metadata"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+	TokenKey           pgtype.Text        `json:"token_key"`
+	MandateID          pgtype.Text        `json:"mandate_id"`
+	RecoveryRail       string             `json:"recovery_rail"`
+	DiscountKobo       int64              `json:"discount_kobo"`
+	Mode               string             `json:"mode"`
+	PauseCreditKobo    int64              `json:"pause_credit_kobo"`
+	PlanName           pgtype.Text        `json:"plan_name"`
+	PlanAmount         pgtype.Int8        `json:"plan_amount"`
+	PlanCurrency       pgtype.Text        `json:"plan_currency"`
+	PlanInterval       pgtype.Text        `json:"plan_interval"`
+}
+
+// LEFT JOIN, not INNER — a subscription with a missing/cross-mode plan_id
+// must still return the subscription row (with null plan_* fields) rather
+// than silently disappearing.
+func (q *Queries) GetSubscriptionByID(ctx context.Context, arg GetSubscriptionByIDParams) (GetSubscriptionByIDRow, error) {
 	row := q.db.QueryRow(ctx, getSubscriptionByID, arg.ID, arg.TenantID)
-	var i Subscription
+	var i GetSubscriptionByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.TenantID,
@@ -159,6 +195,10 @@ func (q *Queries) GetSubscriptionByID(ctx context.Context, arg GetSubscriptionBy
 		&i.DiscountKobo,
 		&i.Mode,
 		&i.PauseCreditKobo,
+		&i.PlanName,
+		&i.PlanAmount,
+		&i.PlanCurrency,
+		&i.PlanInterval,
 	)
 	return i, err
 }
@@ -296,9 +336,11 @@ func (q *Queries) ListActiveSubscriptionsDue(ctx context.Context, arg ListActive
 }
 
 const listSubscriptions = `-- name: ListSubscriptions :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo FROM subscriptions
-WHERE tenant_id = $1 AND mode = $2
-ORDER BY created_at DESC
+SELECT s.id, s.tenant_id, s.customer_id, s.plan_id, s.status, s.current_period_start, s.current_period_end, s.trial_end, s.paused_at, s.cancelled_at, s.cancel_at_period_end, s.dunning_attempt, s.next_retry_at, s.idempotency_key, s.metadata, s.created_at, s.updated_at, s.token_key, s.mandate_id, s.recovery_rail, s.discount_kobo, s.mode, s.pause_credit_kobo, p.name AS plan_name, p.amount AS plan_amount, p.currency AS plan_currency, p.interval AS plan_interval
+FROM subscriptions s
+LEFT JOIN plans p ON p.id = s.plan_id
+WHERE s.tenant_id = $1 AND s.mode = $2
+ORDER BY s.created_at DESC
 LIMIT $3 OFFSET $4
 `
 
@@ -309,7 +351,37 @@ type ListSubscriptionsParams struct {
 	Offset   int32     `json:"offset"`
 }
 
-func (q *Queries) ListSubscriptions(ctx context.Context, arg ListSubscriptionsParams) ([]Subscription, error) {
+type ListSubscriptionsRow struct {
+	ID                 uuid.UUID          `json:"id"`
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	CustomerID         uuid.UUID          `json:"customer_id"`
+	PlanID             uuid.UUID          `json:"plan_id"`
+	Status             string             `json:"status"`
+	CurrentPeriodStart time.Time          `json:"current_period_start"`
+	CurrentPeriodEnd   time.Time          `json:"current_period_end"`
+	TrialEnd           pgtype.Timestamptz `json:"trial_end"`
+	PausedAt           pgtype.Timestamptz `json:"paused_at"`
+	CancelledAt        pgtype.Timestamptz `json:"cancelled_at"`
+	CancelAtPeriodEnd  bool               `json:"cancel_at_period_end"`
+	DunningAttempt     int32              `json:"dunning_attempt"`
+	NextRetryAt        pgtype.Timestamptz `json:"next_retry_at"`
+	IdempotencyKey     pgtype.Text        `json:"idempotency_key"`
+	Metadata           []byte             `json:"metadata"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+	TokenKey           pgtype.Text        `json:"token_key"`
+	MandateID          pgtype.Text        `json:"mandate_id"`
+	RecoveryRail       string             `json:"recovery_rail"`
+	DiscountKobo       int64              `json:"discount_kobo"`
+	Mode               string             `json:"mode"`
+	PauseCreditKobo    int64              `json:"pause_credit_kobo"`
+	PlanName           pgtype.Text        `json:"plan_name"`
+	PlanAmount         pgtype.Int8        `json:"plan_amount"`
+	PlanCurrency       pgtype.Text        `json:"plan_currency"`
+	PlanInterval       pgtype.Text        `json:"plan_interval"`
+}
+
+func (q *Queries) ListSubscriptions(ctx context.Context, arg ListSubscriptionsParams) ([]ListSubscriptionsRow, error) {
 	rows, err := q.db.Query(ctx, listSubscriptions,
 		arg.TenantID,
 		arg.Mode,
@@ -320,9 +392,9 @@ func (q *Queries) ListSubscriptions(ctx context.Context, arg ListSubscriptionsPa
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Subscription{}
+	items := []ListSubscriptionsRow{}
 	for rows.Next() {
-		var i Subscription
+		var i ListSubscriptionsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.TenantID,
@@ -347,6 +419,10 @@ func (q *Queries) ListSubscriptions(ctx context.Context, arg ListSubscriptionsPa
 			&i.DiscountKobo,
 			&i.Mode,
 			&i.PauseCreditKobo,
+			&i.PlanName,
+			&i.PlanAmount,
+			&i.PlanCurrency,
+			&i.PlanInterval,
 		); err != nil {
 			return nil, err
 		}
@@ -359,9 +435,11 @@ func (q *Queries) ListSubscriptions(ctx context.Context, arg ListSubscriptionsPa
 }
 
 const listSubscriptionsByCustomer = `-- name: ListSubscriptionsByCustomer :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo FROM subscriptions
-WHERE tenant_id = $1 AND customer_id = $2 AND mode = $3
-ORDER BY created_at DESC
+SELECT s.id, s.tenant_id, s.customer_id, s.plan_id, s.status, s.current_period_start, s.current_period_end, s.trial_end, s.paused_at, s.cancelled_at, s.cancel_at_period_end, s.dunning_attempt, s.next_retry_at, s.idempotency_key, s.metadata, s.created_at, s.updated_at, s.token_key, s.mandate_id, s.recovery_rail, s.discount_kobo, s.mode, s.pause_credit_kobo, p.name AS plan_name, p.amount AS plan_amount, p.currency AS plan_currency, p.interval AS plan_interval
+FROM subscriptions s
+LEFT JOIN plans p ON p.id = s.plan_id
+WHERE s.tenant_id = $1 AND s.customer_id = $2 AND s.mode = $3
+ORDER BY s.created_at DESC
 `
 
 type ListSubscriptionsByCustomerParams struct {
@@ -370,15 +448,45 @@ type ListSubscriptionsByCustomerParams struct {
 	Mode       string    `json:"mode"`
 }
 
-func (q *Queries) ListSubscriptionsByCustomer(ctx context.Context, arg ListSubscriptionsByCustomerParams) ([]Subscription, error) {
+type ListSubscriptionsByCustomerRow struct {
+	ID                 uuid.UUID          `json:"id"`
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	CustomerID         uuid.UUID          `json:"customer_id"`
+	PlanID             uuid.UUID          `json:"plan_id"`
+	Status             string             `json:"status"`
+	CurrentPeriodStart time.Time          `json:"current_period_start"`
+	CurrentPeriodEnd   time.Time          `json:"current_period_end"`
+	TrialEnd           pgtype.Timestamptz `json:"trial_end"`
+	PausedAt           pgtype.Timestamptz `json:"paused_at"`
+	CancelledAt        pgtype.Timestamptz `json:"cancelled_at"`
+	CancelAtPeriodEnd  bool               `json:"cancel_at_period_end"`
+	DunningAttempt     int32              `json:"dunning_attempt"`
+	NextRetryAt        pgtype.Timestamptz `json:"next_retry_at"`
+	IdempotencyKey     pgtype.Text        `json:"idempotency_key"`
+	Metadata           []byte             `json:"metadata"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+	TokenKey           pgtype.Text        `json:"token_key"`
+	MandateID          pgtype.Text        `json:"mandate_id"`
+	RecoveryRail       string             `json:"recovery_rail"`
+	DiscountKobo       int64              `json:"discount_kobo"`
+	Mode               string             `json:"mode"`
+	PauseCreditKobo    int64              `json:"pause_credit_kobo"`
+	PlanName           pgtype.Text        `json:"plan_name"`
+	PlanAmount         pgtype.Int8        `json:"plan_amount"`
+	PlanCurrency       pgtype.Text        `json:"plan_currency"`
+	PlanInterval       pgtype.Text        `json:"plan_interval"`
+}
+
+func (q *Queries) ListSubscriptionsByCustomer(ctx context.Context, arg ListSubscriptionsByCustomerParams) ([]ListSubscriptionsByCustomerRow, error) {
 	rows, err := q.db.Query(ctx, listSubscriptionsByCustomer, arg.TenantID, arg.CustomerID, arg.Mode)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Subscription{}
+	items := []ListSubscriptionsByCustomerRow{}
 	for rows.Next() {
-		var i Subscription
+		var i ListSubscriptionsByCustomerRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.TenantID,
@@ -403,6 +511,10 @@ func (q *Queries) ListSubscriptionsByCustomer(ctx context.Context, arg ListSubsc
 			&i.DiscountKobo,
 			&i.Mode,
 			&i.PauseCreditKobo,
+			&i.PlanName,
+			&i.PlanAmount,
+			&i.PlanCurrency,
+			&i.PlanInterval,
 		); err != nil {
 			return nil, err
 		}
@@ -466,9 +578,11 @@ func (q *Queries) ListSubscriptionsByCustomerNoTenant(ctx context.Context, custo
 }
 
 const listSubscriptionsByStatus = `-- name: ListSubscriptionsByStatus :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo FROM subscriptions
-WHERE tenant_id = $1 AND status = $2 AND mode = $3
-ORDER BY created_at DESC
+SELECT s.id, s.tenant_id, s.customer_id, s.plan_id, s.status, s.current_period_start, s.current_period_end, s.trial_end, s.paused_at, s.cancelled_at, s.cancel_at_period_end, s.dunning_attempt, s.next_retry_at, s.idempotency_key, s.metadata, s.created_at, s.updated_at, s.token_key, s.mandate_id, s.recovery_rail, s.discount_kobo, s.mode, s.pause_credit_kobo, p.name AS plan_name, p.amount AS plan_amount, p.currency AS plan_currency, p.interval AS plan_interval
+FROM subscriptions s
+LEFT JOIN plans p ON p.id = s.plan_id
+WHERE s.tenant_id = $1 AND s.status = $2 AND s.mode = $3
+ORDER BY s.created_at DESC
 LIMIT $4 OFFSET $5
 `
 
@@ -480,7 +594,37 @@ type ListSubscriptionsByStatusParams struct {
 	Offset   int32     `json:"offset"`
 }
 
-func (q *Queries) ListSubscriptionsByStatus(ctx context.Context, arg ListSubscriptionsByStatusParams) ([]Subscription, error) {
+type ListSubscriptionsByStatusRow struct {
+	ID                 uuid.UUID          `json:"id"`
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	CustomerID         uuid.UUID          `json:"customer_id"`
+	PlanID             uuid.UUID          `json:"plan_id"`
+	Status             string             `json:"status"`
+	CurrentPeriodStart time.Time          `json:"current_period_start"`
+	CurrentPeriodEnd   time.Time          `json:"current_period_end"`
+	TrialEnd           pgtype.Timestamptz `json:"trial_end"`
+	PausedAt           pgtype.Timestamptz `json:"paused_at"`
+	CancelledAt        pgtype.Timestamptz `json:"cancelled_at"`
+	CancelAtPeriodEnd  bool               `json:"cancel_at_period_end"`
+	DunningAttempt     int32              `json:"dunning_attempt"`
+	NextRetryAt        pgtype.Timestamptz `json:"next_retry_at"`
+	IdempotencyKey     pgtype.Text        `json:"idempotency_key"`
+	Metadata           []byte             `json:"metadata"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+	TokenKey           pgtype.Text        `json:"token_key"`
+	MandateID          pgtype.Text        `json:"mandate_id"`
+	RecoveryRail       string             `json:"recovery_rail"`
+	DiscountKobo       int64              `json:"discount_kobo"`
+	Mode               string             `json:"mode"`
+	PauseCreditKobo    int64              `json:"pause_credit_kobo"`
+	PlanName           pgtype.Text        `json:"plan_name"`
+	PlanAmount         pgtype.Int8        `json:"plan_amount"`
+	PlanCurrency       pgtype.Text        `json:"plan_currency"`
+	PlanInterval       pgtype.Text        `json:"plan_interval"`
+}
+
+func (q *Queries) ListSubscriptionsByStatus(ctx context.Context, arg ListSubscriptionsByStatusParams) ([]ListSubscriptionsByStatusRow, error) {
 	rows, err := q.db.Query(ctx, listSubscriptionsByStatus,
 		arg.TenantID,
 		arg.Status,
@@ -492,9 +636,9 @@ func (q *Queries) ListSubscriptionsByStatus(ctx context.Context, arg ListSubscri
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Subscription{}
+	items := []ListSubscriptionsByStatusRow{}
 	for rows.Next() {
-		var i Subscription
+		var i ListSubscriptionsByStatusRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.TenantID,
@@ -519,6 +663,10 @@ func (q *Queries) ListSubscriptionsByStatus(ctx context.Context, arg ListSubscri
 			&i.DiscountKobo,
 			&i.Mode,
 			&i.PauseCreditKobo,
+			&i.PlanName,
+			&i.PlanAmount,
+			&i.PlanCurrency,
+			&i.PlanInterval,
 		); err != nil {
 			return nil, err
 		}

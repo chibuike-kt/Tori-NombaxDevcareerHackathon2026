@@ -44,6 +44,87 @@ func (r *SubscriptionRepo) Create(ctx context.Context, tenantID, customerID, pla
 	return subFromRow(row), nil
 }
 
+// subscriptionJoinRow mirrors the shape sqlc generates for every
+// subscription read query that LEFT JOINs plans (GetSubscriptionByID,
+// ListSubscriptions, ListSubscriptionsByStatus, ListSubscriptionsByCustomer)
+// — those generated Row types are structurally identical, so a value of any
+// one of them converts directly to this type without per-field copying.
+type subscriptionJoinRow struct {
+	ID                 uuid.UUID
+	TenantID           uuid.UUID
+	CustomerID         uuid.UUID
+	PlanID             uuid.UUID
+	Status             string
+	CurrentPeriodStart time.Time
+	CurrentPeriodEnd   time.Time
+	TrialEnd           pgtype.Timestamptz
+	PausedAt           pgtype.Timestamptz
+	CancelledAt        pgtype.Timestamptz
+	CancelAtPeriodEnd  bool
+	DunningAttempt     int32
+	NextRetryAt        pgtype.Timestamptz
+	IdempotencyKey     pgtype.Text
+	Metadata           []byte
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	TokenKey           pgtype.Text
+	MandateID          pgtype.Text
+	RecoveryRail       string
+	DiscountKobo       int64
+	Mode               string
+	PauseCreditKobo    int64
+	PlanName           pgtype.Text
+	PlanAmount         pgtype.Int8
+	PlanCurrency       pgtype.Text
+	PlanInterval       pgtype.Text
+}
+
+// subFromJoinedRow builds a domain.Subscription from a joined row, denormalising
+// the plan's name/amount/currency/interval when the join matched. The join is a
+// LEFT JOIN specifically so a subscription whose plan_id is missing or (due to
+// the mode-mismatch bug this fixes) belongs to a different mode still returns
+// the subscription — just with empty/zero plan_* fields — rather than vanishing.
+func subFromJoinedRow(row subscriptionJoinRow) *domain.Subscription {
+	sub := subFromRow(db.Subscription{
+		ID:                 row.ID,
+		TenantID:           row.TenantID,
+		CustomerID:         row.CustomerID,
+		PlanID:             row.PlanID,
+		Status:             row.Status,
+		CurrentPeriodStart: row.CurrentPeriodStart,
+		CurrentPeriodEnd:   row.CurrentPeriodEnd,
+		TrialEnd:           row.TrialEnd,
+		PausedAt:           row.PausedAt,
+		CancelledAt:        row.CancelledAt,
+		CancelAtPeriodEnd:  row.CancelAtPeriodEnd,
+		DunningAttempt:     row.DunningAttempt,
+		NextRetryAt:        row.NextRetryAt,
+		IdempotencyKey:     row.IdempotencyKey,
+		Metadata:           row.Metadata,
+		CreatedAt:          row.CreatedAt,
+		UpdatedAt:          row.UpdatedAt,
+		TokenKey:           row.TokenKey,
+		MandateID:          row.MandateID,
+		RecoveryRail:       row.RecoveryRail,
+		DiscountKobo:       row.DiscountKobo,
+		Mode:               row.Mode,
+		PauseCreditKobo:    row.PauseCreditKobo,
+	})
+	if row.PlanName.Valid {
+		sub.PlanName = row.PlanName.String
+	}
+	if row.PlanAmount.Valid {
+		sub.PlanAmount = row.PlanAmount.Int64
+	}
+	if row.PlanCurrency.Valid {
+		sub.PlanCurrency = row.PlanCurrency.String
+	}
+	if row.PlanInterval.Valid {
+		sub.PlanInterval = row.PlanInterval.String
+	}
+	return sub
+}
+
 func (r *SubscriptionRepo) GetByID(ctx context.Context, id, tenantID uuid.UUID) (*domain.Subscription, error) {
 	row, err := r.q.GetSubscriptionByID(ctx, db.GetSubscriptionByIDParams{ID: id, TenantID: tenantID})
 	if err != nil {
@@ -52,7 +133,7 @@ func (r *SubscriptionRepo) GetByID(ctx context.Context, id, tenantID uuid.UUID) 
 		}
 		return nil, err
 	}
-	return subFromRow(row), nil
+	return subFromJoinedRow(subscriptionJoinRow(row)), nil
 }
 
 func (r *SubscriptionRepo) GetByIDNoTenant(ctx context.Context, id uuid.UUID) (*domain.Subscription, error) {
@@ -90,7 +171,11 @@ func (r *SubscriptionRepo) List(ctx context.Context, tenantID uuid.UUID, mode st
 	if err != nil {
 		return nil, err
 	}
-	return subsFromRows(rows), nil
+	subs := make([]*domain.Subscription, len(rows))
+	for i, row := range rows {
+		subs[i] = subFromJoinedRow(subscriptionJoinRow(row))
+	}
+	return subs, nil
 }
 
 func (r *SubscriptionRepo) ListByStatus(ctx context.Context, tenantID uuid.UUID, status domain.SubscriptionStatus, mode string, limit, offset int) ([]*domain.Subscription, error) {
@@ -104,7 +189,11 @@ func (r *SubscriptionRepo) ListByStatus(ctx context.Context, tenantID uuid.UUID,
 	if err != nil {
 		return nil, err
 	}
-	return subsFromRows(rows), nil
+	subs := make([]*domain.Subscription, len(rows))
+	for i, row := range rows {
+		subs[i] = subFromJoinedRow(subscriptionJoinRow(row))
+	}
+	return subs, nil
 }
 
 func (r *SubscriptionRepo) ListByCustomer(ctx context.Context, tenantID, customerID uuid.UUID, mode string) ([]*domain.Subscription, error) {
@@ -116,7 +205,11 @@ func (r *SubscriptionRepo) ListByCustomer(ctx context.Context, tenantID, custome
 	if err != nil {
 		return nil, err
 	}
-	return subsFromRows(rows), nil
+	subs := make([]*domain.Subscription, len(rows))
+	for i, row := range rows {
+		subs[i] = subFromJoinedRow(subscriptionJoinRow(row))
+	}
+	return subs, nil
 }
 
 func (r *SubscriptionRepo) UpdateStatus(ctx context.Context, id, tenantID uuid.UUID, status domain.SubscriptionStatus) (*domain.Subscription, error) {

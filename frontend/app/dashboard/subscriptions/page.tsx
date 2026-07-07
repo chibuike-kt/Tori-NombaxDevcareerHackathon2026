@@ -149,11 +149,11 @@ export default function SubscriptionsPage() {
     if (filter !== "ALL" && s.status !== filter) return false;
     if (search) {
       const cust = custById.get(s.customer_id);
-      const plan = planById.get(s.plan_id);
+      const planName = s.plan_name ?? planById.get(s.plan_id)?.name;
       const q = search.toLowerCase();
       if (
         !cust?.email.toLowerCase().includes(q) &&
-        !plan?.name.toLowerCase().includes(q)
+        !planName?.toLowerCase().includes(q)
       )
         return false;
     }
@@ -531,7 +531,12 @@ export default function SubscriptionsPage() {
               <tbody>
                 {filtered.map((sub) => {
                   const cust = custById.get(sub.customer_id);
-                  const plan = planById.get(sub.plan_id);
+                  // Prefer the plan name/amount embedded on the subscription
+                  // itself (a server-side join) over the client-side lookup —
+                  // the lookup misses any plan outside the current mode.
+                  const planFallback = planById.get(sub.plan_id);
+                  const planName = sub.plan_name ?? planFallback?.name;
+                  const planAmount = sub.plan_amount ?? planFallback?.amount;
                   const av = avatarFor(cust?.email ?? sub.customer_id);
                   return (
                     <tr
@@ -569,13 +574,13 @@ export default function SubscriptionsPage() {
                         className="px-4 py-3 text-xs font-semibold"
                         style={{ color: "#4B5563" }}
                       >
-                        {plan?.name ?? "Unknown"}
+                        {planName ?? "Unknown"}
                       </td>
                       <td
                         className="px-4 py-3 text-xs font-bold"
                         style={{ color: "#0F1728" }}
                       >
-                        {plan ? formatKobo(plan.amount) : "..."}
+                        {planAmount !== undefined ? formatKobo(planAmount) : "..."}
                       </td>
                       <td className="px-4 py-3">
                         <StatusPill status={sub.status} />

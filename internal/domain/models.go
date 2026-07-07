@@ -251,6 +251,14 @@ type Subscription struct {
 	Metadata           json.RawMessage    `json:"metadata,omitempty"`
 	DiscountKobo       int64              `json:"discount_kobo,omitempty"`
 	PauseCreditKobo    int64              `json:"pause_credit_kobo,omitempty"`
+	// PlanName/PlanAmount/PlanCurrency/PlanInterval are denormalised from the
+	// referenced plan via a LEFT JOIN on read — populated whenever the plan
+	// still exists, empty/zero if it was deleted or (due to a historical bug)
+	// belongs to a different mode. Never used for writes.
+	PlanName     string `json:"plan_name,omitempty"`
+	PlanAmount   int64  `json:"plan_amount,omitempty"`
+	PlanCurrency string `json:"plan_currency,omitempty"`
+	PlanInterval string `json:"plan_interval,omitempty"`
 	Mode               string             `json:"mode"`
 	CreatedAt          time.Time          `json:"created_at"`
 	UpdatedAt          time.Time          `json:"updated_at"`

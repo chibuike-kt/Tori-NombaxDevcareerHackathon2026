@@ -102,6 +102,12 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, r, "invalid_plan", "plan not found or inactive")
 		return
 	}
+	mode := middleware.GetMode(r.Context())
+	if plan.Mode != mode {
+		respond.UnprocessableEntity(w, r, "plan_mode_mismatch",
+			fmt.Sprintf("this plan belongs to %s mode — request is running in %s mode", plan.Mode, mode))
+		return
+	}
 
 	_, err = h.customers.GetByID(r.Context(), customerID, tenantID)
 	if err != nil {
@@ -134,7 +140,6 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 		periodEnd = t
 	}
 
-	mode := middleware.GetMode(r.Context())
 	sub, err := h.subs.Create(r.Context(), tenantID, customerID, planID, status, periodStart, periodEnd, trialEnd, body.IdempotencyKey, nil, 0, mode)
 	if err != nil {
 		respond.InternalError(w, r, err)

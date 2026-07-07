@@ -208,6 +208,17 @@ func (h *CheckoutHandler) CreateCheckout(w http.ResponseWriter, r *http.Request)
 		respond.UnprocessableEntity(w, r, "plan_inactive", "this plan is no longer accepting new subscriptions")
 		return
 	}
+	// A test-mode checkout must subscribe to a test-mode plan, and a
+	// live-mode checkout to a live-mode plan. GetByID deliberately skips
+	// mode filtering (workers need to look up resources with no mode
+	// context), so this check is the only thing stopping a request from one
+	// mode silently reusing a plan_id that belongs to the other — which
+	// would create a subscription whose mode disagrees with its own plan.
+	if plan.Mode != mode {
+		respond.UnprocessableEntity(w, r, "plan_mode_mismatch",
+			fmt.Sprintf("this plan belongs to %s mode — checkout is running in %s mode", plan.Mode, mode))
+		return
+	}
 
 	promo, discountKobo, ok := h.validatePromoCode(w, r, tenantID, plan, req.PromoCode)
 	if !ok {

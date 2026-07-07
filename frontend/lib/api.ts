@@ -501,6 +501,14 @@ export interface Subscription {
   mode?: "live" | "test";
   created_at: string;
   updated_at: string;
+  // Denormalised from the referenced plan via a server-side join — present
+  // whenever the plan still exists in the same mode. Prefer these over a
+  // separate mode-filtered plans fetch, which silently misses any plan
+  // outside the current mode.
+  plan_name?: string;
+  plan_amount?: number;
+  plan_currency?: string;
+  plan_interval?: string;
 }
 
 export interface MRRResult {

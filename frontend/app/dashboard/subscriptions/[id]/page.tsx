@@ -85,7 +85,13 @@ export default function SubscriptionDetailPage({
   }
 
   const customer = custById.get(sub.customer_id);
-  const plan = planById.get(sub.plan_id);
+  // Prefer the plan name/amount embedded on the subscription itself (a
+  // server-side join) over the client-side lookup — the lookup misses any
+  // plan outside the current mode.
+  const planFallback = planById.get(sub.plan_id);
+  const planName = sub.plan_name ?? planFallback?.name;
+  const planAmount = sub.plan_amount ?? planFallback?.amount;
+  const planInterval = sub.plan_interval ?? planFallback?.interval;
 
   return (
     <div className="p-4 lg:p-6 max-w-4xl mx-auto">
@@ -112,8 +118,8 @@ export default function SubscriptionDetailPage({
               {customer?.email ?? "Unknown customer"}
             </h1>
             <p className="text-sm font-medium mt-0.5" style={{ color: "#8A94A6" }}>
-              {plan?.name ?? "Unknown plan"}
-              {plan ? ` — ${formatKobo(plan.amount)}/${plan.interval}` : ""}
+              {planName ?? "Unknown plan"}
+              {planAmount !== undefined ? ` — ${formatKobo(planAmount)}/${planInterval}` : ""}
             </p>
           </div>
           <StatusPill status={sub.status} />

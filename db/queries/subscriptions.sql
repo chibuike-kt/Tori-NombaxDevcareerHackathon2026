@@ -8,7 +8,13 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 RETURNING *;
 
 -- name: GetSubscriptionByID :one
-SELECT * FROM subscriptions WHERE id = $1 AND tenant_id = $2;
+-- LEFT JOIN, not INNER — a subscription with a missing/cross-mode plan_id
+-- must still return the subscription row (with null plan_* fields) rather
+-- than silently disappearing.
+SELECT s.*, p.name AS plan_name, p.amount AS plan_amount, p.currency AS plan_currency, p.interval AS plan_interval
+FROM subscriptions s
+LEFT JOIN plans p ON p.id = s.plan_id
+WHERE s.id = $1 AND s.tenant_id = $2;
 
 -- name: GetSubscriptionByIDNoTenant :one
 SELECT * FROM subscriptions WHERE id = $1;
@@ -17,21 +23,27 @@ SELECT * FROM subscriptions WHERE id = $1;
 SELECT * FROM subscriptions WHERE idempotency_key = $1 AND tenant_id = $2;
 
 -- name: ListSubscriptions :many
-SELECT * FROM subscriptions
-WHERE tenant_id = $1 AND mode = $2
-ORDER BY created_at DESC
+SELECT s.*, p.name AS plan_name, p.amount AS plan_amount, p.currency AS plan_currency, p.interval AS plan_interval
+FROM subscriptions s
+LEFT JOIN plans p ON p.id = s.plan_id
+WHERE s.tenant_id = $1 AND s.mode = $2
+ORDER BY s.created_at DESC
 LIMIT $3 OFFSET $4;
 
 -- name: ListSubscriptionsByStatus :many
-SELECT * FROM subscriptions
-WHERE tenant_id = $1 AND status = $2 AND mode = $3
-ORDER BY created_at DESC
+SELECT s.*, p.name AS plan_name, p.amount AS plan_amount, p.currency AS plan_currency, p.interval AS plan_interval
+FROM subscriptions s
+LEFT JOIN plans p ON p.id = s.plan_id
+WHERE s.tenant_id = $1 AND s.status = $2 AND s.mode = $3
+ORDER BY s.created_at DESC
 LIMIT $4 OFFSET $5;
 
 -- name: ListSubscriptionsByCustomer :many
-SELECT * FROM subscriptions
-WHERE tenant_id = $1 AND customer_id = $2 AND mode = $3
-ORDER BY created_at DESC;
+SELECT s.*, p.name AS plan_name, p.amount AS plan_amount, p.currency AS plan_currency, p.interval AS plan_interval
+FROM subscriptions s
+LEFT JOIN plans p ON p.id = s.plan_id
+WHERE s.tenant_id = $1 AND s.customer_id = $2 AND s.mode = $3
+ORDER BY s.created_at DESC;
 
 -- name: UpdateSubscriptionStatus :one
 UPDATE subscriptions
