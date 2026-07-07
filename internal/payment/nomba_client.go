@@ -632,8 +632,8 @@ func (c *NombaHTTPClient) ListBanks(ctx context.Context) ([]Bank, error) {
 	var result struct {
 		Code string `json:"code"`
 		Data []struct {
-			BankCode string `json:"bankCode"`
-			BankName string `json:"bankName"`
+			Code string `json:"code"`
+			Name string `json:"name"`
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -642,7 +642,7 @@ func (c *NombaHTTPClient) ListBanks(ctx context.Context) ([]Bank, error) {
 
 	banks := make([]Bank, 0, len(result.Data))
 	for _, b := range result.Data {
-		banks = append(banks, Bank{Code: b.BankCode, Name: b.BankName})
+		banks = append(banks, Bank{Code: b.Code, Name: b.Name})
 	}
 	return banks, nil
 }
@@ -650,8 +650,12 @@ func (c *NombaHTTPClient) ListBanks(ctx context.Context) ([]Bank, error) {
 // ResolveBankAccount looks up the account holder's name for a bank account,
 // so operators can confirm a payout destination before submitting it.
 func (c *NombaHTTPClient) ResolveBankAccount(ctx context.Context, accountNumber, bankCode string) (string, error) {
-	path := fmt.Sprintf("/accounts/resolve?accountNumber=%s&bankCode=%s", accountNumber, bankCode)
-	resp, err := c.do(ctx, http.MethodGet, path, nil)
+	payload := map[string]interface{}{
+		"accountNumber": accountNumber,
+		"bankCode":      bankCode,
+		"accountId":     c.subAccountID,
+	}
+	resp, err := c.do(ctx, http.MethodPost, "/accounts/resolve", payload)
 	if err != nil {
 		return "", fmt.Errorf("nomba resolve account: %w", err)
 	}
@@ -668,7 +672,7 @@ func (c *NombaHTTPClient) ResolveBankAccount(ctx context.Context, accountNumber,
 		return "", fmt.Errorf("nomba resolve account decode: %w", err)
 	}
 	if result.Code != "00" {
-		return "", fmt.Errorf("nomba resolve account failed: %s", result.Description)
+		return "", fmt.Errorf("nomba resolve account failed [%s]: %s", result.Code, result.Description)
 	}
 	return result.Data.AccountName, nil
 }
