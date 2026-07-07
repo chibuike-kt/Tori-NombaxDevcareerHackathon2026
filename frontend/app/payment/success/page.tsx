@@ -50,11 +50,11 @@ function SuccessContent() {
           </p>
         )}
         <Link
-          href={`/portal`}
+          href={`/portal/login`}
           className="block w-full py-3 rounded-lg font-bold text-white text-sm"
           style={{ background: "#00B37E" }}
         >
-          Manage my subscription
+          Manage my billing
         </Link>
       </div>
     </div>

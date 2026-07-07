@@ -63,7 +63,11 @@ export const TABS: Tab[] = [
                   "Session management with instant revocation. See every active login with device, IP, and last active time, and kill any of them from the dashboard",
                 ],
               },
-              { type: "h2", text: "How it works, end to end", id: "how-it-works" },
+              {
+                type: "h2",
+                text: "How it works, end to end",
+                id: "how-it-works",
+              },
               {
                 type: "list",
                 items: [
@@ -1963,14 +1967,16 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
                 name: "client_id",
                 paramType: "string",
                 required: true,
-                description: "The client_id shown when the OAuth client was created",
+                description:
+                  "The client_id shown when the OAuth client was created",
               },
               {
                 type: "param",
                 name: "client_secret",
                 paramType: "string",
                 required: true,
-                description: "The client_secret shown once when the OAuth client was created",
+                description:
+                  "The client_secret shown once when the OAuth client was created",
               },
               { type: "h2", text: "Response", id: "oauth-token-response" },
               {
@@ -1999,7 +2005,10 @@ Sandbox:     Uses Nomba sandbox internally when NOMBA_ENV=sandbox`,
                 text: "Tokens expire after 30 minutes (expires_in is in seconds). Request a new one when a Platform API call returns 401 — don't cache tokens past their expiry.",
               },
               { type: "h2", text: "Using the token", id: "oauth-token-usage" },
-              { type: "code", lang: "bash", code: `curl https://api.tori.ng/v1/oauth/token \\
+              {
+                type: "code",
+                lang: "bash",
+                code: `curl https://api.tori.ng/v1/oauth/token \\
   -H "Content-Type: application/json" \\
   -d '{
     "grant_type": "client_credentials",
@@ -2014,7 +2023,8 @@ curl https://api.tori.ng/v1/platform/checkout \\
     "email": "amaka@startup.ng",
     "plan_id": "plan_...",
     "external_id": "your-user-123"
-  }'` },
+  }'`,
+              },
               {
                 type: "p",
                 text: "Every Platform API route that accepts `X-API-Key` also accepts this bearer token — the two auth methods are interchangeable and lead to the same tenant/mode context.",
@@ -2842,7 +2852,8 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 name: "callback_url",
                 paramType: "string",
                 required: false,
-                description: "Where Nomba redirects after payment. Defaults to Tori's success page",
+                description:
+                  "Where Nomba redirects after payment. Defaults to Tori's success page",
               },
               {
                 type: "h2",
@@ -2926,7 +2937,8 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 name: "idempotency_key",
                 paramType: "string",
                 required: false,
-                description: "Prevents duplicate subscriptions on network retries",
+                description:
+                  "Prevents duplicate subscriptions on network retries",
               },
               { type: "h2", text: "Response", id: "subs-create-response" },
               {
@@ -3346,8 +3358,14 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 type: "table",
                 headers: ["Field", "Meaning"],
                 rows: [
-                  ["reason", "'status_update' for a direct status change, 'renewal' for a billing cycle renewal"],
-                  ["actor", "'system' for anything triggered by a webhook or a background job. There is no operator-attributed actor yet"],
+                  [
+                    "reason",
+                    "'status_update' for a direct status change, 'renewal' for a billing cycle renewal",
+                  ],
+                  [
+                    "actor",
+                    "'system' for anything triggered by a webhook or a background job. There is no operator-attributed actor yet",
+                  ],
                 ],
               },
               {
@@ -3501,21 +3519,24 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 name: "amount",
                 paramType: "integer",
                 required: false,
-                description: "Kobo amount to refund. Omit for a full refund of the charge",
+                description:
+                  "Kobo amount to refund. Omit for a full refund of the charge",
               },
               {
                 type: "param",
                 name: "reason",
                 paramType: "string",
                 required: true,
-                description: "Shown on the ledger entry — required for every refund",
+                description:
+                  "Shown on the ledger entry — required for every refund",
               },
               {
                 type: "param",
                 name: "invoice_id",
                 paramType: "uuid",
                 required: false,
-                description: "Refund a specific invoice instead of the most recent paid one",
+                description:
+                  "Refund a specific invoice instead of the most recent paid one",
               },
               { type: "h2", text: "Response", id: "subs-refund-response" },
               {
@@ -4030,7 +4051,8 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 name: "is_active",
                 paramType: "boolean",
                 required: false,
-                description: "Set false to pause deliveries, true to re-enable after a circuit-breaker trip",
+                description:
+                  "Set false to pause deliveries, true to re-enable after a circuit-breaker trip",
               },
               { type: "h2", text: "Response", id: "webhooks-update-response" },
               {
@@ -4238,7 +4260,10 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 rows: [
                   ["owner", "Everything. Cannot be removed"],
                   ["admin", "Everything except removing the owner"],
-                  ["developer", "Manage plans, customers, subscriptions, API keys, webhooks"],
+                  [
+                    "developer",
+                    "Manage plans, customers, subscriptions, API keys, webhooks",
+                  ],
                   ["viewer", "Read-only access to the dashboard"],
                 ],
               },
@@ -4276,7 +4301,8 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 name: "role",
                 paramType: "string",
                 required: false,
-                description: "owner | admin | developer | viewer. Defaults to developer",
+                description:
+                  "owner | admin | developer | viewer. Defaults to developer",
               },
               { type: "h2", text: "Response", id: "team-invite-response" },
               {
@@ -4570,7 +4596,8 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 name: "plan_id",
                 paramType: "uuid",
                 required: false,
-                description: "Restrict the code to one plan. Omit for all plans",
+                description:
+                  "Restrict the code to one plan. Omit for all plans",
               },
               {
                 type: "param",
@@ -4584,7 +4611,8 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 name: "expires_at",
                 paramType: "string",
                 required: false,
-                description: "RFC3339 timestamp. Omit for a code that never expires",
+                description:
+                  "RFC3339 timestamp. Omit for a code that never expires",
               },
               { type: "h2", text: "Response", id: "promo-create-response" },
               {
@@ -4781,13 +4809,28 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 type: "table",
                 headers: ["event_type", "Fires when"],
                 rows: [
-                  ["subscription.activated", "Trial ends and charge succeeds, or no-trial checkout completes"],
-                  ["payment.succeeded", "Any charge goes through — renewal, dunning recovery, or first payment"],
+                  [
+                    "subscription.activated",
+                    "Trial ends and charge succeeds, or no-trial checkout completes",
+                  ],
+                  [
+                    "payment.succeeded",
+                    "Any charge goes through — renewal, dunning recovery, or first payment",
+                  ],
                   ["payment.failed", "A charge attempt fails"],
                   ["dunning.started", "The first dunning retry is scheduled"],
-                  ["payment.action_required", "Recovery escalates to a manual pay link"],
-                  ["subscription.cancelled", "A subscription is permanently cancelled"],
-                  ["trial.ending_soon", "3 days before a trial's trial_end, handled by its own scheduled job rather than the webhook dispatcher"],
+                  [
+                    "payment.action_required",
+                    "Recovery escalates to a manual pay link",
+                  ],
+                  [
+                    "subscription.cancelled",
+                    "A subscription is permanently cancelled",
+                  ],
+                  [
+                    "trial.ending_soon",
+                    "3 days before a trial's trial_end, handled by its own scheduled job rather than the webhook dispatcher",
+                  ],
                 ],
               },
             ],
@@ -4832,7 +4875,8 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 name: "event_type",
                 paramType: "string",
                 required: true,
-                description: "One of the 7 supported event types, e.g. payment.succeeded",
+                description:
+                  "One of the 7 supported event types, e.g. payment.succeeded",
               },
               { type: "h2", text: "Body", id: "email-templates-update-body" },
               {
@@ -4840,28 +4884,32 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 name: "use_default",
                 paramType: "boolean",
                 required: true,
-                description: "true to use Tori's built-in copy for this event, false to use subject and html_body below",
+                description:
+                  "true to use Tori's built-in copy for this event, false to use subject and html_body below",
               },
               {
                 type: "param",
                 name: "subject",
                 paramType: "string",
                 required: false,
-                description: "Required when use_default is false. Supports {{customer_email}}, {{plan_name}}, {{amount}}, {{next_billing_date}}, {{pay_link}}, {{product_name}}",
+                description:
+                  "Required when use_default is false. Supports {{customer_email}}, {{plan_name}}, {{amount}}, {{next_billing_date}}, {{pay_link}}, {{product_name}}",
               },
               {
                 type: "param",
                 name: "html_body",
                 paramType: "string",
                 required: false,
-                description: "Required when use_default is false. Same placeholders as subject",
+                description:
+                  "Required when use_default is false. Same placeholders as subject",
               },
               {
                 type: "param",
                 name: "is_enabled",
                 paramType: "boolean",
                 required: true,
-                description: "false stops this event from sending an email at all, default or custom",
+                description:
+                  "false stops this event from sending an email at all, default or custom",
               },
               {
                 type: "h2",
@@ -4966,7 +5014,8 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 name: "token",
                 paramType: "string",
                 required: true,
-                description: "The portal token, passed as ?token=... or as an Authorization: Bearer header",
+                description:
+                  "The portal token, passed as ?token=... or as an Authorization: Bearer header",
               },
               { type: "h2", text: "Response", id: "portal-get-response" },
               {
@@ -5006,7 +5055,11 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 type: "p",
                 text: "Customer self-service cancel. Always cancels at period end — access continues until current_period_end, matching how the dashboard's own cancel endpoint behaves for customer-initiated cancellations.",
               },
-              { type: "h2", text: "Query parameters", id: "portal-cancel-query" },
+              {
+                type: "h2",
+                text: "Query parameters",
+                id: "portal-cancel-query",
+              },
               {
                 type: "param",
                 name: "token",
@@ -5052,7 +5105,11 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 type: "p",
                 text: "Customer self-service pause. Same rules as the operator pause endpoint — only active subscriptions can be paused.",
               },
-              { type: "h2", text: "Query parameters", id: "portal-pause-query" },
+              {
+                type: "h2",
+                text: "Query parameters",
+                id: "portal-pause-query",
+              },
               {
                 type: "param",
                 name: "token",
@@ -5080,7 +5137,11 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 type: "p",
                 text: "Customer self-service resume of a paused subscription.",
               },
-              { type: "h2", text: "Query parameters", id: "portal-resume-query" },
+              {
+                type: "h2",
+                text: "Query parameters",
+                id: "portal-resume-query",
+              },
               {
                 type: "param",
                 name: "token",
@@ -5229,7 +5290,8 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 name: "period",
                 paramType: "string",
                 required: false,
-                description: "Month in YYYY-MM format. Defaults to the current month",
+                description:
+                  "Month in YYYY-MM format. Defaults to the current month",
               },
               { type: "h2", text: "Response", id: "finance-mrr-response" },
               {
@@ -5265,7 +5327,8 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 name: "period",
                 paramType: "string",
                 required: false,
-                description: "Month in YYYY-MM format. Defaults to the current month",
+                description:
+                  "Month in YYYY-MM format. Defaults to the current month",
               },
               { type: "h2", text: "Response", id: "finance-arr-response" },
               {
@@ -5518,9 +5581,18 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 type: "table",
                 headers: ["Bucket", "Meaning"],
                 rows: [
-                  ["at_risk", "GRACE_PERIOD or PAST_DUE. Not retrying on a schedule yet, or the first retry hasn't fired"],
-                  ["recovering", "DUNNING. Actively retrying on the payday schedule"],
-                  ["recovered", "Came back to ACTIVE from GRACE_PERIOD, PAST_DUE, or DUNNING within this reporting window"],
+                  [
+                    "at_risk",
+                    "GRACE_PERIOD or PAST_DUE. Not retrying on a schedule yet, or the first retry hasn't fired",
+                  ],
+                  [
+                    "recovering",
+                    "DUNNING. Actively retrying on the payday schedule",
+                  ],
+                  [
+                    "recovered",
+                    "Came back to ACTIVE from GRACE_PERIOD, PAST_DUE, or DUNNING within this reporting window",
+                  ],
                 ],
               },
               {
@@ -5563,7 +5635,8 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 name: "retry_intervals_days",
                 paramType: "array",
                 required: true,
-                description: "Days after failure to retry, for example [3, 7, 14, 21]",
+                description:
+                  "Days after failure to retry, for example [3, 7, 14, 21]",
               },
               {
                 type: "param",
@@ -5577,14 +5650,16 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 name: "suspension_action",
                 paramType: "string",
                 required: false,
-                description: "suspend or cancel. What happens after retries are exhausted",
+                description:
+                  "suspend or cancel. What happens after retries are exhausted",
               },
               {
                 type: "param",
                 name: "notify_customer",
                 paramType: "boolean",
                 required: false,
-                description: "Fire dunning webhooks the customer-facing product should show",
+                description:
+                  "Fire dunning webhooks the customer-facing product should show",
               },
               {
                 type: "param",
@@ -5598,7 +5673,8 @@ curl https://api.tori.ng/v1/platform/checkout \\
                 name: "smart_retry",
                 paramType: "boolean",
                 required: false,
-                description: "Use Nigerian failure classification to skip retries on permanent declines",
+                description:
+                  "Use Nigerian failure classification to skip retries on permanent declines",
               },
               { type: "h2", text: "Response", id: "dunning-config-response" },
               {
@@ -5926,6 +6002,65 @@ X-Ratelimit-Reset: 1782428400`,
             label: "All releases",
             icon: "ti-history",
             blocks: [
+              {
+                type: "h2",
+                text: "2026-07-07 — Portal upgrade, payouts, payment links, OAuth",
+                id: "v1-8",
+              },
+              {
+                type: "list",
+                items: [
+                  "Full customer portal — email OTP authentication, customers self-authenticate without operator involvement",
+                  "Portal invoice viewing — customers see all invoices across subscriptions with PDF download",
+                  "Portal payment method update — generates fresh Nomba checkout for customers to re-enter card details",
+                  "Portal subscription history timeline — every state change shown in customer-friendly language",
+                  "Portal cancel with reason — churn reason stored in subscription metadata for operator analysis",
+                  "Async payouts — operators request NGN bank transfers, processed via Nomba transfer API, completion webhooks",
+                  "Payout history dashboard — pending/processing/completed/failed status tracking",
+                  "Payment links — standalone one-time payment links with public checkout page, max uses, expiry, pay_link.paid webhook",
+                  "OAuth 2.0 client credentials — POST /v1/oauth/token, operators exchange client_id/client_secret for Bearer tokens",
+                  "OAuth clients dashboard page — create, list, revoke OAuth clients with reveal-once secret modal",
+                  "Platform API accepts both X-API-Key and OAuth Bearer token authentication",
+                  "Tori-branded checkout shell — /checkout/[token] embeds Nomba iframe, tori_checkout_url in platform checkout response",
+                  "Subscription pause with proration credit — pause issues CREDIT ledger entry for unused days, resume applies credit to next charge",
+                  "Resume-forward billing — lapsed subscriptions settle one invoice and fast-forward to current period, no back-billing",
+                  "ChargeWaterfall recovery — wallet balance checked before card on every dunning retry, wallet rail tracked per subscription",
+                  "Merchant balance with T+1 settlement — available vs pending split on Finance page",
+                  "Subscription list response embeds plan_name/plan_amount/plan_interval — eliminates client-side join failures",
+                  "Plan/subscription mode validation at checkout — rejects cross-mode plan references with plan_mode_mismatch error",
+                  "Customer external_id properly threaded through checkout and seeding",
+                  "Smoke test expanded to 37 checks including OAuth and payment link flows",
+                ],
+              },
+              {
+                type: "h2",
+                text: "2026-07-06 — Financial audit, test/live isolation, security, events",
+                id: "v1-7",
+              },
+              {
+                type: "list",
+                items: [
+                  "Financial correctness audit — 19 issues identified and fixed across billing engine, ledger, finops, and proration",
+                  "Critical: double ledger entry bug fixed — trial conversions and dunning recoveries were silently recording revenue twice",
+                  "Critical: RegenerateCheckout argument swap fixed — endpoint was 500ing on every call",
+                  "Critical: invoice amounts now use actual transaction amount from Nomba webhook, not plan amount — discounted invoices now correct",
+                  "Critical: GetDunningRecovery rewritten to compute real at-risk, recovered, and lost amounts from actual subscription data",
+                  "MRR/ARR normalized for annual plans — one renewal no longer spikes a month's MRR by a full year's revenue",
+                  "Churn rate uses subscriptions active at period start, not current snapshot count",
+                  "RevenueReport.BreakdownByPlan now implemented — was always returning null",
+                  "Proration uses math.Round instead of math.Ceil — eliminates systematic overcharge on upgrades",
+                  "Network errors distinguished from card declines — infra failures retry without burning dunning attempts",
+                  "Full test/live mode data isolation — mode column on all resource tables, X-Tori-Mode header on dashboard requests",
+                  "Test subscriptions/customers/invoices/plans completely separate from live data — toggle switches datasets instantly",
+                  "Mode switching without page refresh — queryClient.clear() on toggle, data updates immediately",
+                  "Role-based access control — JWT carries role claim, RequireRole middleware on all mutating routes",
+                  "Four roles enforced at API and UI layer — owner, admin, developer, viewer",
+                  "Active session tracking in Redis with instant revocation — Security page shows all active sessions",
+                  "Session revokes immediately on logout or manual revoke — not after JWT expiry",
+                  "Keyset cursor pagination on all list endpoints — O(1) per page regardless of dataset size",
+                  "Events activity feed — every meaningful operation writes to events table, GET /v1/events activity timeline",
+                ],
+              },
               {
                 type: "h2",
                 text: "2026-07-05: Recovery ladder, team management, test mode, promo codes",
