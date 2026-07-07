@@ -122,8 +122,10 @@ func (h *PaymentLinkHandler) Deactivate(w http.ResponseWriter, r *http.Request) 
 
 // paymentLinkReferencePrefix marks a Nomba orderReference as belonging to a
 // payment link checkout rather than a subscription — the webhook handler
-// checks for this prefix to route completion correctly.
-const paymentLinkReferencePrefix = "paylink_"
+// checks for this prefix to route completion correctly. Kept short because
+// Nomba's live API rejects order references over 50 characters — prefix +
+// UUID (36) + "_" + an 8-char hex suffix must fit under that ceiling.
+const paymentLinkReferencePrefix = "pl_"
 
 // Checkout initiates a one-off Nomba checkout for a payment link — no
 // subscription or plan involved. Reachable via the Platform API (API key or
@@ -208,7 +210,7 @@ func (h *PaymentLinkHandler) initiateCheckout(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	suffix, err := randomHexToken(8)
+	suffix, err := randomHexToken(4)
 	if err != nil {
 		respond.InternalError(w, r, err)
 		return
