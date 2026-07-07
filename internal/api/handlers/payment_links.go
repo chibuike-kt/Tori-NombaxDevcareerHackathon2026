@@ -147,14 +147,6 @@ func (h *PaymentLinkHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		respond.InternalError(w, r, err)
 		return
 	}
-	if !link.IsActive {
-		respond.UnprocessableEntity(w, r, "link_inactive", "this payment link is no longer active")
-		return
-	}
-	if link.MaxUses != nil && link.UseCount >= *link.MaxUses {
-		respond.UnprocessableEntity(w, r, "link_exhausted", "this payment link has reached its usage limit")
-		return
-	}
 	if link.Mode != mode {
 		respond.UnprocessableEntity(w, r, "link_mode_mismatch",
 			fmt.Sprintf("this payment link belongs to %s mode — request is running in %s mode", link.Mode, mode))
@@ -166,6 +158,56 @@ func (h *PaymentLinkHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
 
+	h.initiateCheckout(w, r, link, body.Email)
+}
+
+// PublicInitiate lets an end customer start a payment-link checkout directly
+// — no API key or dashboard session required. The link's own UUID acts as
+// its capability token, matching how a Payment-Link product is meant to be
+// used: shared as a bare URL with no merchant-side integration.
+func (h *PaymentLinkHandler) PublicInitiate(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		respond.BadRequest(w, r, "invalid_id", "payment link ID is not a valid UUID")
+		return
+	}
+
+	link, err := h.links.GetByIDNoTenant(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			respond.NotFound(w, r)
+			return
+		}
+		respond.InternalError(w, r, err)
+		return
+	}
+
+	var body struct {
+		Email string `json:"email"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+
+	// The payment client is mode-aware and normally picks live/test off the
+	// authenticating API key; a public request has none, so stamp the link's
+	// own mode onto the context before dispatching the checkout call.
+	ctx := middleware.WithAPIKeyMode(r.Context(), link.Mode)
+	r = r.WithContext(ctx)
+
+	h.initiateCheckout(w, r, link, body.Email)
+}
+
+// initiateCheckout validates a link is usable and creates the Nomba
+// checkout session shared by both the Platform API and public entry points.
+func (h *PaymentLinkHandler) initiateCheckout(w http.ResponseWriter, r *http.Request, link *domain.PaymentLink, email string) {
+	if !link.IsActive {
+		respond.UnprocessableEntity(w, r, "link_inactive", "this payment link is no longer active")
+		return
+	}
+	if link.MaxUses != nil && link.UseCount >= *link.MaxUses {
+		respond.UnprocessableEntity(w, r, "link_exhausted", "this payment link has reached its usage limit")
+		return
+	}
+
 	suffix, err := randomHexToken(8)
 	if err != nil {
 		respond.InternalError(w, r, err)
@@ -173,20 +215,20 @@ func (h *PaymentLinkHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 	}
 	reference := paymentLinkReferencePrefix + link.ID.String() + "_" + suffix
 
-	tenant, _ := h.tenants.GetByID(r.Context(), tenantID)
+	tenant, _ := h.tenants.GetByID(r.Context(), link.TenantID)
 	merchantName := "Merchant"
 	if tenant != nil {
 		merchantName = tenant.Name
 	}
 
 	nombaResp, err := h.payment.InitiateCheckout(r.Context(), payment.CheckoutRequest{
-		CustomerEmail: body.Email,
+		CustomerEmail: email,
 		Amount:        link.AmountKobo,
 		Currency:      link.Currency,
 		Reference:     reference,
 		Metadata: map[string]string{
 			"payment_link_id": link.ID.String(),
-			"tenant_id":       tenantID.String(),
+			"tenant_id":       link.TenantID.String(),
 			"purpose":         "payment_link",
 		},
 	})
@@ -201,5 +243,8 @@ func (h *PaymentLinkHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		"checkout_url":      nombaResp.CheckoutURL,
 		"tori_checkout_url": toriURL,
 		"reference":         reference,
+		"title":             link.Title,
+		"amount_kobo":       link.AmountKobo,
+		"merchant_name":     merchantName,
 	})
 }

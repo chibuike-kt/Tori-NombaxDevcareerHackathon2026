@@ -132,6 +132,7 @@ r.Get("/v1/status", systemHealthH.Check)
 	portalAuthH := handlers.NewPortalAuthHandler(deps.Customers, deps.Tenants, deps.CustomerOTP, deps.EmailClient)
 	r.Post("/v1/portal/auth/request-otp", portalAuthH.RequestOTP)
 	r.Post("/v1/portal/auth/verify-otp", portalAuthH.VerifyOTP)
+	r.Post("/v1/payment-links/{id}/pay", paymentLinkH.PublicInitiate)
 r.Group(func(r chi.Router) {
     r.Get("/v1/portal", portalH.GetPortalData)
     r.Get("/v1/portal/subscriptions", portalH.ListSubscriptions)

@@ -155,6 +155,38 @@ request GET "/v1/metrics" 200 "$AUTH"
 request PATCH "/v1/dunning-config" 200 "$AUTH" \
   '{"retry_intervals_days":[3,7,14,21],"max_attempts":4,"suspension_action":"suspend","notify_customer":true,"notify_merchant":true,"smart_retry":true}'
 
+request GET "/v1/finance/balance" 200 "$AUTH"
+request GET "/v1/payouts" 200 "$AUTH"
+request GET "/v1/payouts/banks" 200 "$AUTH"
+request GET "/v1/events" 200 "$AUTH"
+
+# ── OAuth clients ────────────────────────────────────────────────────────────
+request POST "/v1/oauth/clients" 201 "$AUTH" '{"name":"Smoke Test OAuth Client","mode":"live"}'
+request GET "/v1/oauth/clients" 200 "$AUTH"
+OAUTH_CLIENT_ID=$(json_get "next((c['id'] for c in d['data'] if c['name']=='Smoke Test OAuth Client'), None)")
+if [ -n "$OAUTH_CLIENT_ID" ]; then
+  request DELETE "/v1/oauth/clients/${OAUTH_CLIENT_ID}" 200 "$AUTH"
+else
+  record DELETE "/v1/oauth/clients/{id}" 200 "SKIP" "could not find created client's id to revoke"
+fi
+
+# ── Payment links ────────────────────────────────────────────────────────────
+request POST "/v1/payment-links" 201 "$AUTH" \
+  '{"title":"Smoke Test Payment Link","description":"created by smoke_test.sh","amount_kobo":100000,"max_uses":10}'
+LINK_ID=$(json_get "d['data']['id']")
+request GET "/v1/payment-links" 200 "$AUTH"
+if [ -n "$LINK_ID" ]; then
+  request GET "/v1/payment-links/${LINK_ID}" 200 "$AUTH"
+  # No auth header at all — this is the bare shareable link a customer clicks.
+  request POST "/v1/payment-links/${LINK_ID}/pay" 201 "" \
+    '{"email":"smoketest@tori.ng"}' "public, no API key or JWT required"
+  request DELETE "/v1/payment-links/${LINK_ID}" 200 "$AUTH"
+else
+  record GET "/v1/payment-links/{id}" 200 "SKIP" "no payment link id captured from create step"
+  record POST "/v1/payment-links/{id}/pay" 201 "SKIP" "no payment link id captured from create step"
+  record DELETE "/v1/payment-links/{id}" 200 "SKIP" "no payment link id captured from create step"
+fi
+
 # ── Generate a Platform (test-mode) API key ─────────────────────────────────
 request POST "/v1/api-keys/test" 201 "$AUTH" "" "generates the key used below"
 API_KEY=$(json_get "d['data']['key']")
@@ -183,6 +215,23 @@ request POST "/v1/platform/checkout" 201 "$APIKEY_HEADER" \
   "$(printf '{"email":"smoketest+%s@tori.ng","plan_id":"%s","idempotency_key":"smoketest-%s"}' "$$" "$TEST_PLAN_ID" "$$")" \
   "uses the test key — routes to Nomba sandbox only"
 SUB_ID=$(json_get "d['data']['subscription']['id']")
+
+# Payment links inherit the dashboard mode from X-Tori-Mode — same
+# plan_mode_mismatch concern as above, so create a test-mode link explicitly
+# before checking out against it with the test-mode Platform API key.
+TESTLINK_STATUS=$(curl -s -o "$BODY_FILE" -w "%{http_code}" -X POST "${BASE_URL}/v1/payment-links" \
+  --max-time 20 -H "Content-Type: application/json" -H "$AUTH" -H "X-Tori-Mode: test" \
+  -d '{"title":"Smoke Test Link (test mode)","amount_kobo":100000,"max_uses":10}' 2>/dev/null)
+record POST "/v1/payment-links (test mode)" 201 "$TESTLINK_STATUS"
+TEST_LINK_ID=$(json_get "d['data']['id']")
+
+if [ -n "$TEST_LINK_ID" ]; then
+  request POST "/v1/platform/payment-links/${TEST_LINK_ID}/checkout" 201 "$APIKEY_HEADER" \
+    '{"customer_email":"smokelink@tori.ng","customer_name":"Smoke Test Buyer"}' \
+    "uses the test key — routes to Nomba sandbox only"
+else
+  record POST "/v1/platform/payment-links/{id}/checkout" 201 "SKIP" "no test-mode payment link id captured"
+fi
 
 # ── Subscription-specific (needs a real subscription ID) ───────────────────
 if [ -n "$SUB_ID" ]; then

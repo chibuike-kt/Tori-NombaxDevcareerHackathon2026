@@ -366,6 +366,51 @@ export const resolveAccount = (accountNumber: string, bankCode: string) =>
     `/v1/payouts/resolve-account?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`,
   );
 
+// Payment links
+export interface PaymentLink {
+  id: string;
+  tenant_id: string;
+  mode: "live" | "test";
+  title: string;
+  description?: string;
+  amount_kobo: number;
+  currency: string;
+  max_uses?: number;
+  use_count: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreatePaymentLinkRequest {
+  title: string;
+  description?: string;
+  amount_kobo: number;
+  max_uses?: number;
+}
+
+export const getPaymentLinks = () =>
+  api.get<{ data: PaymentLink[] }>("/v1/payment-links");
+export const createPaymentLink = (body: CreatePaymentLinkRequest) =>
+  api.post<{ data: PaymentLink }>("/v1/payment-links", body);
+export const deactivatePaymentLink = (id: string) =>
+  api.delete<{ data: PaymentLink }>(`/v1/payment-links/${id}`);
+
+// Events / activity feed
+export interface TenantEvent {
+  id: string;
+  tenant_id: string;
+  mode: "live" | "test";
+  event_type: string;
+  resource_type: string;
+  resource_id?: string;
+  description: string;
+  created_at: string;
+}
+
+export const getEvents = (limit = 50) =>
+  api.get<{ data: TenantEvent[] }>(`/v1/events?limit=${limit}`);
+
 // Sessions
 export interface Session {
   id: string;

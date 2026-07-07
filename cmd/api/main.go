@@ -101,6 +101,8 @@ deps := api.Deps{
 		OAuth:          postgres.NewOAuthRepo(pool),
 		Payouts:        postgres.NewPayoutRepo(pool),
 		CustomerOTP:    postgres.NewCustomerOTPRepo(pool),
+		PaymentLinks:   postgres.NewPaymentLinkRepo(pool),
+		Events:         postgres.NewEventRepo(pool),
     EmailClient:        email.NewResendClient(),
 		Pool: pool,
 }

@@ -14,6 +14,7 @@ const sections: NavSection[] = [
     label: null,
     items: [
       { href: "/dashboard", label: "Overview", icon: "ti-layout-dashboard" },
+      { href: "/dashboard/activity", label: "Activity", icon: "ti-list-details" },
     ],
   },
   {
@@ -43,6 +44,7 @@ const sections: NavSection[] = [
       { href: "/dashboard/invoices", label: "Invoices", icon: "ti-receipt" },
       { href: "/dashboard/finance", label: "Finance", icon: "ti-chart-bar" },
       { href: "/dashboard/payouts", label: "Payouts", icon: "ti-building-bank" },
+      { href: "/dashboard/payment-links", label: "Payment Links", icon: "ti-link" },
     ],
   },
   {
