@@ -52,6 +52,19 @@ type CustomerRepository interface {
 	UpdateNombaAccountID(ctx context.Context, id, tenantID uuid.UUID, nombaAccountID string) (*Customer, error)
 	Archive(ctx context.Context, id, tenantID uuid.UUID) error
 	GetByIDNoTenant(ctx context.Context, id uuid.UUID) (*Customer, error)
+	// GetAllByEmailNoTenant returns every customer row across every tenant
+	// matching the email — used only by portal OTP login, which has no
+	// tenant context until a matching customer is found.
+	GetAllByEmailNoTenant(ctx context.Context, email string) ([]*Customer, error)
+}
+
+// CustomerOTPRepository backs portal self-service login via a 6-digit
+// email code — independent of the dashboard's tenant-scoped
+// EmailVerificationRepository.
+type CustomerOTPRepository interface {
+	Create(ctx context.Context, customerID uuid.UUID, code string, expiresAt time.Time) (*CustomerOTP, error)
+	GetByCode(ctx context.Context, code string) (*CustomerOTP, error)
+	MarkUsed(ctx context.Context, id uuid.UUID) error
 }
 
 type PlanRepository interface {
@@ -102,6 +115,7 @@ type SubscriptionRepository interface {
 type InvoiceRepository interface {
 	Create(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, amount int64, currency string, status InvoiceStatus, dueDate time.Time, lineItems []byte, idempotencyKey *string, mode string) (*Invoice, error)
 	GetByID(ctx context.Context, id, tenantID uuid.UUID) (*Invoice, error)
+	GetByIDNoTenant(ctx context.Context, id uuid.UUID) (*Invoice, error)
 	GetByIdempotencyKey(ctx context.Context, key string) (*Invoice, error)
 	ListBySubscription(ctx context.Context, subscriptionID uuid.UUID) ([]*Invoice, error)
 	ListByTenant(ctx context.Context, tenantID uuid.UUID, mode string, limit, offset int) ([]*Invoice, error)

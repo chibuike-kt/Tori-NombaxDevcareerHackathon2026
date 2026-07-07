@@ -513,6 +513,16 @@ type Payout struct {
 	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
+// CustomerOTP is a one-time login code for the customer self-service portal.
+type CustomerOTP struct {
+	ID         uuid.UUID  `json:"id"`
+	CustomerID uuid.UUID  `json:"customer_id"`
+	Code       string     `json:"-"`
+	ExpiresAt  time.Time  `json:"expires_at"`
+	UsedAt     *time.Time `json:"used_at,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
 type EmailVerification struct {
 	ID       uuid.UUID  `json:"id"`
 	TenantID uuid.UUID  `json:"tenant_id"`

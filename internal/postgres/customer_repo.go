@@ -169,3 +169,15 @@ func (r *CustomerRepo) GetByIDNoTenant(ctx context.Context, id uuid.UUID) (*doma
 	}
 	return customerFromRow(row), nil
 }
+
+func (r *CustomerRepo) GetAllByEmailNoTenant(ctx context.Context, email string) ([]*domain.Customer, error) {
+	rows, err := r.q.GetAllCustomersByEmailNoTenant(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	customers := make([]*domain.Customer, len(rows))
+	for i, row := range rows {
+		customers[i] = customerFromRow(row)
+	}
+	return customers, nil
+}

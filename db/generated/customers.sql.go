@@ -70,6 +70,45 @@ func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) 
 	return i, err
 }
 
+const getAllCustomersByEmailNoTenant = `-- name: GetAllCustomersByEmailNoTenant :many
+SELECT id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode, nomba_account_id FROM customers WHERE email = $1 AND is_deleted = FALSE ORDER BY created_at DESC
+`
+
+// Portal OTP login has no tenant context yet — an email can belong to a
+// customer of more than one merchant, so this returns every match.
+func (q *Queries) GetAllCustomersByEmailNoTenant(ctx context.Context, email string) ([]Customer, error) {
+	rows, err := q.db.Query(ctx, getAllCustomersByEmailNoTenant, email)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Customer{}
+	for rows.Next() {
+		var i Customer
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.ExternalID,
+			&i.Email,
+			&i.Name,
+			&i.NombaCustomerID,
+			&i.TokenisedCard,
+			&i.Metadata,
+			&i.IsDeleted,
+			&i.CreatedAt,
+			&i.Mode,
+			&i.NombaAccountID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getCustomerByEmail = `-- name: GetCustomerByEmail :one
 SELECT id, tenant_id, external_id, email, name, nomba_customer_id, tokenised_card, metadata, is_deleted, created_at, mode, nomba_account_id FROM customers WHERE tenant_id = $1 AND email = $2 AND is_deleted = FALSE
 `

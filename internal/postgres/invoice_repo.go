@@ -50,6 +50,17 @@ func (r *InvoiceRepo) GetByID(ctx context.Context, id, tenantID uuid.UUID) (*dom
 	return invoiceFromRow(row), nil
 }
 
+func (r *InvoiceRepo) GetByIDNoTenant(ctx context.Context, id uuid.UUID) (*domain.Invoice, error) {
+	row, err := r.q.GetInvoiceByIDNoTenant(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return invoiceFromRow(row), nil
+}
+
 func (r *InvoiceRepo) GetByIdempotencyKey(ctx context.Context, key string) (*domain.Invoice, error) {
 	row, err := r.q.GetInvoiceByIdempotencyKey(ctx, toPgText(&key))
 	if err != nil {

@@ -103,6 +103,33 @@ func (q *Queries) GetInvoiceByID(ctx context.Context, arg GetInvoiceByIDParams) 
 	return i, err
 }
 
+const getInvoiceByIDNoTenant = `-- name: GetInvoiceByIDNoTenant :one
+SELECT id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at, mode FROM invoices WHERE id = $1
+`
+
+func (q *Queries) GetInvoiceByIDNoTenant(ctx context.Context, id uuid.UUID) (Invoice, error) {
+	row := q.db.QueryRow(ctx, getInvoiceByIDNoTenant, id)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.SubscriptionID,
+		&i.CustomerID,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.DueDate,
+		&i.PaidAt,
+		&i.NombaChargeRef,
+		&i.ProrationDetails,
+		&i.LineItems,
+		&i.IdempotencyKey,
+		&i.CreatedAt,
+		&i.Mode,
+	)
+	return i, err
+}
+
 const getInvoiceByIdempotencyKey = `-- name: GetInvoiceByIdempotencyKey :one
 SELECT id, tenant_id, subscription_id, customer_id, amount, currency, status, due_date, paid_at, nomba_charge_ref, proration_details, line_items, idempotency_key, created_at, mode FROM invoices WHERE idempotency_key = $1
 `

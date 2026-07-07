@@ -10,6 +10,9 @@ RETURNING *;
 -- name: GetInvoiceByID :one
 SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2;
 
+-- name: GetInvoiceByIDNoTenant :one
+SELECT * FROM invoices WHERE id = $1;
+
 -- name: GetInvoiceByIdempotencyKey :one
 SELECT * FROM invoices WHERE idempotency_key = $1;
 

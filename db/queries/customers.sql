@@ -41,3 +41,8 @@ UPDATE customers SET is_deleted = TRUE WHERE id = $1 AND tenant_id = $2;
 
 -- name: GetCustomerByIDNoTenant :one
 SELECT * FROM customers WHERE id = $1 AND is_deleted = FALSE;
+
+-- name: GetAllCustomersByEmailNoTenant :many
+-- Portal OTP login has no tenant context yet — an email can belong to a
+-- customer of more than one merchant, so this returns every match.
+SELECT * FROM customers WHERE email = $1 AND is_deleted = FALSE ORDER BY created_at DESC;

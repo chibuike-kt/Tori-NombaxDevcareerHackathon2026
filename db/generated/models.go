@@ -49,6 +49,15 @@ type Customer struct {
 	NombaAccountID  pgtype.Text `json:"nomba_account_id"`
 }
 
+type CustomerOtpCode struct {
+	ID         uuid.UUID          `json:"id"`
+	CustomerID uuid.UUID          `json:"customer_id"`
+	Code       string             `json:"code"`
+	ExpiresAt  time.Time          `json:"expires_at"`
+	UsedAt     pgtype.Timestamptz `json:"used_at"`
+	CreatedAt  time.Time          `json:"created_at"`
+}
+
 type EmailTemplate struct {
 	ID         uuid.UUID `json:"id"`
 	TenantID   uuid.UUID `json:"tenant_id"`
