@@ -235,6 +235,41 @@ Failed deliveries retry at 5 minutes, 30 minutes, 2 hours, and 6 hours. After 10
 
 A merchant's own customers get billing emails too, branded to the merchant's product, not to Tori. Seven event types are configurable (`subscription.activated`, `payment.succeeded`, `payment.failed`, `dunning.started`, `payment.action_required`, `subscription.cancelled`, `trial.ending_soon`), each with a default template built into `internal/email/merchant_templates.go` and an optional per-tenant override stored in the `email_templates` table. Every default shares a `merchantShell` wrapper that headers the email with the *tenant's own product name* and footers it "Powered by Tori," because the customer receiving the email should recognize the product they signed up for, not the infrastructure behind it. `POST /v1/email-templates/{event_type}/test` sends whichever version is currently active to the tenant's own address before it ever goes to a real customer.
 
+### ChargeWaterfall: wallet → card → mandate → pay-link
+
+The recovery ladder described above is one instance of a general charge waterfall Tori applies to every recovery attempt, `Handlers.attemptRecoveryCharge` in `internal/billing/handlers.go`, with a rail tried in order and the next rail attempted only if the current one doesn't apply or fails:
+
+1. **Wallet.** If the customer has a Nomba wallet on file with a sufficient balance, it's debited first, on every attempt, before card or mandate are even considered. Nomba's `payment_success` webhook captures the wallet ID the first time a customer pays, so this rail is available from the second recovery attempt onward for anyone who has one.
+2. **Card (attempts 1–2).** The same tokenized `ChargeToken` call used for every normal renewal.
+3. **Mandate (attempt 3+).** A direct debit mandate, if one was created for this subscription. If not, the schedule keeps retrying the card instead of failing outright.
+4. **Manual pay-link.** Once card and mandate are both exhausted, `recovery_rail` flips to `manual`, Tori generates a fresh Nomba checkout URL, and fires `payment.action_required` with that link — automatic recovery stops here.
+
+The rail actually used is returned alongside the charge result and recorded on the subscription, so the Recovery Command Center can show *how* a customer was recovered, not just that they were.
+
+### OAuth client credentials
+
+Alongside static API keys, a tenant can issue OAuth 2.0 client credentials (`POST /v1/oauth/clients`) for integrators who'd rather rotate a short-lived bearer token than pass a static key on every request. `POST /v1/oauth/token` (public, `grant_type=client_credentials`) exchanges a `client_id`/`client_secret` pair for a 30-minute access token, scoped to the same tenant and mode (`live`/`test`) the client was created in. The client secret is shown exactly once, at creation, hashed the same way API keys are (SHA-256, never the plaintext) from then on. `DELETE /v1/oauth/clients/{id}` revokes a client immediately; already-issued tokens simply expire within the window rather than being force-invalidated, which is an acceptable revocation lag given how short-lived the tokens already are.
+
+### Async payouts and T+1 settlement
+
+Money collected through Tori doesn't sit as an undifferentiated balance — `GET /v1/finance/balance` splits it into `available_kobo` (settled and withdrawable) and `pending_kobo` (collected but not yet past Nomba's T+1 settlement window), computed from the ledger by charge date rather than tracked as a separate mutable counter. `POST /v1/payouts` validates the requested amount against `available_kobo`, writes the payout as `pending`, and enqueues an async transfer job — the HTTP response returns immediately rather than blocking on Nomba's transfer API. The worker resolves the transfer via `POST /v1/direct-debits`-adjacent bank-transfer endpoints and moves the payout through `processing` → `completed`/`failed`. `GET /v1/payouts/banks` lists Nomba's supported bank codes and `GET /v1/payouts/resolve-account` verifies an account holder's name before a payout is submitted, so an operator can catch a mistyped account number before money moves rather than after.
+
+### Payment links
+
+Not every charge is a subscription. `POST /v1/payment-links` creates a one-off, shareable payment collection (title, amount, optional description, optional `max_uses`) that needs no subscription or plan behind it. Two ways to collect against it: a merchant's own backend calls `POST /v1/platform/payment-links/{id}/checkout` with its API key (mirroring every other Platform API checkout entry point) and redirects the customer to the returned URL; or, since a payment link is meant to be shareable with zero integration at all, `POST /v1/payment-links/{id}/pay` is a fully public endpoint — no API key, no session — that starts the same checkout using the link's own ID as its capability token. Either path lands the customer on the same branded checkout shell described below. A successful payment records a ledger `CHARGE` entry with no subscription or customer attached (payment links aren't billing relationships), distinguished from subscription checkouts in the Nomba webhook handler by a `pl_` reference prefix checked before the normal UUID-based subscription lookup.
+
+### Branded checkout shell
+
+Every checkout Tori creates, subscription or payment link, redirects through `/checkout/{token}` on the dashboard's own domain rather than straight to Nomba's raw checkout page. The shell shows the merchant's name, what's being paid for, and the amount, then embeds the actual Nomba payment form in an iframe below it — so the customer's browser bar reads the *merchant's* checkout experience, with Nomba visibly handling only the card entry, not the whole page. `buildToriCheckoutURL` builds this URL generically off just a merchant name, a line-item label, and an amount, which is what let payment links reuse the exact same shell subscriptions use with no changes to the page itself.
+
+### Full customer portal with OTP authentication
+
+Beyond the one-hour scoped portal token an integrator can generate server-side, customers can now log into their own portal session directly: `POST /v1/portal/auth/request-otp` emails a 6-digit code to the customer's address on file, `POST /v1/portal/auth/verify-otp` exchanges it for a portal session, both public endpoints scoped to a specific tenant. From there the portal (`/v1/portal/*`) covers subscription list and detail, a full billing history timeline (`GET /v1/portal/subscriptions/{id}/history`), invoice viewing and PDF download (`GET /v1/portal/invoices`), self-service cancel with a reason, pause and resume, and updating the card on file (`POST /v1/portal/subscriptions/{id}/update-payment-method`) — all without the integrator building any of that UI or issuing tokens on the customer's behalf.
+
+### Resume-forward billing and pause with proration credit
+
+Pausing a subscription mid-cycle credits the customer for the unused portion of the period they already paid for — `RecordPauseCredit` writes a `CREDIT` ledger entry for the prorated remainder the moment `POST /v1/subscriptions/{id}/pause` runs, so a customer who pauses on day 10 of a 30-day cycle isn't just frozen, they're owed something concrete and it's on the books immediately. Resuming a subscription that's been paused for a while doesn't back-bill the cycles it missed: `resumeForwardPlan` in `internal/billing/handlers.go` fast-forwards the period to start from *now*, applying whatever pause credit accrued against the first resume charge, rather than charging for time the customer never had access during. A subscription paused for two months and resumed today starts a fresh period today, not two invoices behind.
+
 ---
 
 ## Judging criteria evidence
@@ -268,7 +303,7 @@ This is not a generic retry loop with Nigerian labels on it. A card blocked for 
 
 | Evidence | Detail |
 |---|---|
-| `tenant_id` scoping | Every one of the 18 tables carries `tenant_id`. Every query filters on it. The tenant ID is read from the authenticated JWT or API key context (`middleware.GetTenantID`), never from the request body, so a request can't claim to act on another tenant's data by passing a different ID in JSON |
+| `tenant_id` scoping | Every one of the 24 tables carries `tenant_id`. Every query filters on it. The tenant ID is read from the authenticated JWT or API key context (`middleware.GetTenantID`), never from the request body, so a request can't claim to act on another tenant's data by passing a different ID in JSON |
 | Test/live isolation | Separate rows per mode in `api_keys` (`tenant_id`, `mode`, `key_hash`, `key_hint`). `ModeAwareClient` routes every Nomba call to sandbox or production based on which key authenticated the request, with no environment-flag branching in handler code |
 | Team roles | `owner`, `admin`, `developer`, `viewer`, enforced per tenant, with every invite, role change, and removal writing to a tenant-scoped `audit_log` |
 | Session tracking | Redis-backed, keyed per tenant, with a `session_index:{tenant_id}` set so a tenant's sessions can be listed without scanning the whole keyspace. Revoking one tenant's session touches nothing belonging to any other tenant |
@@ -398,7 +433,7 @@ Ledger service                   Async job queue, circuit breaker
      │                                    │
      ▼                                    ▼
 PostgreSQL 17                    Product's webhook endpoint
-  18 tables, append-only ledger
+  24 tables, append-only ledger
   SKIP LOCKED job queue
 Redis 7
   Sessions, brute-force locks, webhook dedup
@@ -411,7 +446,7 @@ Nomba
 
 ### Database
 
-18 tables, every one carrying `tenant_id`:
+24 tables, every one carrying `tenant_id`:
 
 ```
 tenants                    one row per business: name, email, dunning_config, email_verified
@@ -426,12 +461,18 @@ webhook_endpoints          registered delivery targets, max 5 per tenant
 webhook_deliveries         delivery attempt log: payload, response, status, attempt count
 reconciliation_runs        nightly Nomba-vs-ledger summaries
 email_verifications        6-digit OTP codes with expiry and single-use tracking
+customer_otp_codes         6-digit OTP codes for customer portal login
 api_keys                   one live and one test key per tenant, SHA-256 hashed
+oauth_clients               OAuth 2.0 client_id/client_secret pairs, SHA-256 hashed secret
+oauth_tokens                issued client_credentials access tokens, 30-minute expiry
+payouts                     bank transfer withdrawals: amount, bank, status, T+1 settlement
+payment_links                one-off shareable payment collections, no subscription required
 members                    team accounts: owner, admin, developer, viewer
 invitations                pending team invites, 72-hour token expiry
 audit_log                  one row per administrative action
 promo_codes                percentage or fixed discounts, plan-scoped, use-limited
 email_templates            per-tenant override of the 7 merchant billing emails
+events                     activity feed: OAuth, payout, and payment-link lifecycle events
 ```
 
 Amounts are `BIGINT` kobo everywhere in the schema. There is no floating-point arithmetic anywhere in the billing path; ₦15,000 is stored as `1500000`, which removes an entire class of rounding bugs before they can exist.
@@ -664,7 +705,7 @@ cp .env.example .env
 # fill in Nomba TEST credentials, a JWT_SECRET (32+ chars), and a RESEND_API_KEY
 
 make docker-up      # Postgres, Redis, API, worker, frontend
-make migrate-up      # applies all 16 migrations in order
+make migrate-up      # applies all 25 migrations in order
 make seed            # creates dev@tori.ng / tori-dev-2026 with sample data
 make dev              # frontend at localhost:3001, or: cd frontend && npm run dev
 ```
@@ -701,20 +742,25 @@ cmd/
 internal/
   api/
     handlers/       HTTP handlers: auth, plans, customers, subscriptions, checkout,
-                    portal, ledger, finance, webhooks, api keys, invoices, nomba
-                    webhook, refunds, team, promo codes, email templates, health
+                    portal, portal auth (OTP), ledger, finance, payouts, payment
+                    links, oauth, webhooks, api keys, invoices, nomba webhook,
+                    refunds, team, promo codes, email templates, events, health
     middleware/     JWT auth, API key auth, request ID, request logger, PII masking,
                     rate limiting
     router.go       Every route: Dashboard API, Platform API, Customer Portal
   billing/          Job handlers: trial expiry, dunning retry, grace retry,
-                    recovery ladder escalation, sandbox webhook simulation
+                    ChargeWaterfall recovery escalation, sandbox webhook simulation
   domain/           Domain models, repository interfaces, sentinel errors
   dunning/          Failure classifier and the grace-period/payday retry engine
   email/            Resend client, verification/welcome emails, the 7 merchant
                     billing email templates
-  finops/           MRR, ARR, churn, revenue reports, the Recovery Command Center
+  events/           Nil-safe activity feed recorder, shared by the HTTP and
+                    worker layers
+  finops/           MRR, ARR, churn, revenue reports, T+1 settlement balance,
+                    the Recovery Command Center
   ledger/           The append-only ledger service: charge, refund, proration, credit
   payment/          NombaClient, ModeAwareClient (test/live routing), mandate client
+  payout/           Async bank-transfer payout processing
   postgres/         Repository implementations (sqlc-generated queries underneath)
   reconciliation/   Nightly Nomba-vs-ledger reconciliation
   scheduler/        The SKIP LOCKED worker pool
@@ -722,7 +768,7 @@ internal/
   webhook/          Outbound dispatcher: HMAC signing, async delivery, circuit breaker
 
 db/
-  migrations/       16 sequential migrations, each with a paired .down.sql
+  migrations/       25 sequential migrations, each with a paired .down.sql
   queries/          sqlc query definitions
   generated/        sqlc-generated Go code (committed, not built at deploy time)
 
@@ -805,7 +851,8 @@ Every system has boundaries, and pretending otherwise is how a demo breaks in fr
 - [x] Nightly reconciliation against real Nomba transaction data
 - [x] 78 passing test cases across the state machine, billing, dunning, ledger, and webhook packages
 - [x] Architecture, security, and ADR documentation separate from this README, linked from it
-- [x] Smoke test script exercising every public, JWT, and API-key-protected endpoint
+- [x] Smoke test script exercising every public, JWT, and API-key-protected endpoint — 51/51 passing
+- [x] OAuth 2.0 client credentials, async payouts with T+1 settlement, payment links, and a full customer portal with OTP login, all shipped since the initial submission
 
 ---
 
