@@ -28,8 +28,8 @@ export default function PortalPage() {
       return;
     }
     setToken(t);
-    portalFetch<PortalOverview>("/v1/portal", t)
-      .then((res) => setData((res as { data: PortalOverview }).data))
+    portalFetch<{ data: PortalOverview }>("/v1/portal", t)
+      .then((res) => setData(res.data))
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load portal"))
       .finally(() => setLoading(false));
   }, [params, router]);

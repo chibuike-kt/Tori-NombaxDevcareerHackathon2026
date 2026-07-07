@@ -39,12 +39,12 @@ export default function PortalSubscriptionDetailPage() {
     setJustUpdatedPayment(params.get("payment_method_updated") === "1");
 
     Promise.all([
-      portalFetch<PortalSubscription>(`/v1/portal/subscriptions/${subId}`, t),
-      portalFetch<PortalHistoryEntry[]>(`/v1/portal/subscriptions/${subId}/history`, t),
+      portalFetch<{ data: PortalSubscription }>(`/v1/portal/subscriptions/${subId}`, t),
+      portalFetch<{ data: PortalHistoryEntry[] }>(`/v1/portal/subscriptions/${subId}/history`, t),
     ])
       .then(([subRes, historyRes]) => {
-        setSub((subRes as { data: PortalSubscription }).data);
-        setHistory((historyRes as { data: PortalHistoryEntry[] }).data ?? []);
+        setSub(subRes.data);
+        setHistory(historyRes.data ?? []);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load subscription"));
   }, [params, router, subId]);
@@ -56,8 +56,8 @@ export default function PortalSubscriptionDetailPage() {
         method: "POST",
         body: body ? JSON.stringify(body) : undefined,
       });
-      const res = await portalFetch<PortalSubscription>(`/v1/portal/subscriptions/${subId}`, token);
-      setSub((res as { data: PortalSubscription }).data);
+      const res = await portalFetch<{ data: PortalSubscription }>(`/v1/portal/subscriptions/${subId}`, token);
+      setSub(res.data);
       setShowCancelModal(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Action failed");
@@ -69,12 +69,12 @@ export default function PortalSubscriptionDetailPage() {
   const updatePaymentMethod = async () => {
     setBusy(true);
     try {
-      const res = await portalFetch<{ checkout_url: string }>(
+      const res = await portalFetch<{ data: { checkout_url: string } }>(
         `/v1/portal/subscriptions/${subId}/update-payment-method`,
         token,
         { method: "POST" },
       );
-      const url = (res as { data: { checkout_url: string } }).data.checkout_url;
+      const url = res.data.checkout_url;
       if (url) window.location.href = url;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to start payment method update");

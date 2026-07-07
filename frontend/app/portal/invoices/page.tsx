@@ -40,16 +40,16 @@ export default function PortalInvoicesPage() {
       return;
     }
     setToken(t);
-    portalFetch<PortalInvoice[]>("/v1/portal/invoices", t)
-      .then((res) => setInvoices((res as { data: PortalInvoice[] }).data ?? []))
+    portalFetch<{ data: PortalInvoice[] }>("/v1/portal/invoices", t)
+      .then((res) => setInvoices(res.data ?? []))
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load invoices"));
   }, [params, router]);
 
   const download = async (id: string) => {
     setDownloading(id);
     try {
-      const res = await portalFetch<DownloadableInvoice>(`/v1/portal/invoices/${id}/download`, token);
-      await downloadInvoicePDF((res as { data: DownloadableInvoice }).data);
+      const res = await portalFetch<{ data: DownloadableInvoice }>(`/v1/portal/invoices/${id}/download`, token);
+      await downloadInvoicePDF(res.data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to generate PDF");
     } finally {

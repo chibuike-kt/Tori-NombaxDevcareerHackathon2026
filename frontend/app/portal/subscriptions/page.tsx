@@ -23,8 +23,8 @@ export default function PortalSubscriptionsPage() {
   const [confirm, setConfirm] = useState<{ id: string; action: "cancel" | "pause" | "resume" } | null>(null);
 
   const load = (t: string) => {
-    portalFetch<PortalSubscription[]>("/v1/portal/subscriptions", t)
-      .then((res) => setSubs((res as { data: PortalSubscription[] }).data))
+    portalFetch<{ data: PortalSubscription[] }>("/v1/portal/subscriptions", t)
+      .then((res) => setSubs(res.data))
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load subscriptions"));
   };
 
@@ -54,12 +54,12 @@ export default function PortalSubscriptionsPage() {
   const updatePaymentMethod = async (id: string) => {
     setBusy(id + "update-payment-method");
     try {
-      const res = await portalFetch<{ checkout_url: string }>(
+      const res = await portalFetch<{ data: { checkout_url: string } }>(
         `/v1/portal/subscriptions/${id}/update-payment-method`,
         token,
         { method: "POST" },
       );
-      const url = (res as { data: { checkout_url: string } }).data.checkout_url;
+      const url = res.data.checkout_url;
       if (url) window.location.href = url;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to start payment method update");
