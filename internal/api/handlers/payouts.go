@@ -10,6 +10,7 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/events"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/finops"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/payment"
 	"github.com/go-chi/chi/v5"
@@ -17,14 +18,15 @@ import (
 )
 
 type PayoutHandler struct {
-	payouts domain.PayoutRepository
-	payment payment.NombaClient
-	jobs    domain.JobRepository
-	finops  *finops.Service
+	payouts   domain.PayoutRepository
+	payment   payment.NombaClient
+	jobs      domain.JobRepository
+	finops    *finops.Service
+	eventsRec *events.Recorder
 }
 
-func NewPayoutHandler(payouts domain.PayoutRepository, paymentClient payment.NombaClient, jobs domain.JobRepository, finopsSvc *finops.Service) *PayoutHandler {
-	return &PayoutHandler{payouts: payouts, payment: paymentClient, jobs: jobs, finops: finopsSvc}
+func NewPayoutHandler(payouts domain.PayoutRepository, paymentClient payment.NombaClient, jobs domain.JobRepository, finopsSvc *finops.Service, eventsRecorder *events.Recorder) *PayoutHandler {
+	return &PayoutHandler{payouts: payouts, payment: paymentClient, jobs: jobs, finops: finopsSvc, eventsRec: eventsRecorder}
 }
 
 type createPayoutRequest struct {
@@ -81,6 +83,9 @@ func (h *PayoutHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respond.InternalError(w, r, err)
 		return
 	}
+
+	h.eventsRec.Record(r.Context(), tenantID, mode, domain.EventPayoutRequested, "payout", po.ID,
+		"Payout requested — "+formatNaira(po.AmountKobo)+" to "+po.BankName)
 
 	respond.JSON(w, r, http.StatusCreated, po)
 }

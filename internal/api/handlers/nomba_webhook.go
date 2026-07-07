@@ -16,6 +16,7 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/events"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/ledger"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/payment"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/webhook"
@@ -24,15 +25,17 @@ import (
 )
 
 type NombaWebhookHandler struct {
-	subs       domain.SubscriptionRepository
-	tokens     domain.TokenRevoker
-	plans      domain.PlanRepository
-	invoices   domain.InvoiceRepository
-	ledgerSvc  *ledger.Service
-	payment    payment.NombaClient
-	dispatcher *webhook.Dispatcher
-	jobs       domain.JobRepository
-	customers  domain.CustomerRepository
+	subs         domain.SubscriptionRepository
+	tokens       domain.TokenRevoker
+	plans        domain.PlanRepository
+	invoices     domain.InvoiceRepository
+	ledgerSvc    *ledger.Service
+	payment      payment.NombaClient
+	dispatcher   *webhook.Dispatcher
+	jobs         domain.JobRepository
+	customers    domain.CustomerRepository
+	paymentLinks domain.PaymentLinkRepository
+	eventsRec    *events.Recorder
 }
 
 func NewNombaWebhookHandler(
@@ -45,13 +48,17 @@ func NewNombaWebhookHandler(
 	dispatcher *webhook.Dispatcher,
 	jobs domain.JobRepository,
 	customers domain.CustomerRepository,
+	paymentLinks domain.PaymentLinkRepository,
+	eventsRecorder *events.Recorder,
 ) *NombaWebhookHandler {
 	return &NombaWebhookHandler{
 		subs: subs, tokens: tokens,
 		plans: plans, invoices: invoices,
 		ledgerSvc: ledgerSvc, payment: paymentClient,
 		dispatcher: dispatcher, jobs: jobs,
-		customers: customers,
+		customers:    customers,
+		paymentLinks: paymentLinks,
+		eventsRec:    eventsRecorder,
 	}
 }
 
@@ -184,6 +191,14 @@ func (h *NombaWebhookHandler) handlePaymentSuccess(w http.ResponseWriter, r *htt
 		return
 	}
 
+	// Payment link checkouts carry a "paylink_{id}_{nonce}" reference instead
+	// of a subscription UUID — no subscription/plan is involved.
+	if strings.HasPrefix(orderRef, paymentLinkReferencePrefix) {
+		h.handlePaymentLinkSuccess(r, orderRef, data)
+		respond.JSON(w, r, http.StatusOK, map[string]string{"status": "processed"})
+		return
+	}
+
 	subID, err := uuid.Parse(orderRef)
 	if err != nil {
 		log.Warn().Str("order_reference", orderRef).Msg("nomba webhook: order_reference is not a UUID")
@@ -258,6 +273,49 @@ func (h *NombaWebhookHandler) handlePaymentSuccess(w http.ResponseWriter, r *htt
 			}
 
 	respond.JSON(w, r, http.StatusOK, map[string]string{"status": "processed"})
+}
+
+// handlePaymentLinkSuccess completes a payment link checkout: increments the
+// link's use count and records a ledger CHARGE with no subscription or
+// customer attached — payment links are one-off collections, not billing.
+func (h *NombaWebhookHandler) handlePaymentLinkSuccess(r *http.Request, orderRef string, data nombaPaymentData) {
+	ctx := r.Context()
+
+	rest := strings.TrimPrefix(orderRef, paymentLinkReferencePrefix)
+	parts := strings.SplitN(rest, "_", 2)
+	linkID, err := uuid.Parse(parts[0])
+	if err != nil {
+		log.Warn().Str("order_reference", orderRef).Msg("nomba webhook: payment link reference is not a valid ID")
+		return
+	}
+
+	link, err := h.paymentLinks.GetByIDNoTenant(ctx, linkID)
+	if err != nil {
+		log.Error().Err(err).Str("payment_link_id", linkID.String()).Msg("nomba webhook: payment link not found")
+		return
+	}
+
+	if err := h.paymentLinks.IncrementUseCount(ctx, linkID); err != nil {
+		log.Error().Err(err).Str("payment_link_id", linkID.String()).Msg("nomba webhook: failed to increment use count")
+	}
+
+	amountKobo := int64(math.Round(data.Transaction.TransactionAmount * 100))
+	if amountKobo <= 0 {
+		amountKobo = link.AmountKobo
+	}
+
+	chargeIK := fmt.Sprintf("paylink-charge-%s", orderRef)
+	if _, err := h.ledgerSvc.RecordPaymentLinkCharge(ctx, link.TenantID, amountKobo, link.Currency, chargeIK, link.Title, link.Mode); err != nil {
+		log.Error().Err(err).Str("payment_link_id", linkID.String()).Msg("nomba webhook: failed to record payment link charge")
+	}
+
+	h.eventsRec.Record(ctx, link.TenantID, link.Mode, domain.EventPaymentLinkPaid, "payment_link", link.ID,
+		fmt.Sprintf("Payment link \"%s\" paid — %s", link.Title, formatNaira(amountKobo)))
+
+	log.Info().
+		Str("payment_link_id", linkID.String()).
+		Int64("amount_kobo", amountKobo).
+		Msg("nomba webhook: payment link paid")
 }
 
 // activateAndRecord moves a PENDING_PAYMENT subscription to ACTIVE,

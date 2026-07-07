@@ -7,6 +7,7 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/handlers"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/events"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/finops"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/ledger"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/webhook"
@@ -42,6 +43,8 @@ type Deps struct {
 	OAuth              domain.OAuthRepository
 	Payouts            domain.PayoutRepository
 	CustomerOTP        domain.CustomerOTPRepository
+	PaymentLinks       domain.PaymentLinkRepository
+	Events             domain.EventRepository
 }
 
 // maxBodySize limits request bodies to 1MB to prevent OOM attacks.
@@ -113,8 +116,11 @@ r.Get("/v1/status", systemHealthH.Check)
 	emailTemplateH := handlers.NewEmailTemplateHandler(deps.EmailTemplates, deps.Tenants, deps.EmailClient)
 	planChangeH := handlers.NewPlanChangeHandler(deps.Subscriptions, deps.Plans, ledgerSvc)
 	refundH := handlers.NewRefundHandler(deps.Subscriptions, deps.Invoices, ledgerSvc, deps.Payment)
-	oauthH := handlers.NewOAuthHandler(deps.OAuth)
-	payoutH := handlers.NewPayoutHandler(deps.Payouts, deps.Payment, deps.Jobs, finopsSvc)
+	eventsRecorder := events.NewRecorder(deps.Events)
+	eventsH := handlers.NewEventsHandler(deps.Events)
+	oauthH := handlers.NewOAuthHandler(deps.OAuth, eventsRecorder)
+	payoutH := handlers.NewPayoutHandler(deps.Payouts, deps.Payment, deps.Jobs, finopsSvc, eventsRecorder)
+	paymentLinkH := handlers.NewPaymentLinkHandler(deps.PaymentLinks, deps.Tenants, deps.Payment, eventsRecorder)
 
 	// Public routes — no auth
 	r.Post("/v1/auth/register", authH.Register)
@@ -230,6 +236,13 @@ r.Group(func(r chi.Router) {
 		r.Get("/v1/payouts/resolve-account", payoutH.ResolveAccount)
 		r.Get("/v1/payouts/{id}", payoutH.Get)
 
+		r.With(middleware.RequireRole("owner", "admin")).Post("/v1/payment-links", paymentLinkH.Create)
+		r.Get("/v1/payment-links", paymentLinkH.List)
+		r.Get("/v1/payment-links/{id}", paymentLinkH.Get)
+		r.With(middleware.RequireRole("owner", "admin")).Delete("/v1/payment-links/{id}", paymentLinkH.Deactivate)
+
+		r.Get("/v1/events", eventsH.List)
+
 		r.With(middleware.RequireRole("owner", "admin", "developer")).Post("/v1/webhooks/endpoints", webhookH.CreateEndpoint)
 		r.With(middleware.RequireRole("owner", "admin", "developer")).Get("/v1/webhooks/endpoints", webhookH.ListEndpoints)
 		r.With(middleware.RequireRole("owner", "admin", "developer")).Patch("/v1/webhooks/endpoints/{id}", webhookH.UpdateEndpoint)
@@ -271,10 +284,13 @@ r.Group(func(r chi.Router) {
 		r.Patch("/v1/platform/subscriptions/{id}/plan", planChangeH.ChangePlan)
 		r.Post("/v1/platform/subscriptions/{id}/checkout", checkoutH.RegenerateCheckout)
 		r.Post("/v1/platform/subscriptions/{id}/refund", refundH.IssueRefund)
+
+		r.Post("/v1/platform/payment-links/{id}/checkout", paymentLinkH.Checkout)
 	})
 		nombaWebhookH := handlers.NewNombaWebhookHandler(
     deps.Subscriptions, deps.Tokens, deps.Plans, deps.Invoices,
     ledger.NewService(deps.Ledger), deps.Payment, dispatcher, deps.Jobs, deps.Customers,
+    deps.PaymentLinks, eventsRecorder,
 )
 		r.Post("/v1/nomba/webhook", nombaWebhookH.Handle)
 		r.Get("/v1/nomba/webhook", func(w http.ResponseWriter, r *http.Request) {

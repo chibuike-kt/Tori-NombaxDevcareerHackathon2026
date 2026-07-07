@@ -9,20 +9,21 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/events"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/payment"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
 type PaymentLinkHandler struct {
-	links   domain.PaymentLinkRepository
-	tenants domain.TenantRepository
-	payment payment.NombaClient
-	events  *EventRecorder
+	links     domain.PaymentLinkRepository
+	tenants   domain.TenantRepository
+	payment   payment.NombaClient
+	eventsRec *events.Recorder
 }
 
-func NewPaymentLinkHandler(links domain.PaymentLinkRepository, tenants domain.TenantRepository, paymentClient payment.NombaClient, events *EventRecorder) *PaymentLinkHandler {
-	return &PaymentLinkHandler{links: links, tenants: tenants, payment: paymentClient, events: events}
+func NewPaymentLinkHandler(links domain.PaymentLinkRepository, tenants domain.TenantRepository, paymentClient payment.NombaClient, eventsRecorder *events.Recorder) *PaymentLinkHandler {
+	return &PaymentLinkHandler{links: links, tenants: tenants, payment: paymentClient, eventsRec: eventsRecorder}
 }
 
 type createPaymentLinkRequest struct {
@@ -56,7 +57,7 @@ func (h *PaymentLinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.events.Record(r.Context(), tenantID, mode, domain.EventPaymentLinkCreated, "payment_link", link.ID,
+	h.eventsRec.Record(r.Context(), tenantID, mode, domain.EventPaymentLinkCreated, "payment_link", link.ID,
 		fmt.Sprintf("Payment link \"%s\" created — %s", link.Title, formatNaira(link.AmountKobo)))
 
 	respond.JSON(w, r, http.StatusCreated, link)
@@ -113,7 +114,7 @@ func (h *PaymentLinkHandler) Deactivate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	h.events.Record(r.Context(), tenantID, mode, domain.EventPaymentLinkDeactivated, "payment_link", link.ID,
+	h.eventsRec.Record(r.Context(), tenantID, mode, domain.EventPaymentLinkDeactivated, "payment_link", link.ID,
 		fmt.Sprintf("Payment link \"%s\" deactivated", link.Title))
 
 	respond.JSON(w, r, http.StatusOK, link)
@@ -202,5 +203,3 @@ func (h *PaymentLinkHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		"reference":         reference,
 	})
 }
-
-var _ = time.Now

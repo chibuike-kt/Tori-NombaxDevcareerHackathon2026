@@ -112,6 +112,26 @@ func (s *Service) RecordCredit(ctx context.Context, tenantID, subscriptionID, cu
 	)
 }
 
+// RecordPaymentLinkCharge writes a DEBIT entry for a payment link payment —
+// no subscription or customer is attached since payment links are one-off
+// collections, not subscription billing.
+func (s *Service) RecordPaymentLinkCharge(ctx context.Context, tenantID uuid.UUID, amount int64, currency, idempotencyKey, linkTitle, mode string) (*domain.LedgerEntry, error) {
+	return s.repo.Append(ctx,
+		tenantID,
+		nil,
+		nil,
+		nil,
+		domain.EntryCharge,
+		domain.DirectionDebit,
+		amount,
+		currency,
+		"Payment link collected: "+linkTitle,
+		idempotencyKey,
+		nil,
+		mode,
+	)
+}
+
 // RecordPauseCredit writes a CREDIT entry for the unused portion of a
 // subscription's current billing period when it's paused.
 func (s *Service) RecordPauseCredit(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, amount int64, currency, idempotencyKey, mode string) (*domain.LedgerEntry, error) {

@@ -12,6 +12,7 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/middleware"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/api/respond"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/events"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -20,11 +21,12 @@ import (
 const oauthTokenTTL = 30 * time.Minute
 
 type OAuthHandler struct {
-	oauth domain.OAuthRepository
+	oauth     domain.OAuthRepository
+	eventsRec *events.Recorder
 }
 
-func NewOAuthHandler(oauth domain.OAuthRepository) *OAuthHandler {
-	return &OAuthHandler{oauth: oauth}
+func NewOAuthHandler(oauth domain.OAuthRepository, eventsRecorder *events.Recorder) *OAuthHandler {
+	return &OAuthHandler{oauth: oauth, eventsRec: eventsRecorder}
 }
 
 func randomHexToken(n int) (string, error) {
@@ -87,6 +89,9 @@ func (h *OAuthHandler) CreateClient(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.eventsRec.Record(r.Context(), tenantID, client.Mode, domain.EventOAuthClientCreated, "oauth_client", client.ID,
+		"OAuth client \""+client.Name+"\" created")
+
 	respond.JSON(w, r, http.StatusCreated, oauthClientRevealResponse{
 		ClientID:     client.ClientID,
 		ClientSecret: clientSecret,
@@ -129,6 +134,9 @@ func (h *OAuthHandler) RevokeClient(w http.ResponseWriter, r *http.Request) {
 		respond.InternalError(w, r, err)
 		return
 	}
+
+	h.eventsRec.Record(r.Context(), tenantID, client.Mode, domain.EventOAuthClientRevoked, "oauth_client", client.ID,
+		"OAuth client \""+client.Name+"\" revoked")
 
 	respond.JSON(w, r, http.StatusOK, client)
 }
