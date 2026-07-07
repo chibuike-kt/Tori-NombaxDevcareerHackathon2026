@@ -59,3 +59,15 @@ func (c *ModeAwareClient) DebitWallet(ctx context.Context, accountID string, amo
 func (c *ModeAwareClient) GetWalletBalance(ctx context.Context, accountID string) (int64, error) {
 	return c.pick(ctx).GetWalletBalance(ctx, accountID)
 }
+
+func (c *ModeAwareClient) TransferToBank(ctx context.Context, req TransferRequest) (*TransferResponse, error) {
+	return c.pick(ctx).TransferToBank(ctx, req)
+}
+
+func (c *ModeAwareClient) ListBanks(ctx context.Context) ([]Bank, error) {
+	return c.pick(ctx).ListBanks(ctx)
+}
+
+func (c *ModeAwareClient) ResolveBankAccount(ctx context.Context, accountNumber, bankCode string) (string, error) {
+	return c.pick(ctx).ResolveBankAccount(ctx, accountNumber, bankCode)
+}

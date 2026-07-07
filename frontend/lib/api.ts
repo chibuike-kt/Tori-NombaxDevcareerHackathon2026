@@ -320,6 +320,49 @@ export const createOAuthClient = (name: string, mode: "live" | "test") =>
 export const revokeOAuthClient = (id: string) =>
   api.delete<{ data: OAuthClient }>(`/v1/oauth/clients/${id}`);
 
+// Payouts
+export interface Payout {
+  id: string;
+  tenant_id: string;
+  mode: "live" | "test";
+  amount_kobo: number;
+  currency: string;
+  bank_code: string;
+  bank_name: string;
+  account_number: string;
+  account_name: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  nomba_reference?: string;
+  failure_reason?: string;
+  requested_at: string;
+  completed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Bank {
+  code: string;
+  name: string;
+}
+
+export interface CreatePayoutRequest {
+  amount_kobo: number;
+  bank_code: string;
+  bank_name: string;
+  account_number: string;
+  account_name: string;
+}
+
+export const getPayouts = () => api.get<{ data: Payout[] }>("/v1/payouts");
+export const getPayout = (id: string) => api.get<{ data: Payout }>(`/v1/payouts/${id}`);
+export const createPayout = (body: CreatePayoutRequest) =>
+  api.post<{ data: Payout }>("/v1/payouts", body);
+export const getBanks = () => api.get<{ data: Bank[] }>("/v1/payouts/banks");
+export const resolveAccount = (accountNumber: string, bankCode: string) =>
+  api.get<{ data: { account_name: string } }>(
+    `/v1/payouts/resolve-account?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`,
+  );
+
 // Sessions
 export interface Session {
   id: string;

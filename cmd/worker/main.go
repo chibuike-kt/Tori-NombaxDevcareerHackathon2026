@@ -13,6 +13,7 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/email"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/ledger"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/payment"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/payout"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/postgres"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/reconciliation"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/scheduler"
@@ -89,6 +90,10 @@ handlers := billing.NewHandlers(
 	worker.Register(domain.JobWebhookDeliver, webhookDispatcher.HandleWebhookDeliver)
 	worker.Register(domain.JobCancelAtPeriodEnd, handlers.CancelAtPeriodEnd)
 	worker.Register(domain.JobSimulateWebhook, handlers.SimulateWebhook)
+
+	payoutRepo := postgres.NewPayoutRepo(pool)
+	payoutHandlers := payout.NewHandlers(payoutRepo, paymentClient, webhookDispatcher)
+	worker.Register(domain.JobProcessPayout, payoutHandlers.ProcessPayout)
 
 	// Reconciliation service
 reconSvc := reconciliation.NewService(pool, paymentClient, ledgerRepo)

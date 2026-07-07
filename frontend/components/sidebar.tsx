@@ -42,6 +42,7 @@ const sections: NavSection[] = [
     items: [
       { href: "/dashboard/invoices", label: "Invoices", icon: "ti-receipt" },
       { href: "/dashboard/finance", label: "Finance", icon: "ti-chart-bar" },
+      { href: "/dashboard/payouts", label: "Payouts", icon: "ti-building-bank" },
     ],
   },
   {

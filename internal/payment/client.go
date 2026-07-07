@@ -98,8 +98,8 @@ type TransferResponse struct {
 
 // Bank is a Nigerian bank as returned by Nomba's bank list.
 type Bank struct {
-	Code string
-	Name string
+	Code string `json:"code"`
+	Name string `json:"name"`
 }
 
 // NombaClient is the interface all business logic depends on.

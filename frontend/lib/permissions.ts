@@ -6,6 +6,7 @@ export const can = (role: Role, action: string): boolean => {
     'manage_plans': ['owner', 'admin'],
     'manage_subscriptions': ['owner', 'admin'],
     'manage_recovery': ['owner', 'admin'],
+    'manage_payouts': ['owner', 'admin'],
     'manage_promo_codes': ['owner', 'admin'],
     'manage_email_templates': ['owner', 'admin'],
     'manage_webhooks': ['owner', 'admin', 'developer'],

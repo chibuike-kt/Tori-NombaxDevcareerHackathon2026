@@ -40,6 +40,7 @@ type Deps struct {
 	PromoCodes         domain.PromoCodeRepository
 	EmailTemplates     domain.EmailTemplateRepository
 	OAuth              domain.OAuthRepository
+	Payouts            domain.PayoutRepository
 }
 
 // maxBodySize limits request bodies to 1MB to prevent OOM attacks.
@@ -112,6 +113,7 @@ r.Get("/v1/status", systemHealthH.Check)
 	planChangeH := handlers.NewPlanChangeHandler(deps.Subscriptions, deps.Plans, ledgerSvc)
 	refundH := handlers.NewRefundHandler(deps.Subscriptions, deps.Invoices, ledgerSvc, deps.Payment)
 	oauthH := handlers.NewOAuthHandler(deps.OAuth)
+	payoutH := handlers.NewPayoutHandler(deps.Payouts, deps.Payment, deps.Jobs, finopsSvc)
 
 	// Public routes — no auth
 	r.Post("/v1/auth/register", authH.Register)
@@ -211,6 +213,12 @@ r.Group(func(r chi.Router) {
 		r.Get("/v1/finance/dunning-recovery", finopsH.DunningRecovery)
 		r.Get("/v1/finance/revenue-report", finopsH.RevenueReport)
 		r.Get("/v1/finance/recovery-center", finopsH.RecoveryCenter)
+
+		r.With(middleware.RequireRole("owner", "admin")).Post("/v1/payouts", payoutH.Create)
+		r.Get("/v1/payouts", payoutH.List)
+		r.Get("/v1/payouts/banks", payoutH.ListBanks)
+		r.Get("/v1/payouts/resolve-account", payoutH.ResolveAccount)
+		r.Get("/v1/payouts/{id}", payoutH.Get)
 
 		r.With(middleware.RequireRole("owner", "admin", "developer")).Post("/v1/webhooks/endpoints", webhookH.CreateEndpoint)
 		r.With(middleware.RequireRole("owner", "admin", "developer")).Get("/v1/webhooks/endpoints", webhookH.ListEndpoints)
