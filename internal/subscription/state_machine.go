@@ -35,9 +35,11 @@ var transitions = map[domain.SubscriptionStatus]map[Event]domain.SubscriptionSta
 		EventTenantCancelled:          domain.StatusCancelled,
 	},
 	domain.StatusTrialing: {
-		EventTrialPaymentSucceeded: domain.StatusActive,
-		EventTrialPaymentFailed:    domain.StatusPastDue,
-		EventTrialCancelled:        domain.StatusCancelled,
+    EventTrialPaymentSucceeded: domain.StatusActive,
+    EventTrialPaymentFailed:    domain.StatusPastDue,
+    EventTrialCancelled:        domain.StatusCancelled,
+    EventCustomerCancelled:     domain.StatusCancelled,
+    EventTenantCancelled:       domain.StatusCancelled,
 	},
 	domain.StatusActive: {
 		EventRenewalFailed:     domain.StatusGracePeriod,

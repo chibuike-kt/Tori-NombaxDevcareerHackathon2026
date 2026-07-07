@@ -79,6 +79,18 @@ type EmailVerification struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type Event struct {
+	ID           uuid.UUID   `json:"id"`
+	TenantID     uuid.UUID   `json:"tenant_id"`
+	Mode         string      `json:"mode"`
+	EventType    string      `json:"event_type"`
+	ResourceType string      `json:"resource_type"`
+	ResourceID   pgtype.UUID `json:"resource_id"`
+	Description  string      `json:"description"`
+	Metadata     []byte      `json:"metadata"`
+	CreatedAt    time.Time   `json:"created_at"`
+}
+
 type Invitation struct {
 	ID         uuid.UUID          `json:"id"`
 	TenantID   uuid.UUID          `json:"tenant_id"`
@@ -160,6 +172,21 @@ type OauthToken struct {
 	Mode      string    `json:"mode"`
 	ExpiresAt time.Time `json:"expires_at"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type PaymentLink struct {
+	ID          uuid.UUID   `json:"id"`
+	TenantID    uuid.UUID   `json:"tenant_id"`
+	Mode        string      `json:"mode"`
+	Title       string      `json:"title"`
+	Description pgtype.Text `json:"description"`
+	AmountKobo  int64       `json:"amount_kobo"`
+	Currency    string      `json:"currency"`
+	MaxUses     pgtype.Int4 `json:"max_uses"`
+	UseCount    int32       `json:"use_count"`
+	IsActive    bool        `json:"is_active"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
 }
 
 type Payout struct {

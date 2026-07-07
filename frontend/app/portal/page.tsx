@@ -27,16 +27,23 @@ export default function PortalPage() {
       router.replace("/portal/login");
       return;
     }
-    setToken(t);
     portalFetch<{ data: PortalOverview }>("/v1/portal", t)
-      .then((res) => setData(res.data))
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load portal"))
+      .then((res) => {
+        setData(res.data);
+        setToken(t);
+      })
+      .catch((e) =>
+        setError(e instanceof Error ? e.message : "Failed to load portal"),
+      )
       .finally(() => setLoading(false));
   }, [params, router]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#FAFAF8" }}>
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: "#FAFAF8" }}
+      >
         <div className="text-sm font-medium" style={{ color: "#8A94A6" }}>
           Loading your billing portal...
         </div>
@@ -46,15 +53,24 @@ export default function PortalPage() {
 
   if (error || !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "#FAFAF8" }}>
-        <div className="bg-white border rounded-xl p-8 max-w-md w-full text-center" style={{ borderColor: "#EAECEF" }}>
+      <div
+        className="min-h-screen flex items-center justify-center px-4"
+        style={{ background: "#FAFAF8" }}
+      >
+        <div
+          className="bg-white border rounded-xl p-8 max-w-md w-full text-center"
+          style={{ borderColor: "#EAECEF" }}
+        >
           <div
             className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
             style={{ background: "#FDECEC", color: "#DC2626" }}
           >
             <i className="ti ti-lock" style={{ fontSize: 22 }} />
           </div>
-          <h1 className="text-lg font-extrabold mb-2" style={{ color: "#0F1728" }}>
+          <h1
+            className="text-lg font-extrabold mb-2"
+            style={{ color: "#0F1728" }}
+          >
             Portal link invalid
           </h1>
           <p className="text-sm font-medium mb-4" style={{ color: "#6B7280" }}>
@@ -91,10 +107,16 @@ export default function PortalPage() {
             {av.initials}
           </span>
           <div className="min-w-0">
-            <p className="text-base font-extrabold truncate" style={{ color: "#0F1728" }}>
+            <p
+              className="text-base font-extrabold truncate"
+              style={{ color: "#0F1728" }}
+            >
               {data.customer.name ?? data.customer.email}
             </p>
-            <p className="text-sm font-medium truncate" style={{ color: "#8A94A6" }}>
+            <p
+              className="text-sm font-medium truncate"
+              style={{ color: "#8A94A6" }}
+            >
               {data.customer.email}
             </p>
           </div>
@@ -140,7 +162,10 @@ export default function PortalPage() {
         </h2>
 
         {data.subscriptions.length === 0 ? (
-          <div className="bg-white border rounded-xl p-8 text-center mb-6" style={{ borderColor: "#EAECEF" }}>
+          <div
+            className="bg-white border rounded-xl p-8 text-center mb-6"
+            style={{ borderColor: "#EAECEF" }}
+          >
             <p className="text-sm font-bold" style={{ color: "#0F1728" }}>
               No active subscriptions
             </p>
@@ -159,7 +184,10 @@ export default function PortalPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h3 className="text-sm font-extrabold" style={{ color: "#0F1728" }}>
+                        <h3
+                          className="text-sm font-extrabold"
+                          style={{ color: "#0F1728" }}
+                        >
                           {sub.plan?.name ?? "Unknown plan"}
                         </h3>
                         <span
@@ -169,15 +197,28 @@ export default function PortalPage() {
                           {badge.label}
                         </span>
                       </div>
-                      <p className="text-xs font-medium" style={{ color: "#6B7280" }}>
-                        {sub.plan ? `${formatKobo(sub.plan.amount)}/${sub.plan.interval}` : ""}
+                      <p
+                        className="text-xs font-medium"
+                        style={{ color: "#6B7280" }}
+                      >
+                        {sub.plan
+                          ? `${formatKobo(sub.plan.amount)}/${sub.plan.interval}`
+                          : ""}
                       </p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-[10px] font-semibold mb-0.5" style={{ color: "#8A94A6" }}>
-                        {sub.status === "TRIALING" ? "Trial ends" : "Next renewal"}
+                      <p
+                        className="text-[10px] font-semibold mb-0.5"
+                        style={{ color: "#8A94A6" }}
+                      >
+                        {sub.status === "TRIALING"
+                          ? "Trial ends"
+                          : "Next renewal"}
                       </p>
-                      <p className="text-xs font-bold" style={{ color: "#0F1728" }}>
+                      <p
+                        className="text-xs font-bold"
+                        style={{ color: "#0F1728" }}
+                      >
                         {formatDate(sub.trial_end ?? sub.current_period_end)}
                       </p>
                     </div>
@@ -192,14 +233,20 @@ export default function PortalPage() {
         <h2 className="text-sm font-bold mb-3" style={{ color: "#0F1728" }}>
           Recent invoices
         </h2>
-        {data.recent_invoices.length === 0 ? (
-          <div className="bg-white border rounded-xl p-8 text-center" style={{ borderColor: "#EAECEF" }}>
+        {(data.recent_invoices ?? []).length === 0 ? (
+          <div
+            className="bg-white border rounded-xl p-8 text-center"
+            style={{ borderColor: "#EAECEF" }}
+          >
             <p className="text-sm font-medium" style={{ color: "#8A94A6" }}>
               No invoices yet
             </p>
           </div>
         ) : (
-          <div className="bg-white border rounded-xl overflow-hidden" style={{ borderColor: "#EAECEF" }}>
+          <div
+            className="bg-white border rounded-xl overflow-hidden"
+            style={{ borderColor: "#EAECEF" }}
+          >
             {data.recent_invoices.map((inv, i) => (
               <div
                 key={inv.id}
@@ -210,7 +257,10 @@ export default function PortalPage() {
                   <p className="text-xs font-bold" style={{ color: "#0F1728" }}>
                     {inv.plan_name ?? "Subscription"}
                   </p>
-                  <p className="text-[11px] font-medium" style={{ color: "#8A94A6" }}>
+                  <p
+                    className="text-[11px] font-medium"
+                    style={{ color: "#8A94A6" }}
+                  >
                     {formatDate(inv.created_at)}
                   </p>
                 </div>
@@ -218,7 +268,12 @@ export default function PortalPage() {
                   <p className="text-xs font-bold" style={{ color: "#0F1728" }}>
                     {formatKobo(inv.amount)}
                   </p>
-                  <p className="text-[11px] font-semibold uppercase" style={{ color: inv.status === "paid" ? "#0A7A56" : "#92400E" }}>
+                  <p
+                    className="text-[11px] font-semibold uppercase"
+                    style={{
+                      color: inv.status === "paid" ? "#0A7A56" : "#92400E",
+                    }}
+                  >
                     {inv.status}
                   </p>
                 </div>

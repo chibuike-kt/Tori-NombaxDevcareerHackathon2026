@@ -163,6 +163,12 @@ const (
 	EventPaymentActionRequired WebhookEventType = "payment.action_required"
 	EventPayoutCompleted       WebhookEventType = "payout.completed"
 	EventPayoutFailed          WebhookEventType = "payout.failed"
+	EventPayoutRequested       WebhookEventType = "payout.requested"
+	EventPaymentLinkCreated     WebhookEventType = "payment_link.created"
+	EventPaymentLinkDeactivated WebhookEventType = "payment_link.deactivated"
+	EventPaymentLinkPaid        WebhookEventType = "payment_link.paid"
+	EventOAuthClientCreated     WebhookEventType = "oauth_client.created"
+	EventOAuthClientRevoked     WebhookEventType = "oauth_client.revoked"
 )
 
 // Tenant represents a SaaS business registered on the billing engine.
@@ -521,6 +527,39 @@ type CustomerOTP struct {
 	ExpiresAt  time.Time  `json:"expires_at"`
 	UsedAt     *time.Time `json:"used_at,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`
+}
+
+// PaymentLink is a merchant-created, reusable checkout link for a fixed
+// amount — independent of any plan or subscription (e.g. a one-time fee).
+type PaymentLink struct {
+	ID          uuid.UUID `json:"id"`
+	TenantID    uuid.UUID `json:"tenant_id"`
+	Mode        string    `json:"mode"`
+	Title       string    `json:"title"`
+	Description string    `json:"description,omitempty"`
+	AmountKobo  int64     `json:"amount_kobo"`
+	Currency    string    `json:"currency"`
+	MaxUses     *int      `json:"max_uses,omitempty"`
+	UseCount    int       `json:"use_count"`
+	IsActive    bool      `json:"is_active"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// Event is a mode-scoped activity-feed entry — subscription lifecycle,
+// payouts, payment links, and OAuth clients each record one on their
+// significant state changes. Distinct from the tenant-team audit_log,
+// which covers member/admin actions only.
+type Event struct {
+	ID           uuid.UUID       `json:"id"`
+	TenantID     uuid.UUID       `json:"tenant_id"`
+	Mode         string          `json:"mode"`
+	EventType    string          `json:"event_type"`
+	ResourceType string          `json:"resource_type"`
+	ResourceID   *uuid.UUID      `json:"resource_id,omitempty"`
+	Description  string          `json:"description"`
+	Metadata     json.RawMessage `json:"metadata,omitempty"`
+	CreatedAt    time.Time       `json:"created_at"`
 }
 
 type EmailVerification struct {

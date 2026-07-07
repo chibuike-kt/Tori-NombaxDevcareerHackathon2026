@@ -256,6 +256,22 @@ type PayoutRepository interface {
 	MarkFailed(ctx context.Context, id uuid.UUID, failureReason string) (*Payout, error)
 }
 
+// PaymentLinkRepository backs merchant-created reusable checkout links.
+type PaymentLinkRepository interface {
+	Create(ctx context.Context, tenantID uuid.UUID, mode, title, description string, amountKobo int64, currency string, maxUses *int) (*PaymentLink, error)
+	GetByID(ctx context.Context, id, tenantID uuid.UUID) (*PaymentLink, error)
+	GetByIDNoTenant(ctx context.Context, id uuid.UUID) (*PaymentLink, error)
+	List(ctx context.Context, tenantID uuid.UUID, mode string) ([]*PaymentLink, error)
+	Deactivate(ctx context.Context, id, tenantID uuid.UUID) (*PaymentLink, error)
+	IncrementUseCount(ctx context.Context, id uuid.UUID) error
+}
+
+// EventRepository backs the account activity feed.
+type EventRepository interface {
+	Create(ctx context.Context, tenantID uuid.UUID, mode, eventType, resourceType string, resourceID *uuid.UUID, description string, metadata []byte) (*Event, error)
+	List(ctx context.Context, tenantID uuid.UUID, mode string, limit, offset int) ([]*Event, error)
+}
+
 type AuditRepository interface {
 	Create(ctx context.Context, tenantID uuid.UUID, actorID *uuid.UUID, actorEmail, action, target, ip string, metadata json.RawMessage) (*AuditEntry, error)
 	List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*AuditEntry, error)
