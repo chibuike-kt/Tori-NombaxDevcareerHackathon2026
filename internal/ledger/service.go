@@ -112,6 +112,25 @@ func (s *Service) RecordCredit(ctx context.Context, tenantID, subscriptionID, cu
 	)
 }
 
+// RecordPauseCredit writes a CREDIT entry for the unused portion of a
+// subscription's current billing period when it's paused.
+func (s *Service) RecordPauseCredit(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, amount int64, currency, idempotencyKey, mode string) (*domain.LedgerEntry, error) {
+	return s.repo.Append(ctx,
+		tenantID,
+		&subscriptionID,
+		nil,
+		&customerID,
+		domain.EntryCredit,
+		domain.DirectionCredit,
+		amount,
+		currency,
+		"Prorated credit for unused period — subscription paused",
+		idempotencyKey,
+		nil,
+		mode,
+	)
+}
+
 // RecordTrialStart writes an audit marker when a trial begins. Amount is zero.
 func (s *Service) RecordTrialStart(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, currency, idempotencyKey, mode string) (*domain.LedgerEntry, error) {
 	return s.repo.Append(ctx,

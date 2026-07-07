@@ -90,13 +90,13 @@ RETURNING *;
 
 -- name: PauseSubscription :one
 UPDATE subscriptions
-SET status = 'PAUSED', paused_at = NOW(), updated_at = NOW()
+SET status = 'PAUSED', paused_at = NOW(), pause_credit_kobo = $3, updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
 RETURNING *;
 
 -- name: ResumeSubscription :one
 UPDATE subscriptions
-SET status = 'ACTIVE', paused_at = NULL, updated_at = NOW()
+SET status = 'ACTIVE', paused_at = NULL, pause_credit_kobo = 0, updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
 RETURNING *;
 

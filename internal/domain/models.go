@@ -250,6 +250,7 @@ type Subscription struct {
 	IdempotencyKey     *string            `json:"idempotency_key,omitempty"`
 	Metadata           json.RawMessage    `json:"metadata,omitempty"`
 	DiscountKobo       int64              `json:"discount_kobo,omitempty"`
+	PauseCreditKobo    int64              `json:"pause_credit_kobo,omitempty"`
 	Mode               string             `json:"mode"`
 	CreatedAt          time.Time          `json:"created_at"`
 	UpdatedAt          time.Time          `json:"updated_at"`

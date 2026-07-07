@@ -291,8 +291,8 @@ func (r *SubscriptionRepo) Cancel(ctx context.Context, id, tenantID uuid.UUID) (
 	return subFromRow(row), nil
 }
 
-func (r *SubscriptionRepo) Pause(ctx context.Context, id, tenantID uuid.UUID) (*domain.Subscription, error) {
-	row, err := r.q.PauseSubscription(ctx, db.PauseSubscriptionParams{ID: id, TenantID: tenantID})
+func (r *SubscriptionRepo) Pause(ctx context.Context, id, tenantID uuid.UUID, pauseCreditKobo int64) (*domain.Subscription, error) {
+	row, err := r.q.PauseSubscription(ctx, db.PauseSubscriptionParams{ID: id, TenantID: tenantID, PauseCreditKobo: pauseCreditKobo})
 	if err != nil {
 		return nil, err
 	}
@@ -371,6 +371,7 @@ func subFromRow(row db.Subscription) *domain.Subscription {
 		RecoveryRail:       row.RecoveryRail,
 		Metadata:           row.Metadata,
 		DiscountKobo:       row.DiscountKobo,
+		PauseCreditKobo:    row.PauseCreditKobo,
 		Mode:               row.Mode,
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,

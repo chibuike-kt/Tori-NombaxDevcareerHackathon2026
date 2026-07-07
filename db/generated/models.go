@@ -261,6 +261,7 @@ type Subscription struct {
 	RecoveryRail       string             `json:"recovery_rail"`
 	DiscountKobo       int64              `json:"discount_kobo"`
 	Mode               string             `json:"mode"`
+	PauseCreditKobo    int64              `json:"pause_credit_kobo"`
 }
 
 type SubscriptionTransition struct {

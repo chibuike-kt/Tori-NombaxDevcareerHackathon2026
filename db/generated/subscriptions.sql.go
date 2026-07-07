@@ -17,7 +17,7 @@ const cancelSubscription = `-- name: CancelSubscription :one
 UPDATE subscriptions
 SET status = 'CANCELLED', cancelled_at = NOW(), updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo
 `
 
 type CancelSubscriptionParams struct {
@@ -51,6 +51,7 @@ func (q *Queries) CancelSubscription(ctx context.Context, arg CancelSubscription
 		&i.RecoveryRail,
 		&i.DiscountKobo,
 		&i.Mode,
+		&i.PauseCreditKobo,
 	)
 	return i, err
 }
@@ -62,7 +63,7 @@ INSERT INTO subscriptions (
     trial_end, idempotency_key, metadata, discount_kobo, mode
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo
 `
 
 type CreateSubscriptionParams struct {
@@ -117,12 +118,13 @@ func (q *Queries) CreateSubscription(ctx context.Context, arg CreateSubscription
 		&i.RecoveryRail,
 		&i.DiscountKobo,
 		&i.Mode,
+		&i.PauseCreditKobo,
 	)
 	return i, err
 }
 
 const getSubscriptionByID = `-- name: GetSubscriptionByID :one
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode FROM subscriptions WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo FROM subscriptions WHERE id = $1 AND tenant_id = $2
 `
 
 type GetSubscriptionByIDParams struct {
@@ -156,12 +158,13 @@ func (q *Queries) GetSubscriptionByID(ctx context.Context, arg GetSubscriptionBy
 		&i.RecoveryRail,
 		&i.DiscountKobo,
 		&i.Mode,
+		&i.PauseCreditKobo,
 	)
 	return i, err
 }
 
 const getSubscriptionByIDNoTenant = `-- name: GetSubscriptionByIDNoTenant :one
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode FROM subscriptions WHERE id = $1
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo FROM subscriptions WHERE id = $1
 `
 
 func (q *Queries) GetSubscriptionByIDNoTenant(ctx context.Context, id uuid.UUID) (Subscription, error) {
@@ -190,12 +193,13 @@ func (q *Queries) GetSubscriptionByIDNoTenant(ctx context.Context, id uuid.UUID)
 		&i.RecoveryRail,
 		&i.DiscountKobo,
 		&i.Mode,
+		&i.PauseCreditKobo,
 	)
 	return i, err
 }
 
 const getSubscriptionByIdempotencyKey = `-- name: GetSubscriptionByIdempotencyKey :one
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode FROM subscriptions WHERE idempotency_key = $1 AND tenant_id = $2
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo FROM subscriptions WHERE idempotency_key = $1 AND tenant_id = $2
 `
 
 type GetSubscriptionByIdempotencyKeyParams struct {
@@ -229,12 +233,13 @@ func (q *Queries) GetSubscriptionByIdempotencyKey(ctx context.Context, arg GetSu
 		&i.RecoveryRail,
 		&i.DiscountKobo,
 		&i.Mode,
+		&i.PauseCreditKobo,
 	)
 	return i, err
 }
 
 const listActiveSubscriptionsDue = `-- name: ListActiveSubscriptionsDue :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode FROM subscriptions
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo FROM subscriptions
 WHERE status = 'ACTIVE' AND current_period_end <= $1
 ORDER BY current_period_end ASC
 LIMIT $2
@@ -278,6 +283,7 @@ func (q *Queries) ListActiveSubscriptionsDue(ctx context.Context, arg ListActive
 			&i.RecoveryRail,
 			&i.DiscountKobo,
 			&i.Mode,
+			&i.PauseCreditKobo,
 		); err != nil {
 			return nil, err
 		}
@@ -290,7 +296,7 @@ func (q *Queries) ListActiveSubscriptionsDue(ctx context.Context, arg ListActive
 }
 
 const listSubscriptions = `-- name: ListSubscriptions :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode FROM subscriptions
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo FROM subscriptions
 WHERE tenant_id = $1 AND mode = $2
 ORDER BY created_at DESC
 LIMIT $3 OFFSET $4
@@ -340,6 +346,7 @@ func (q *Queries) ListSubscriptions(ctx context.Context, arg ListSubscriptionsPa
 			&i.RecoveryRail,
 			&i.DiscountKobo,
 			&i.Mode,
+			&i.PauseCreditKobo,
 		); err != nil {
 			return nil, err
 		}
@@ -352,7 +359,7 @@ func (q *Queries) ListSubscriptions(ctx context.Context, arg ListSubscriptionsPa
 }
 
 const listSubscriptionsByCustomer = `-- name: ListSubscriptionsByCustomer :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode FROM subscriptions
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo FROM subscriptions
 WHERE tenant_id = $1 AND customer_id = $2 AND mode = $3
 ORDER BY created_at DESC
 `
@@ -395,6 +402,7 @@ func (q *Queries) ListSubscriptionsByCustomer(ctx context.Context, arg ListSubsc
 			&i.RecoveryRail,
 			&i.DiscountKobo,
 			&i.Mode,
+			&i.PauseCreditKobo,
 		); err != nil {
 			return nil, err
 		}
@@ -407,7 +415,7 @@ func (q *Queries) ListSubscriptionsByCustomer(ctx context.Context, arg ListSubsc
 }
 
 const listSubscriptionsByCustomerNoTenant = `-- name: ListSubscriptionsByCustomerNoTenant :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode FROM subscriptions
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo FROM subscriptions
 WHERE customer_id = $1
   AND status != 'CANCELLED'
 ORDER BY created_at DESC
@@ -445,6 +453,7 @@ func (q *Queries) ListSubscriptionsByCustomerNoTenant(ctx context.Context, custo
 			&i.RecoveryRail,
 			&i.DiscountKobo,
 			&i.Mode,
+			&i.PauseCreditKobo,
 		); err != nil {
 			return nil, err
 		}
@@ -457,7 +466,7 @@ func (q *Queries) ListSubscriptionsByCustomerNoTenant(ctx context.Context, custo
 }
 
 const listSubscriptionsByStatus = `-- name: ListSubscriptionsByStatus :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode FROM subscriptions
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo FROM subscriptions
 WHERE tenant_id = $1 AND status = $2 AND mode = $3
 ORDER BY created_at DESC
 LIMIT $4 OFFSET $5
@@ -509,6 +518,7 @@ func (q *Queries) ListSubscriptionsByStatus(ctx context.Context, arg ListSubscri
 			&i.RecoveryRail,
 			&i.DiscountKobo,
 			&i.Mode,
+			&i.PauseCreditKobo,
 		); err != nil {
 			return nil, err
 		}
@@ -521,7 +531,7 @@ func (q *Queries) ListSubscriptionsByStatus(ctx context.Context, arg ListSubscri
 }
 
 const listSubscriptionsDueForRetry = `-- name: ListSubscriptionsDueForRetry :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode FROM subscriptions
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo FROM subscriptions
 WHERE status IN ('PAST_DUE', 'DUNNING') AND next_retry_at <= $1
 ORDER BY next_retry_at ASC
 LIMIT $2
@@ -564,6 +574,7 @@ func (q *Queries) ListSubscriptionsDueForRetry(ctx context.Context, arg ListSubs
 			&i.RecoveryRail,
 			&i.DiscountKobo,
 			&i.Mode,
+			&i.PauseCreditKobo,
 		); err != nil {
 			return nil, err
 		}
@@ -576,7 +587,7 @@ func (q *Queries) ListSubscriptionsDueForRetry(ctx context.Context, arg ListSubs
 }
 
 const listTrialingSubscriptionsDue = `-- name: ListTrialingSubscriptionsDue :many
-SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode FROM subscriptions
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo FROM subscriptions
 WHERE status = 'TRIALING' AND trial_end <= $1
 ORDER BY trial_end ASC
 LIMIT $2
@@ -620,6 +631,7 @@ func (q *Queries) ListTrialingSubscriptionsDue(ctx context.Context, arg ListTria
 			&i.RecoveryRail,
 			&i.DiscountKobo,
 			&i.Mode,
+			&i.PauseCreditKobo,
 		); err != nil {
 			return nil, err
 		}
@@ -633,18 +645,19 @@ func (q *Queries) ListTrialingSubscriptionsDue(ctx context.Context, arg ListTria
 
 const pauseSubscription = `-- name: PauseSubscription :one
 UPDATE subscriptions
-SET status = 'PAUSED', paused_at = NOW(), updated_at = NOW()
+SET status = 'PAUSED', paused_at = NOW(), pause_credit_kobo = $3, updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo
 `
 
 type PauseSubscriptionParams struct {
-	ID       uuid.UUID `json:"id"`
-	TenantID uuid.UUID `json:"tenant_id"`
+	ID              uuid.UUID `json:"id"`
+	TenantID        uuid.UUID `json:"tenant_id"`
+	PauseCreditKobo int64     `json:"pause_credit_kobo"`
 }
 
 func (q *Queries) PauseSubscription(ctx context.Context, arg PauseSubscriptionParams) (Subscription, error) {
-	row := q.db.QueryRow(ctx, pauseSubscription, arg.ID, arg.TenantID)
+	row := q.db.QueryRow(ctx, pauseSubscription, arg.ID, arg.TenantID, arg.PauseCreditKobo)
 	var i Subscription
 	err := row.Scan(
 		&i.ID,
@@ -669,15 +682,16 @@ func (q *Queries) PauseSubscription(ctx context.Context, arg PauseSubscriptionPa
 		&i.RecoveryRail,
 		&i.DiscountKobo,
 		&i.Mode,
+		&i.PauseCreditKobo,
 	)
 	return i, err
 }
 
 const resumeSubscription = `-- name: ResumeSubscription :one
 UPDATE subscriptions
-SET status = 'ACTIVE', paused_at = NULL, updated_at = NOW()
+SET status = 'ACTIVE', paused_at = NULL, pause_credit_kobo = 0, updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo
 `
 
 type ResumeSubscriptionParams struct {
@@ -711,6 +725,7 @@ func (q *Queries) ResumeSubscription(ctx context.Context, arg ResumeSubscription
 		&i.RecoveryRail,
 		&i.DiscountKobo,
 		&i.Mode,
+		&i.PauseCreditKobo,
 	)
 	return i, err
 }
@@ -719,7 +734,7 @@ const setSubscriptionMandate = `-- name: SetSubscriptionMandate :one
 UPDATE subscriptions
 SET mandate_id = $3, updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo
 `
 
 type SetSubscriptionMandateParams struct {
@@ -754,6 +769,7 @@ func (q *Queries) SetSubscriptionMandate(ctx context.Context, arg SetSubscriptio
 		&i.RecoveryRail,
 		&i.DiscountKobo,
 		&i.Mode,
+		&i.PauseCreditKobo,
 	)
 	return i, err
 }
@@ -768,7 +784,7 @@ SET
     next_retry_at = NULL,
     updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo
 `
 
 type UpdateSubscriptionAfterRenewalParams struct {
@@ -811,6 +827,7 @@ func (q *Queries) UpdateSubscriptionAfterRenewal(ctx context.Context, arg Update
 		&i.RecoveryRail,
 		&i.DiscountKobo,
 		&i.Mode,
+		&i.PauseCreditKobo,
 	)
 	return i, err
 }
@@ -828,7 +845,7 @@ WHERE id = $1
   AND tenant_id = $2
   AND updated_at = $6
   AND status != 'CANCELLED'
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo
 `
 
 type UpdateSubscriptionAfterRenewalOptimisticParams struct {
@@ -873,6 +890,7 @@ func (q *Queries) UpdateSubscriptionAfterRenewalOptimistic(ctx context.Context, 
 		&i.RecoveryRail,
 		&i.DiscountKobo,
 		&i.Mode,
+		&i.PauseCreditKobo,
 	)
 	return i, err
 }
@@ -885,7 +903,7 @@ SET
     next_retry_at = $5,
     updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo
 `
 
 type UpdateSubscriptionDunningParams struct {
@@ -928,6 +946,7 @@ func (q *Queries) UpdateSubscriptionDunning(ctx context.Context, arg UpdateSubsc
 		&i.RecoveryRail,
 		&i.DiscountKobo,
 		&i.Mode,
+		&i.PauseCreditKobo,
 	)
 	return i, err
 }
@@ -936,7 +955,7 @@ const updateSubscriptionPlan = `-- name: UpdateSubscriptionPlan :one
 UPDATE subscriptions
 SET plan_id = $3, updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo
 `
 
 type UpdateSubscriptionPlanParams struct {
@@ -971,6 +990,7 @@ func (q *Queries) UpdateSubscriptionPlan(ctx context.Context, arg UpdateSubscrip
 		&i.RecoveryRail,
 		&i.DiscountKobo,
 		&i.Mode,
+		&i.PauseCreditKobo,
 	)
 	return i, err
 }
@@ -979,7 +999,7 @@ const updateSubscriptionRecoveryRail = `-- name: UpdateSubscriptionRecoveryRail 
 UPDATE subscriptions
 SET recovery_rail = $3, updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo
 `
 
 type UpdateSubscriptionRecoveryRailParams struct {
@@ -1014,6 +1034,7 @@ func (q *Queries) UpdateSubscriptionRecoveryRail(ctx context.Context, arg Update
 		&i.RecoveryRail,
 		&i.DiscountKobo,
 		&i.Mode,
+		&i.PauseCreditKobo,
 	)
 	return i, err
 }
@@ -1022,7 +1043,7 @@ const updateSubscriptionStatus = `-- name: UpdateSubscriptionStatus :one
 UPDATE subscriptions
 SET status = $3, updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo
 `
 
 type UpdateSubscriptionStatusParams struct {
@@ -1057,6 +1078,7 @@ func (q *Queries) UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscr
 		&i.RecoveryRail,
 		&i.DiscountKobo,
 		&i.Mode,
+		&i.PauseCreditKobo,
 	)
 	return i, err
 }
@@ -1068,7 +1090,7 @@ WHERE id = $1
   AND tenant_id = $2
   AND updated_at = $4
   AND status != 'CANCELLED'
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo
 `
 
 type UpdateSubscriptionStatusOptimisticParams struct {
@@ -1109,6 +1131,7 @@ func (q *Queries) UpdateSubscriptionStatusOptimistic(ctx context.Context, arg Up
 		&i.RecoveryRail,
 		&i.DiscountKobo,
 		&i.Mode,
+		&i.PauseCreditKobo,
 	)
 	return i, err
 }
@@ -1117,7 +1140,7 @@ const updateSubscriptionTokenKey = `-- name: UpdateSubscriptionTokenKey :one
 UPDATE subscriptions
 SET token_key = $3, updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo
 `
 
 type UpdateSubscriptionTokenKeyParams struct {
@@ -1152,6 +1175,7 @@ func (q *Queries) UpdateSubscriptionTokenKey(ctx context.Context, arg UpdateSubs
 		&i.RecoveryRail,
 		&i.DiscountKobo,
 		&i.Mode,
+		&i.PauseCreditKobo,
 	)
 	return i, err
 }

@@ -83,7 +83,9 @@ type SubscriptionRepository interface {
 	UpdateDunning(ctx context.Context, id, tenantID uuid.UUID, status SubscriptionStatus, attempt int, nextRetryAt *time.Time) (*Subscription, error)
 	UpdatePlan(ctx context.Context, id, tenantID, planID uuid.UUID) (*Subscription, error)
 	Cancel(ctx context.Context, id, tenantID uuid.UUID) (*Subscription, error)
-	Pause(ctx context.Context, id, tenantID uuid.UUID) (*Subscription, error)
+	// Pause records the unused-period proration credit (in kobo) alongside
+	// transitioning the subscription to PAUSED.
+	Pause(ctx context.Context, id, tenantID uuid.UUID, pauseCreditKobo int64) (*Subscription, error)
 	Resume(ctx context.Context, id, tenantID uuid.UUID) (*Subscription, error)
 	ListActiveDue(ctx context.Context, asOf time.Time, limit int) ([]*Subscription, error)
 	ListTrialingDue(ctx context.Context, asOf time.Time, limit int) ([]*Subscription, error)
