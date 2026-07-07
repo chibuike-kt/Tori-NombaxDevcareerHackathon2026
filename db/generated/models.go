@@ -153,6 +153,25 @@ type OauthToken struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type Payout struct {
+	ID             uuid.UUID          `json:"id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	Mode           string             `json:"mode"`
+	AmountKobo     int64              `json:"amount_kobo"`
+	Currency       string             `json:"currency"`
+	BankCode       string             `json:"bank_code"`
+	BankName       string             `json:"bank_name"`
+	AccountNumber  string             `json:"account_number"`
+	AccountName    string             `json:"account_name"`
+	Status         string             `json:"status"`
+	NombaReference pgtype.Text        `json:"nomba_reference"`
+	FailureReason  pgtype.Text        `json:"failure_reason"`
+	RequestedAt    time.Time          `json:"requested_at"`
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+}
+
 type Plan struct {
 	ID              uuid.UUID   `json:"id"`
 	TenantID        uuid.UUID   `json:"tenant_id"`

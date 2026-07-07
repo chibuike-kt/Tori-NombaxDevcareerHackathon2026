@@ -80,6 +80,28 @@ type TransactionList struct {
 	HasMore      bool
 }
 
+type TransferRequest struct {
+	Amount        int64
+	Currency      string
+	AccountNumber string
+	BankCode      string
+	Narration     string
+	Reference     string
+}
+
+type TransferResponse struct {
+	Success        bool
+	Reference      string
+	Status         string
+	FailureMessage string
+}
+
+// Bank is a Nigerian bank as returned by Nomba's bank list.
+type Bank struct {
+	Code string
+	Name string
+}
+
 // NombaClient is the interface all business logic depends on.
 // The mock and real HTTP implementations both satisfy this interface.
 type NombaClient interface {
@@ -94,6 +116,15 @@ type NombaClient interface {
 	DebitWallet(ctx context.Context, accountID string, amount int64, currency, reference, narration string) (*ChargeResponse, error)
 	// GetWalletBalance returns a customer's current Nomba wallet balance in kobo.
 	GetWalletBalance(ctx context.Context, accountID string) (int64, error)
+	// TransferToBank sends a payout to a Nigerian bank account.
+	TransferToBank(ctx context.Context, req TransferRequest) (*TransferResponse, error)
+	// ListBanks returns Nomba's supported bank list, used to populate the
+	// payout bank selector.
+	ListBanks(ctx context.Context) ([]Bank, error)
+	// ResolveBankAccount looks up the account holder's name for a given
+	// account number and bank code, so operators can confirm a payout
+	// destination before submitting it.
+	ResolveBankAccount(ctx context.Context, accountNumber, bankCode string) (string, error)
 }
 
 // MandateCharger is implemented by clients that can debit a direct-debit mandate.

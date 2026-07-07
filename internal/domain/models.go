@@ -131,6 +131,7 @@ const (
 	JobCancelAtPeriodEnd JobType = "cancel_at_period_end"
 	JobSimulateWebhook JobType = "simulate_webhook"
 	JobTrialEndingSoon JobType = "trial_ending_soon"
+	JobProcessPayout   JobType = "process_payout"
 )
 
 type FailureCategory string
@@ -160,6 +161,8 @@ const (
 	EventDunningRecovered      WebhookEventType = "dunning.recovered"
 	EventDunningExhausted      WebhookEventType = "dunning.exhausted"
 	EventPaymentActionRequired WebhookEventType = "payment.action_required"
+	EventPayoutCompleted       WebhookEventType = "payout.completed"
+	EventPayoutFailed          WebhookEventType = "payout.failed"
 )
 
 // Tenant represents a SaaS business registered on the billing engine.
@@ -468,6 +471,37 @@ type OAuthToken struct {
 	Mode      string    `json:"mode"`
 	ExpiresAt time.Time `json:"expires_at"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// PayoutStatus tracks an async payout request through the transfer lifecycle.
+type PayoutStatus string
+
+const (
+	PayoutPending    PayoutStatus = "pending"
+	PayoutProcessing PayoutStatus = "processing"
+	PayoutCompleted  PayoutStatus = "completed"
+	PayoutFailed     PayoutStatus = "failed"
+)
+
+// Payout is an operator's request to withdraw available balance to a
+// Nigerian bank account, processed asynchronously by the worker.
+type Payout struct {
+	ID             uuid.UUID  `json:"id"`
+	TenantID       uuid.UUID  `json:"tenant_id"`
+	Mode           string     `json:"mode"`
+	AmountKobo     int64      `json:"amount_kobo"`
+	Currency       string     `json:"currency"`
+	BankCode       string     `json:"bank_code"`
+	BankName       string     `json:"bank_name"`
+	AccountNumber  string     `json:"account_number"`
+	AccountName    string     `json:"account_name"`
+	Status         string     `json:"status"`
+	NombaReference *string    `json:"nomba_reference,omitempty"`
+	FailureReason  *string    `json:"failure_reason,omitempty"`
+	RequestedAt    time.Time  `json:"requested_at"`
+	CompletedAt    *time.Time `json:"completed_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 type EmailVerification struct {

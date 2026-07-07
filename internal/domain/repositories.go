@@ -224,6 +224,18 @@ type OAuthRepository interface {
 	RevokeToken(ctx context.Context, tokenHash string) error
 }
 
+// PayoutRepository backs async payout requests — a merchant withdrawing
+// their available (T+1-settled) balance to a Nigerian bank account.
+type PayoutRepository interface {
+	Create(ctx context.Context, tenantID uuid.UUID, mode string, amountKobo int64, currency, bankCode, bankName, accountNumber, accountName string) (*Payout, error)
+	GetByID(ctx context.Context, id, tenantID uuid.UUID) (*Payout, error)
+	GetByIDNoTenant(ctx context.Context, id uuid.UUID) (*Payout, error)
+	List(ctx context.Context, tenantID uuid.UUID, mode string, limit, offset int) ([]*Payout, error)
+	MarkProcessing(ctx context.Context, id uuid.UUID) (*Payout, error)
+	MarkCompleted(ctx context.Context, id uuid.UUID, nombaReference string) (*Payout, error)
+	MarkFailed(ctx context.Context, id uuid.UUID, failureReason string) (*Payout, error)
+}
+
 type AuditRepository interface {
 	Create(ctx context.Context, tenantID uuid.UUID, actorID *uuid.UUID, actorEmail, action, target, ip string, metadata json.RawMessage) (*AuditEntry, error)
 	List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*AuditEntry, error)

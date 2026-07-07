@@ -564,6 +564,115 @@ func (c *NombaHTTPClient) GetWalletBalance(ctx context.Context, accountID string
 	return int64(math.Round(result.Data.WalletBalance * 100)), nil
 }
 
+// TransferToBank sends a single payout to a Nigerian bank account.
+func (c *NombaHTTPClient) TransferToBank(ctx context.Context, req TransferRequest) (*TransferResponse, error) {
+	payload := map[string]interface{}{
+		"amount":        fmt.Sprintf("%.2f", float64(req.Amount)/100),
+		"currency":      req.Currency,
+		"accountNumber": req.AccountNumber,
+		"bankCode":      req.BankCode,
+		"narration":     req.Narration,
+		"reference":     req.Reference,
+		"accountId":     c.subAccountID,
+	}
+
+	log.Info().
+		Str("reference", req.Reference).
+		Str("bank_code", req.BankCode).
+		Int64("amount_kobo", req.Amount).
+		Msg("nomba: initiating bank transfer")
+
+	resp, err := c.do(ctx, http.MethodPost, "/transfers/single", payload)
+	if err != nil {
+		return nil, fmt.Errorf("nomba transfer: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Code        string `json:"code"`
+		Description string `json:"description"`
+		Data        struct {
+			Status    string `json:"status"`
+			Reference string `json:"reference"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("nomba transfer decode: %w", err)
+	}
+
+	if result.Code != "00" {
+		log.Warn().
+			Str("reference", req.Reference).
+			Str("code", result.Code).
+			Str("message", result.Description).
+			Msg("nomba: transfer failed")
+		return &TransferResponse{
+			Success:        false,
+			Reference:      req.Reference,
+			FailureMessage: result.Description,
+		}, nil
+	}
+
+	log.Info().Str("reference", req.Reference).Str("status", result.Data.Status).Msg("nomba: transfer accepted")
+	return &TransferResponse{
+		Success:   true,
+		Reference: req.Reference,
+		Status:    result.Data.Status,
+	}, nil
+}
+
+// ListBanks returns Nomba's supported bank list for the payout bank selector.
+func (c *NombaHTTPClient) ListBanks(ctx context.Context) ([]Bank, error) {
+	resp, err := c.do(ctx, http.MethodGet, "/transfers/banks", nil)
+	if err != nil {
+		return nil, fmt.Errorf("nomba list banks: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Code string `json:"code"`
+		Data []struct {
+			BankCode string `json:"bankCode"`
+			BankName string `json:"bankName"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("nomba list banks decode: %w", err)
+	}
+
+	banks := make([]Bank, 0, len(result.Data))
+	for _, b := range result.Data {
+		banks = append(banks, Bank{Code: b.BankCode, Name: b.BankName})
+	}
+	return banks, nil
+}
+
+// ResolveBankAccount looks up the account holder's name for a bank account,
+// so operators can confirm a payout destination before submitting it.
+func (c *NombaHTTPClient) ResolveBankAccount(ctx context.Context, accountNumber, bankCode string) (string, error) {
+	path := fmt.Sprintf("/accounts/resolve?accountNumber=%s&bankCode=%s", accountNumber, bankCode)
+	resp, err := c.do(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return "", fmt.Errorf("nomba resolve account: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Code        string `json:"code"`
+		Description string `json:"description"`
+		Data        struct {
+			AccountName string `json:"accountName"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("nomba resolve account decode: %w", err)
+	}
+	if result.Code != "00" {
+		return "", fmt.Errorf("nomba resolve account failed: %s", result.Description)
+	}
+	return result.Data.AccountName, nil
+}
+
 // MapNombaFailureCode maps Nomba response codes to our internal dunning classifier codes.
 func MapNombaFailureCode(nombaCode string) string {
 	switch nombaCode {
