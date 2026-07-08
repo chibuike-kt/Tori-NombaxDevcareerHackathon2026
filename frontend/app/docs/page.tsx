@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useMemo } from "react";
-import { TABS, type Block, type Section, type Group } from "@/lib/docs-data";
+import { TABS, type Block, type Section, type Group, type Field, type EndpointBlock, type WebhookEventBlock } from "@/lib/docs-data";
 import { highlightLine } from "@/lib/highlight";
 
 // ─── IDE-style code block ──────────────────────────────────────────────────────
@@ -85,19 +85,160 @@ function InlineText({ text }: { text: string }) {
 }
 
 // ─── Method badge ─────────────────────────────────────────────────────────────
+// POST green, GET blue, DELETE red, PATCH amber — matches the Nomba developer
+// portal's method color convention.
+const METHOD_COLORS: Record<string, [string, string]> = {
+  GET:    ["#EAF2FF", "#1D4ED8"],
+  POST:   ["#E3F7EF", "#00703C"],
+  PUT:    ["#F3E8FF", "#6B21A8"],
+  PATCH:  ["#FEF3C7", "#92400E"],
+  DELETE: ["#FEE2E2", "#991B1B"],
+};
+
 function MethodBadge({ method }: { method: string }) {
-  const colors: Record<string, [string, string]> = {
-    GET:    ["#E3F7EF", "#00703C"],
-    POST:   ["#FFF0E6", "#C05A00"],
-    PUT:    ["#F3E8FF", "#6B21A8"],
-    PATCH:  ["#EEF2FF", "#3730A3"],
-    DELETE: ["#FEE2E2", "#991B1B"],
-  };
-  const [bg, fg] = colors[method] ?? ["#F3F4F6", "#374151"];
+  const [bg, fg] = METHOD_COLORS[method] ?? ["#F3F4F6", "#374151"];
   return (
     <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: bg, color: fg, letterSpacing: "0.05em" }}>
       {method}
     </span>
+  );
+}
+
+// ─── Field row (headers / query / body / webhook payload) ────────────────────
+function FieldSection({ title, fields }: { title: string; fields: Field[] }) {
+  return (
+    <div className="mb-6">
+      <h3 className="text-[11px] font-extrabold uppercase tracking-widest mt-6 mb-1" style={{ color: "#9CA3AF" }}>{title}</h3>
+      {fields.map(f => (
+        <div key={f.name} className="border-b py-3.5" style={{ borderColor: "#F3F4F6" }}>
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+            <code className="text-[13px] font-bold font-mono" style={{ color: "#0F1728" }}>{f.name}</code>
+            <span className="text-[11px] font-mono px-1.5 py-0.5 rounded" style={{ background: "#F3F4F6", color: "#6B7280" }}>{f.type}</span>
+            {f.required ? (
+              <span className="text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ background: "#FEE2E2", color: "#991B1B" }}>required</span>
+            ) : (
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ background: "#F3F4F6", color: "#9CA3AF" }}>optional</span>
+            )}
+          </div>
+          <p className="text-[13px] leading-relaxed" style={{ color: "#6B7280" }}><InlineText text={f.description} /></p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Language switcher + code example ─────────────────────────────────────────
+const LANGS: { key: "curl" | "javascript" | "go" | "python"; label: string; hlLang: string; filename: string }[] = [
+  { key: "curl", label: "cURL", hlLang: "bash", filename: "shell" },
+  { key: "javascript", label: "JavaScript", hlLang: "javascript", filename: "index.js" },
+  { key: "go", label: "Go", hlLang: "go", filename: "main.go" },
+  { key: "python", label: "Python", hlLang: "python", filename: "main.py" },
+];
+
+function LanguageTabs({ examples }: { examples: EndpointBlock["examples"] }) {
+  const available = LANGS.filter(l => examples[l.key]);
+  const [lang, setLang] = useState<(typeof LANGS)[number]["key"]>(available[0]?.key ?? "curl");
+  const active = available.find(l => l.key === lang) ?? available[0];
+
+  return (
+    <div>
+      <div className="flex gap-1 px-1">
+        {available.map(l => (
+          <button
+            key={l.key}
+            onClick={() => setLang(l.key)}
+            className="text-[12px] font-bold px-3 py-2 rounded-t-lg transition-colors"
+            style={{
+              background: l.key === active?.key ? "#1E2736" : "transparent",
+              color: l.key === active?.key ? "#FFFFFF" : "#9CA3AF",
+            }}
+          >
+            {l.label}
+          </button>
+        ))}
+      </div>
+      {active && <IDECodeBlock code={examples[active.key] ?? ""} lang={active.hlLang} filename={active.filename} />}
+    </div>
+  );
+}
+
+// ─── Response status toggles ──────────────────────────────────────────────────
+function ResponseToggles({ responses }: { responses: Record<string, string> }) {
+  const keys = Object.keys(responses);
+  const [status, setStatus] = useState(keys[0]);
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-2 flex-wrap">
+        {keys.map(k => {
+          const ok = k.startsWith("2");
+          const active = k === status;
+          return (
+            <button
+              key={k}
+              onClick={() => setStatus(k)}
+              className="text-[12px] font-extrabold px-3 py-1.5 rounded-full transition-colors"
+              style={{
+                background: active ? (ok ? "#00B37E" : "#DC2626") : (ok ? "#E3F7EF" : "#FEE2E2"),
+                color: active ? "#FFFFFF" : (ok ? "#00703C" : "#991B1B"),
+              }}
+            >
+              {k}
+            </button>
+          );
+        })}
+      </div>
+      <IDECodeBlock code={responses[status] ?? ""} lang="json" filename="response.json" />
+    </div>
+  );
+}
+
+// ─── Endpoint block (Platform API / Customer Portal reference pages) ─────────
+function EndpointBlockRenderer({ block }: { block: EndpointBlock }) {
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+      <div className="min-w-0">
+        <p className="text-[15px] mb-2 leading-relaxed" style={{ color: "#4B5563" }}><InlineText text={block.description} /></p>
+        {block.auth && block.auth !== "none" && (
+          <div className="flex items-center gap-2 mb-4">
+            <i className="ti ti-lock" style={{ fontSize: 13, color: "#9CA3AF" }} />
+            <span className="text-[12px] font-semibold" style={{ color: "#9CA3AF" }}>
+              {block.auth === "apiKeyAuth" && "Authenticated with X-API-Key or an OAuth bearer token"}
+              {block.auth === "bearerAuth" && "Authenticated with a dashboard Bearer token"}
+              {block.auth === "portalToken" && "Authenticated with a customer portal Bearer token"}
+            </span>
+          </div>
+        )}
+        {block.headers && block.headers.length > 0 && <FieldSection title="Headers" fields={block.headers} />}
+        {block.query && block.query.length > 0 && <FieldSection title="Query parameters" fields={block.query} />}
+        {block.body && block.body.length > 0 && <FieldSection title="Body" fields={block.body} />}
+      </div>
+      <div className="min-w-0">
+        <div className="xl:sticky xl:top-32 space-y-4">
+          <LanguageTabs examples={block.examples} />
+          <ResponseToggles responses={block.responses} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Webhook event block (Webhooks reference pages) ───────────────────────────
+function WebhookEventBlockRenderer({ block }: { block: WebhookEventBlock }) {
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+      <div className="min-w-0">
+        <p className="text-[15px] mb-4 leading-relaxed" style={{ color: "#4B5563" }}><InlineText text={block.description} /></p>
+        <h3 className="text-[11px] font-extrabold uppercase tracking-widest mb-2" style={{ color: "#9CA3AF" }}>Fires when</h3>
+        <p className="text-[14px] mb-2 leading-relaxed" style={{ color: "#4B5563" }}><InlineText text={block.firesWhen} /></p>
+        <FieldSection title="Payload" fields={block.payload} />
+      </div>
+      <div className="min-w-0">
+        <div className="xl:sticky xl:top-32">
+          <IDECodeBlock code={block.example} lang="json" filename="payload.json" />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -291,19 +432,17 @@ function DocsSidebar({
 
 // ─── Section content ──────────────────────────────────────────────────────────
 function SectionContent({ section }: { section: Section & { groupLabel: string } }) {
-  const methodBgColor: Record<string, string> = {
-    GET: "#E3F7EF", POST: "#FFF0E6", PUT: "#F3E8FF", PATCH: "#EEF2FF", DELETE: "#FEE2E2",
-  };
-  const methodFgColor: Record<string, string> = {
-    GET: "#00703C", POST: "#C05A00", PUT: "#6B21A8", PATCH: "#3730A3", DELETE: "#991B1B",
-  };
+  const endpointBlock = section.blocks.find(b => b.type === "endpoint") as EndpointBlock | undefined;
+  const webhookBlock = section.blocks.find(b => b.type === "webhookEvent") as WebhookEventBlock | undefined;
+  const otherBlocks = section.blocks.filter(b => b.type !== "endpoint" && b.type !== "webhookEvent");
 
-  // Split blocks for two-column layout on API pages
+  // Split legacy blocks for two-column layout (older API reference pages
+  // built from separate "code"/"response" blocks rather than one "endpoint" block)
   const hasMethod = !!section.method;
   const leftBlocks: Block[] = [];
   const rightBlocks: Block[] = [];
 
-  if (hasMethod) {
+  if (hasMethod && !endpointBlock) {
     section.blocks.forEach(b => {
       if (b.type === "code" || b.type === "response") {
         rightBlocks.push(b);
@@ -323,8 +462,8 @@ function SectionContent({ section }: { section: Section & { groupLabel: string }
         <div className="flex items-center gap-3 mb-3 flex-wrap">
           {section.method && (
             <span className="text-sm font-extrabold px-2.5 py-1 rounded-md" style={{
-              background: methodBgColor[section.method] ?? "#F3F4F6",
-              color: methodFgColor[section.method] ?? "#374151",
+              background: METHOD_COLORS[section.method]?.[0] ?? "#F3F4F6",
+              color: METHOD_COLORS[section.method]?.[1] ?? "#374151",
             }}>
               {section.method}
             </span>
@@ -339,7 +478,7 @@ function SectionContent({ section }: { section: Section & { groupLabel: string }
         </div>
         {section.endpoint && (
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl font-mono text-[13px]" style={{ background: "#F8F9FA", border: "1px solid #E5E7EB" }}>
-            <span className="font-extrabold" style={{ color: methodFgColor[section.method ?? ""] ?? "#374151" }}>
+            <span className="font-extrabold" style={{ color: METHOD_COLORS[section.method ?? ""]?.[1] ?? "#374151" }}>
               {section.method}
             </span>
             <span className="flex-1 truncate" style={{ color: "#0F1728" }}>{section.endpoint}</span>
@@ -348,24 +487,45 @@ function SectionContent({ section }: { section: Section & { groupLabel: string }
             </button>
           </div>
         )}
+        {webhookBlock && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl font-mono text-[13px]" style={{ background: "#F8F9FA", border: "1px solid #E5E7EB" }}>
+            <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: "#E6F8F2", color: "#00703C", letterSpacing: "0.05em" }}>EVENT</span>
+            <span className="flex-1 truncate" style={{ color: "#0F1728" }}>{webhookBlock.event}</span>
+          </div>
+        )}
       </div>
 
-      {/* Two-column or single-column */}
-      {hasMethod && rightBlocks.length > 0 ? (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-          <div className="min-w-0">
-            {leftBlocks.map((block, i) => <BlockRenderer key={i} block={block} />)}
-          </div>
-          <div className="min-w-0">
-            <div className="xl:sticky xl:top-32 space-y-4">
-              {rightBlocks.map((block, i) => <BlockRenderer key={i} block={block} />)}
+      {/* endpoint block — Platform API / Customer Portal */}
+      {endpointBlock && <EndpointBlockRenderer block={endpointBlock} />}
+
+      {/* webhookEvent block — Webhooks */}
+      {webhookBlock && <WebhookEventBlockRenderer block={webhookBlock} />}
+
+      {/* remaining narrative blocks (callouts, notes) below the endpoint/webhook panel */}
+      {(endpointBlock || webhookBlock) && otherBlocks.length > 0 && (
+        <div className="max-w-3xl mt-6">
+          {otherBlocks.map((block, i) => <BlockRenderer key={i} block={block} />)}
+        </div>
+      )}
+
+      {/* legacy two-column or single-column, for pages with no endpoint/webhookEvent block */}
+      {!endpointBlock && !webhookBlock && (
+        hasMethod && rightBlocks.length > 0 ? (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+            <div className="min-w-0">
+              {leftBlocks.map((block, i) => <BlockRenderer key={i} block={block} />)}
+            </div>
+            <div className="min-w-0">
+              <div className="xl:sticky xl:top-32 space-y-4">
+                {rightBlocks.map((block, i) => <BlockRenderer key={i} block={block} />)}
+              </div>
             </div>
           </div>
-        </div>
-      ) : (
-        <div className="max-w-3xl">
-          {section.blocks.map((block, i) => <BlockRenderer key={i} block={block} />)}
-        </div>
+        ) : (
+          <div className="max-w-3xl">
+            {section.blocks.map((block, i) => <BlockRenderer key={i} block={block} />)}
+          </div>
+        )
       )}
     </div>
   );
