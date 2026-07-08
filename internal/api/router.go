@@ -231,11 +231,11 @@ r.Group(func(r chi.Router) {
 		r.Get("/v1/finance/revenue-report", finopsH.RevenueReport)
 		r.Get("/v1/finance/recovery-center", finopsH.RecoveryCenter)
 
-		r.With(middleware.RequireRole("owner", "admin")).Post("/v1/payouts", payoutH.Create)
-		r.Get("/v1/payouts", payoutH.List)
-		r.Get("/v1/payouts/banks", payoutH.ListBanks)
-		r.Get("/v1/payouts/resolve-account", payoutH.ResolveAccount)
-		r.Get("/v1/payouts/{id}", payoutH.Get)
+		r.With(middleware.RequireRole("owner")).Post("/v1/payouts", payoutH.Create)
+		r.With(middleware.RequireRole("owner")).Get("/v1/payouts", payoutH.List)
+		r.With(middleware.RequireRole("owner")).Get("/v1/payouts/banks", payoutH.ListBanks)
+		r.With(middleware.RequireRole("owner")).Get("/v1/payouts/resolve-account", payoutH.ResolveAccount)
+		r.With(middleware.RequireRole("owner")).Get("/v1/payouts/{id}", payoutH.Get)
 
 		r.With(middleware.RequireRole("owner", "admin")).Post("/v1/payment-links", paymentLinkH.Create)
 		r.Get("/v1/payment-links", paymentLinkH.List)

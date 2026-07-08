@@ -568,12 +568,12 @@ func (c *NombaHTTPClient) GetWalletBalance(ctx context.Context, accountID string
 func (c *NombaHTTPClient) TransferToBank(ctx context.Context, req TransferRequest) (*TransferResponse, error) {
 	payload := map[string]interface{}{
 		"amount":        fmt.Sprintf("%.2f", float64(req.Amount)/100),
-		"currency":      req.Currency,
 		"accountNumber": req.AccountNumber,
 		"bankCode":      req.BankCode,
+		"currency":      req.Currency,
+		"merchantTxRef": req.Reference,
+		"senderName":    req.SenderName,
 		"narration":     req.Narration,
-		"reference":     req.Reference,
-		"accountId":     c.subAccountID,
 	}
 
 	log.Info().
@@ -653,9 +653,8 @@ func (c *NombaHTTPClient) ResolveBankAccount(ctx context.Context, accountNumber,
 	payload := map[string]interface{}{
 		"accountNumber": accountNumber,
 		"bankCode":      bankCode,
-		"accountId":     c.subAccountID,
 	}
-	resp, err := c.do(ctx, http.MethodPost, "/accounts/resolve", payload)
+	resp, err := c.do(ctx, http.MethodPost, "/transfers/bank/lookup", payload)
 	if err != nil {
 		return "", fmt.Errorf("nomba resolve account: %w", err)
 	}

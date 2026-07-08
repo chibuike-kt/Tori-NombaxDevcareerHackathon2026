@@ -92,7 +92,7 @@ handlers := billing.NewHandlers(
 	worker.Register(domain.JobSimulateWebhook, handlers.SimulateWebhook)
 
 	payoutRepo := postgres.NewPayoutRepo(pool)
-	payoutHandlers := payout.NewHandlers(payoutRepo, paymentClient, webhookDispatcher)
+	payoutHandlers := payout.NewHandlers(payoutRepo, paymentClient, webhookDispatcher, tenantRepo)
 	worker.Register(domain.JobProcessPayout, payoutHandlers.ProcessPayout)
 
 	// Reconciliation service

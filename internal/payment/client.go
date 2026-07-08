@@ -87,6 +87,7 @@ type TransferRequest struct {
 	BankCode      string
 	Narration     string
 	Reference     string
+	SenderName    string
 }
 
 type TransferResponse struct {

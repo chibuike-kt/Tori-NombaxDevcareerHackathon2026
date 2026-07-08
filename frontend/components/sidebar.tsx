@@ -90,6 +90,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         if (item.href === "/dashboard/webhooks") return can(role, "view_webhooks");
         if (item.href === "/dashboard/api-keys") return can(role, "view_api_keys");
         if (item.href === "/dashboard/oauth-clients") return can(role, "view_api_keys");
+        if (item.href === "/dashboard/payouts") return can(role, "manage_payouts");
         return true;
       }),
     }))

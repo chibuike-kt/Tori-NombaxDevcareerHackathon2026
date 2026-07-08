@@ -28,6 +28,98 @@ function statusBadge(status: string) {
   }
 }
 
+// Searchable bank selector — Nigeria has 40+ banks, a plain <select> makes
+// finding one a scroll marathon, especially on mobile.
+function BankSelector({
+  banks,
+  value,
+  onChange,
+}: {
+  banks: Bank[];
+  value: string;
+  onChange: (code: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const selected = banks.find((b) => b.code === value);
+
+  const filtered = query.trim()
+    ? banks.filter((b) => b.name.toLowerCase().includes(query.trim().toLowerCase()))
+    : banks;
+
+  if (selected) {
+    return (
+      <div
+        className="flex items-center gap-2 w-full text-sm px-3 py-3 rounded-lg border mb-4"
+        style={{ borderColor: "#E5E7EB", color: "#0F1728" }}
+      >
+        <i className="ti ti-building-bank flex-shrink-0" style={{ fontSize: 16, color: "#8A94A6" }} />
+        <span className="flex-1 font-semibold">{selected.name}</span>
+        <button
+          type="button"
+          onClick={() => {
+            onChange("");
+            setQuery("");
+          }}
+          className="flex-shrink-0 p-1"
+          style={{ color: "#9CA3AF" }}
+          aria-label="Clear selected bank"
+        >
+          <i className="ti ti-x" style={{ fontSize: 16 }} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative mb-4">
+      <div className="relative">
+        <i
+          className="ti ti-search absolute left-3 top-1/2 -translate-y-1/2"
+          style={{ fontSize: 15, color: "#9CA3AF" }}
+        />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder="Search bank name..."
+          className="w-full text-sm pl-9 pr-3 py-3 rounded-lg border outline-none"
+          style={{ borderColor: "#E5E7EB", color: "#0F1728" }}
+        />
+      </div>
+      {open && (
+        <div
+          className="absolute z-10 mt-1.5 w-full max-h-64 overflow-y-auto rounded-lg border bg-white shadow-lg"
+          style={{ borderColor: "#E5E7EB" }}
+        >
+          {filtered.length === 0 ? (
+            <div className="px-4 py-4 text-sm text-center" style={{ color: "#9CA3AF" }}>
+              No banks match &ldquo;{query}&rdquo;
+            </div>
+          ) : (
+            filtered.map((b) => (
+              <button
+                key={b.code}
+                type="button"
+                onMouseDown={() => {
+                  onChange(b.code);
+                  setQuery("");
+                  setOpen(false);
+                }}
+                className="w-full text-left px-4 py-3.5 text-sm border-b last:border-b-0"
+                style={{ color: "#0F1728", borderColor: "#F3F4F6" }}
+              >
+                {b.name}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RequestPayoutModal({
   availableKobo,
   banks,
@@ -112,22 +204,14 @@ function RequestPayoutModal({
         <label className="block text-xs font-bold mb-1.5" style={{ color: "#4B5563" }}>
           Bank
         </label>
-        <select
+        <BankSelector
+          banks={banks}
           value={bankCode}
-          onChange={(e) => {
-            setBankCode(e.target.value);
+          onChange={(code) => {
+            setBankCode(code);
             setAccountName("");
           }}
-          className="w-full text-sm px-3 py-2.5 rounded-lg border mb-4 outline-none bg-white"
-          style={{ borderColor: "#E5E7EB", color: "#0F1728" }}
-        >
-          <option value="">Select a bank...</option>
-          {banks.map((b) => (
-            <option key={b.code} value={b.code}>
-              {b.name}
-            </option>
-          ))}
-        </select>
+        />
 
         <label className="block text-xs font-bold mb-1.5" style={{ color: "#4B5563" }}>
           Account number

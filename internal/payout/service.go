@@ -19,10 +19,11 @@ type Handlers struct {
 	payouts    domain.PayoutRepository
 	payment    payment.NombaClient
 	dispatcher *webhook.Dispatcher
+	tenants    domain.TenantRepository
 }
 
-func NewHandlers(payouts domain.PayoutRepository, paymentClient payment.NombaClient, dispatcher *webhook.Dispatcher) *Handlers {
-	return &Handlers{payouts: payouts, payment: paymentClient, dispatcher: dispatcher}
+func NewHandlers(payouts domain.PayoutRepository, paymentClient payment.NombaClient, dispatcher *webhook.Dispatcher, tenants domain.TenantRepository) *Handlers {
+	return &Handlers{payouts: payouts, payment: paymentClient, dispatcher: dispatcher, tenants: tenants}
 }
 
 type processPayoutPayload struct {
@@ -62,6 +63,11 @@ func (h *Handlers) ProcessPayout(ctx context.Context, payload json.RawMessage) e
 		log.Error().Err(err).Str("payout_id", payoutID.String()).Msg("payout: failed to mark processing")
 	}
 
+	senderName := "Tori"
+	if tenant, err := h.tenants.GetByID(ctx, tenantID); err == nil && tenant != nil {
+		senderName = tenant.Name
+	}
+
 	resp, transferErr := h.payment.TransferToBank(ctx, payment.TransferRequest{
 		Amount:        po.AmountKobo,
 		Currency:      po.Currency,
@@ -69,6 +75,7 @@ func (h *Handlers) ProcessPayout(ctx context.Context, payload json.RawMessage) e
 		BankCode:      po.BankCode,
 		Narration:     fmt.Sprintf("Tori payout %s", po.ID),
 		Reference:     po.ID.String(),
+		SenderName:    senderName,
 	})
 
 	if transferErr != nil || !resp.Success {
