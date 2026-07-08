@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/domain"
+	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/ledger"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/payment"
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/webhook"
 	"github.com/google/uuid"
@@ -20,10 +21,11 @@ type Handlers struct {
 	payment    payment.NombaClient
 	dispatcher *webhook.Dispatcher
 	tenants    domain.TenantRepository
+	ledgerSvc  *ledger.Service
 }
 
-func NewHandlers(payouts domain.PayoutRepository, paymentClient payment.NombaClient, dispatcher *webhook.Dispatcher, tenants domain.TenantRepository) *Handlers {
-	return &Handlers{payouts: payouts, payment: paymentClient, dispatcher: dispatcher, tenants: tenants}
+func NewHandlers(payouts domain.PayoutRepository, paymentClient payment.NombaClient, dispatcher *webhook.Dispatcher, tenants domain.TenantRepository, ledgerSvc *ledger.Service) *Handlers {
+	return &Handlers{payouts: payouts, payment: paymentClient, dispatcher: dispatcher, tenants: tenants, ledgerSvc: ledgerSvc}
 }
 
 type processPayoutPayload struct {
@@ -63,6 +65,23 @@ func (h *Handlers) ProcessPayout(ctx context.Context, payload json.RawMessage) e
 		log.Error().Err(err).Str("payout_id", payoutID.String()).Msg("payout: failed to mark processing")
 	}
 
+	// Nomba's sandbox doesn't implement /transfers/single at all (confirmed:
+	// every call there 404s), so a real transfer attempt in test mode can
+	// never succeed. Simulate it instead — same completion path (status,
+	// ledger entry, webhook) as a real transfer, just no outbound Nomba call.
+	if po.Mode == "test" {
+		reference := fmt.Sprintf("test-transfer-%s", po.ID)
+		updated, err := h.payouts.MarkCompleted(ctx, payoutID, reference)
+		if err != nil {
+			log.Error().Err(err).Str("payout_id", payoutID.String()).Msg("payout: failed to mark completed")
+			return nil
+		}
+		h.recordLedgerDebit(ctx, tenantID, po)
+		log.Info().Str("payout_id", payoutID.String()).Msg("payout: test mode — simulating successful transfer")
+		h.fireEvent(ctx, tenantID, domain.EventPayoutCompleted, updated)
+		return nil
+	}
+
 	senderName := "Tori"
 	if tenant, err := h.tenants.GetByID(ctx, tenantID); err == nil && tenant != nil {
 		senderName = tenant.Name
@@ -78,6 +97,10 @@ func (h *Handlers) ProcessPayout(ctx context.Context, payload json.RawMessage) e
 		SenderName:    senderName,
 	})
 
+	// Only ever mark completed when Nomba actually confirms the transfer
+	// (code 00 → Success: true). A network error, a non-00 response code,
+	// or the sandbox's blanket 404 all land here as a failure, never as a
+	// silent completion.
 	if transferErr != nil || !resp.Success {
 		reason := "transfer failed"
 		if transferErr != nil {
@@ -101,9 +124,20 @@ func (h *Handlers) ProcessPayout(ctx context.Context, payload json.RawMessage) e
 		log.Error().Err(err).Str("payout_id", payoutID.String()).Msg("payout: failed to mark completed")
 		return nil
 	}
+	h.recordLedgerDebit(ctx, tenantID, po)
 	log.Info().Str("payout_id", payoutID.String()).Str("reference", resp.Reference).Msg("payout: transfer completed")
 	h.fireEvent(ctx, tenantID, domain.EventPayoutCompleted, updated)
 	return nil
+}
+
+// recordLedgerDebit writes the PAYOUT ledger entry that makes a completed
+// payout actually reduce the tenant's available (T+1 settled) balance —
+// without this, GetBalanceSettlement never sees the money leave.
+func (h *Handlers) recordLedgerDebit(ctx context.Context, tenantID uuid.UUID, po *domain.Payout) {
+	ik := fmt.Sprintf("payout-%s", po.ID)
+	if _, err := h.ledgerSvc.RecordPayout(ctx, tenantID, po.ID, po.AmountKobo, po.Currency, ik, po.Mode); err != nil {
+		log.Error().Err(err).Str("payout_id", po.ID.String()).Msg("payout: failed to record ledger debit")
+	}
 }
 
 func (h *Handlers) fireEvent(ctx context.Context, tenantID uuid.UUID, eventType domain.WebhookEventType, po *domain.Payout) {

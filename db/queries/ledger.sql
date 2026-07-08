@@ -89,9 +89,13 @@ ORDER BY total_charged DESC;
 -- name: GetBalanceSettlement :one
 -- T+1 settlement: charges/refunds before today's midnight are settled
 -- (available); charges today are pending settlement.
+-- PAYOUT is subtracted with no created_at filter, unlike CHARGE/REFUND: a
+-- payout debits real money the instant it completes, it doesn't wait a day
+-- to "settle" the way an inbound charge does under T+1.
 SELECT
   (COALESCE(SUM(amount) FILTER (WHERE entry_type = 'CHARGE' AND created_at < $2), 0)
-  - COALESCE(SUM(amount) FILTER (WHERE entry_type = 'REFUND' AND created_at < $2), 0))::BIGINT AS available_kobo,
+  - COALESCE(SUM(amount) FILTER (WHERE entry_type = 'REFUND' AND created_at < $2), 0)
+  - COALESCE(SUM(amount) FILTER (WHERE entry_type = 'PAYOUT'), 0))::BIGINT AS available_kobo,
     COALESCE(SUM(amount) FILTER (WHERE entry_type = 'CHARGE' AND created_at >= $2), 0)::BIGINT AS pending_kobo
 FROM ledger_entries
 WHERE tenant_id = $1 AND mode = $3;

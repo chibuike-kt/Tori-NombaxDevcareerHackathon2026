@@ -95,6 +95,7 @@ const (
 	EntryOverride   LedgerEntryType = "OVERRIDE"
 	EntryTrialStart LedgerEntryType = "TRIAL_START"
 	EntryTrialEnd   LedgerEntryType = "TRIAL_END"
+	EntryPayout     LedgerEntryType = "PAYOUT"
 )
 
 type LedgerDirection string

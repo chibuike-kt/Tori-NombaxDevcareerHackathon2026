@@ -132,6 +132,28 @@ func (s *Service) RecordPaymentLinkCharge(ctx context.Context, tenantID uuid.UUI
 	)
 }
 
+// RecordPayout writes a DEBIT entry for a completed bank transfer payout —
+// no subscription, invoice, or customer attached, since a payout moves the
+// tenant's own settled balance out, not a customer's payment in. This is
+// what makes GetBalanceSettlement's available_kobo actually decrease once a
+// payout completes, instead of the ledger only ever growing.
+func (s *Service) RecordPayout(ctx context.Context, tenantID, payoutID uuid.UUID, amount int64, currency, idempotencyKey, mode string) (*domain.LedgerEntry, error) {
+	return s.repo.Append(ctx,
+		tenantID,
+		nil,
+		nil,
+		nil,
+		domain.EntryPayout,
+		domain.DirectionDebit,
+		amount,
+		currency,
+		"Payout to bank account",
+		idempotencyKey,
+		nil,
+		mode,
+	)
+}
+
 // RecordPauseCredit writes a CREDIT entry for the unused portion of a
 // subscription's current billing period when it's paused.
 func (s *Service) RecordPauseCredit(ctx context.Context, tenantID, subscriptionID, customerID uuid.UUID, amount int64, currency, idempotencyKey, mode string) (*domain.LedgerEntry, error) {
