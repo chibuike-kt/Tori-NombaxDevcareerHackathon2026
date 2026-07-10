@@ -121,6 +121,7 @@ r.Get("/v1/status", systemHealthH.Check)
 	oauthH := handlers.NewOAuthHandler(deps.OAuth, eventsRecorder)
 	payoutH := handlers.NewPayoutHandler(deps.Payouts, deps.Payment, deps.Jobs, finopsSvc, eventsRecorder, deps.Tokens)
 	paymentLinkH := handlers.NewPaymentLinkHandler(deps.PaymentLinks, deps.Tenants, deps.Payment, eventsRecorder)
+	platformEmailH := handlers.NewPlatformEmailHandler(deps.Customers, deps.EmailTemplates, deps.Tenants, deps.EmailClient)
 
 	// Public routes — no auth
 	r.Post("/v1/auth/register", authH.Register)
@@ -286,7 +287,9 @@ r.Group(func(r chi.Router) {
 		r.Post("/v1/platform/subscriptions/{id}/checkout", checkoutH.RegenerateCheckout)
 		r.Post("/v1/platform/subscriptions/{id}/refund", refundH.IssueRefund)
 
+		r.Get("/v1/platform/payment-links", paymentLinkH.List)
 		r.Post("/v1/platform/payment-links/{id}/checkout", paymentLinkH.Checkout)
+		r.Post("/v1/platform/customers/{id}/email", platformEmailH.Send)
 	})
 		nombaWebhookH := handlers.NewNombaWebhookHandler(
     deps.Subscriptions, deps.Tokens, deps.Plans, deps.Invoices,
