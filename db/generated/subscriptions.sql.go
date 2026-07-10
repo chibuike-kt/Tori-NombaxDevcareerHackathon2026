@@ -99,6 +99,55 @@ func (q *Queries) CancelSubscriptionAtPeriodEnd(ctx context.Context, arg CancelS
 	return i, err
 }
 
+const claimDunningAttempt = `-- name: ClaimDunningAttempt :one
+UPDATE subscriptions
+SET dunning_attempt = dunning_attempt + 1, updated_at = NOW()
+WHERE id = $1
+  AND tenant_id = $2
+  AND dunning_attempt = $3
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, trial_end, paused_at, cancelled_at, cancel_at_period_end, dunning_attempt, next_retry_at, idempotency_key, metadata, created_at, updated_at, token_key, mandate_id, recovery_rail, discount_kobo, mode, pause_credit_kobo
+`
+
+type ClaimDunningAttemptParams struct {
+	ID             uuid.UUID `json:"id"`
+	TenantID       uuid.UUID `json:"tenant_id"`
+	DunningAttempt int32     `json:"dunning_attempt"`
+}
+
+// Optimistic lock: only increments if dunning_attempt still matches the
+// value the caller last read. A second worker racing on the same job finds
+// zero rows matched and knows to skip rather than double-charge.
+func (q *Queries) ClaimDunningAttempt(ctx context.Context, arg ClaimDunningAttemptParams) (Subscription, error) {
+	row := q.db.QueryRow(ctx, claimDunningAttempt, arg.ID, arg.TenantID, arg.DunningAttempt)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.CustomerID,
+		&i.PlanID,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.TrialEnd,
+		&i.PausedAt,
+		&i.CancelledAt,
+		&i.CancelAtPeriodEnd,
+		&i.DunningAttempt,
+		&i.NextRetryAt,
+		&i.IdempotencyKey,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TokenKey,
+		&i.MandateID,
+		&i.RecoveryRail,
+		&i.DiscountKobo,
+		&i.Mode,
+		&i.PauseCreditKobo,
+	)
+	return i, err
+}
+
 const createSubscription = `-- name: CreateSubscription :one
 INSERT INTO subscriptions (
     tenant_id, customer_id, plan_id, status,

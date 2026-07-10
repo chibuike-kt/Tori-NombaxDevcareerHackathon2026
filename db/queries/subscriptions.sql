@@ -156,6 +156,17 @@ WHERE id = $1
   AND status != 'CANCELLED'
 RETURNING *;
 
+-- name: ClaimDunningAttempt :one
+-- Optimistic lock: only increments if dunning_attempt still matches the
+-- value the caller last read. A second worker racing on the same job finds
+-- zero rows matched and knows to skip rather than double-charge.
+UPDATE subscriptions
+SET dunning_attempt = dunning_attempt + 1, updated_at = NOW()
+WHERE id = $1
+  AND tenant_id = $2
+  AND dunning_attempt = $3
+RETURNING *;
+
 -- name: ListSubscriptionsByCustomerNoTenant :many
 SELECT * FROM subscriptions
 WHERE customer_id = $1

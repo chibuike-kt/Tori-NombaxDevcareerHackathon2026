@@ -14,6 +14,21 @@ type TokenRevoker interface {
 	RecordLoginFailure(ctx context.Context, email string) (int, error)
 	IsLoginLocked(ctx context.Context, email string) bool
 	ClearLoginFailures(ctx context.Context, email string)
+
+	// Portal OTP request rate limiting — max 3 requests per key per 10 minutes.
+	RecordOTPRequestAttempt(ctx context.Context, key string) (int, error)
+	IsOTPRequestRateLimited(ctx context.Context, key string) bool
+
+	// Portal OTP verification attempt cap — max 5 failures per key per 15 minutes.
+	RecordOTPVerifyFailure(ctx context.Context, key string) (int, error)
+	IsOTPVerifyLocked(ctx context.Context, key string) bool
+	ClearOTPVerifyFailures(ctx context.Context, key string)
+
+	// SetNX and Delete back a generic short-lived Redis lock — used to
+	// serialize concurrent requests that must not race (e.g. two payout
+	// requests from the same tenant checking balance at once).
+	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
+	Delete(ctx context.Context, key string) error
 }
 
 // SessionRepository tracks active login sessions per tenant in Redis so they
@@ -114,6 +129,11 @@ type SubscriptionRepository interface {
 	// existing metadata — gives operators churn-reason data from
 	// customer-initiated cancellations.
 	SetCancelReason(ctx context.Context, id, tenantID uuid.UUID, reason string) (*Subscription, error)
+	// ClaimDunningAttempt atomically increments dunning_attempt, but only if
+	// it still equals currentAttempt — an optimistic lock so two workers
+	// racing to process the same dunning retry job can't both charge the
+	// customer. Returns false if another worker already claimed it.
+	ClaimDunningAttempt(ctx context.Context, id, tenantID uuid.UUID, currentAttempt int) (bool, error)
 }
 
 type InvoiceRepository interface {

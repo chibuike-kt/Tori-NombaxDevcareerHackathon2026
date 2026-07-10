@@ -509,6 +509,25 @@ func (r *SubscriptionRepo) UpdateStatusOptimistic(ctx context.Context, id, tenan
 	return subFromRow(row), nil
 }
 
+// ClaimDunningAttempt is an optimistic lock — the UPDATE only matches a row
+// if dunning_attempt still equals currentAttempt, so exactly one of two
+// racing workers succeeds. pgx.ErrNoRows means someone else already claimed
+// it, which is a normal outcome here, not a failure to surface as an error.
+func (r *SubscriptionRepo) ClaimDunningAttempt(ctx context.Context, id, tenantID uuid.UUID, currentAttempt int) (bool, error) {
+	_, err := r.q.ClaimDunningAttempt(ctx, db.ClaimDunningAttemptParams{
+		ID:             id,
+		TenantID:       tenantID,
+		DunningAttempt: int32(currentAttempt),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (r *SubscriptionRepo) ListByCustomerNoTenant(ctx context.Context, customerID uuid.UUID) ([]*domain.Subscription, error) {
 	rows, err := r.q.ListSubscriptionsByCustomerNoTenant(ctx, customerID)
 	if err != nil {

@@ -125,6 +125,15 @@ signature := r.Header.Get("nomba-signature")
 			respond.JSON(w, r, http.StatusUnauthorized, map[string]string{"error": "invalid signature"})
 			return
 		}
+	} else if os.Getenv("APP_ENV") == "production" {
+		// No secret configured in production — refuse every webhook rather
+		// than accept unverified payment_success events. Fail-open is only
+		// tolerable in development, where nothing real is at stake.
+		log.Error().Msg("nomba webhook: NOMBA_WEBHOOK_SECRET not set in production — rejecting all webhooks")
+		respond.Error(w, r, http.StatusUnauthorized, "misconfigured", "webhook secret not configured")
+		return
+	} else {
+		log.Warn().Msg("nomba webhook: no secret configured — skipping verification (development only)")
 	}
 
 	var payload nombaWebhookPayload

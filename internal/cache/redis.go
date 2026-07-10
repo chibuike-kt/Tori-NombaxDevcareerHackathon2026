@@ -99,6 +99,77 @@ func (s *TokenStore) ClearLoginFailures(ctx context.Context, email string) {
 	s.client.Del(ctx, "login_failures:"+email)
 }
 
+// ── Portal OTP request rate limiting ────────────────────────────────────────
+// Max 3 OTP requests per key (email, or email:tenant_id when a tenant
+// context is available) per 10 minutes — throttles OTP-email bombing.
+
+const maxOTPRequestsPerWindow = 3
+const otpRequestWindow = 10 * time.Minute
+
+func (s *TokenStore) RecordOTPRequestAttempt(ctx context.Context, key string) (int, error) {
+	redisKey := "portal_otp_rate:" + key
+	count, err := s.client.Incr(ctx, redisKey).Result()
+	if err != nil {
+		return 0, err
+	}
+	if count == 1 {
+		s.client.Expire(ctx, redisKey, otpRequestWindow)
+	}
+	return int(count), nil
+}
+
+func (s *TokenStore) IsOTPRequestRateLimited(ctx context.Context, key string) bool {
+	count, err := s.client.Get(ctx, "portal_otp_rate:"+key).Int()
+	if err != nil {
+		return false
+	}
+	// Checked before this request's own attempt is recorded, so a count
+	// already at the max means this would be the (max+1)th — reject it.
+	return count >= maxOTPRequestsPerWindow
+}
+
+// ── Portal OTP verification attempt cap ─────────────────────────────────────
+// Max 5 failed verification attempts per key per 15 minutes — once hit, the
+// OTP flow is locked out regardless of whether a later guess is correct,
+// until a fresh code is requested.
+
+const maxOTPVerifyAttempts = 5
+const otpVerifyWindow = 15 * time.Minute
+
+func (s *TokenStore) RecordOTPVerifyFailure(ctx context.Context, key string) (int, error) {
+	redisKey := "portal_otp_attempts:" + key
+	count, err := s.client.Incr(ctx, redisKey).Result()
+	if err != nil {
+		return 0, err
+	}
+	if count == 1 {
+		s.client.Expire(ctx, redisKey, otpVerifyWindow)
+	}
+	return int(count), nil
+}
+
+func (s *TokenStore) IsOTPVerifyLocked(ctx context.Context, key string) bool {
+	count, err := s.client.Get(ctx, "portal_otp_attempts:"+key).Int()
+	if err != nil {
+		return false
+	}
+	return count >= maxOTPVerifyAttempts
+}
+
+func (s *TokenStore) ClearOTPVerifyFailures(ctx context.Context, key string) {
+	s.client.Del(ctx, "portal_otp_attempts:"+key)
+}
+
+// ── Generic short-lived lock ────────────────────────────────────────────────
+
+func (s *TokenStore) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
+	return s.client.SetNX(ctx, key, value, ttl).Result()
+}
+
+func (s *TokenStore) Delete(ctx context.Context, key string) error {
+	return s.client.Del(ctx, key).Err()
+}
+
 // ── Session tracking ─────────────────────────────────────────────────────────
 // Sessions are keyed by tenant so the dashboard can list and individually
 // revoke a tenant's active logins. The session ID is embedded in both the

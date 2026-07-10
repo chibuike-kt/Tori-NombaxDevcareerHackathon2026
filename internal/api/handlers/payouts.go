@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,6 +17,7 @@ import (
 	"github.com/chibuike-kt/Tori-NombaxDevcareerHackathon2026/internal/payment"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 )
 
 type PayoutHandler struct {
@@ -23,10 +26,11 @@ type PayoutHandler struct {
 	jobs      domain.JobRepository
 	finops    *finops.Service
 	eventsRec *events.Recorder
+	tokens    domain.TokenRevoker
 }
 
-func NewPayoutHandler(payouts domain.PayoutRepository, paymentClient payment.NombaClient, jobs domain.JobRepository, finopsSvc *finops.Service, eventsRecorder *events.Recorder) *PayoutHandler {
-	return &PayoutHandler{payouts: payouts, payment: paymentClient, jobs: jobs, finops: finopsSvc, eventsRec: eventsRecorder}
+func NewPayoutHandler(payouts domain.PayoutRepository, paymentClient payment.NombaClient, jobs domain.JobRepository, finopsSvc *finops.Service, eventsRecorder *events.Recorder, tokens domain.TokenRevoker) *PayoutHandler {
+	return &PayoutHandler{payouts: payouts, payment: paymentClient, jobs: jobs, finops: finopsSvc, eventsRec: eventsRecorder, tokens: tokens}
 }
 
 type createPayoutRequest struct {
@@ -57,6 +61,21 @@ func (h *PayoutHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, r, "missing_field", "bank_code, account_number, and account_name are required")
 		return
 	}
+
+	// Serialize payout creation per tenant — two concurrent requests could
+	// otherwise both pass the balance check before either one's payout row
+	// exists, overdrawing the available balance.
+	lockKey := fmt.Sprintf("payout_lock:%s", tenantID)
+	locked, err := h.tokens.SetNX(r.Context(), lockKey, "1", 10*time.Second)
+	if err != nil || !locked {
+		respond.Error(w, r, http.StatusConflict, "payout_in_progress", "another payout is being processed — try again in a moment")
+		return
+	}
+	defer func() {
+		if err := h.tokens.Delete(context.Background(), lockKey); err != nil {
+			log.Error().Err(err).Str("tenant_id", tenantID.String()).Msg("payout: failed to release payout lock")
+		}
+	}()
 
 	balance, err := h.finops.GetBalance(r.Context(), tenantID, mode)
 	if err != nil {

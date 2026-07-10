@@ -285,6 +285,20 @@ if sub.CancelAtPeriodEnd {
     return nil
 }
 
+	// Atomic claim — increment dunning_attempt before charging. If two
+	// workers picked up the same job (a retry after a slow first attempt,
+	// or a duplicate enqueue), only one succeeds; the other sees its
+	// expected dunning_attempt no longer match and skips rather than
+	// charging the customer twice.
+	claimed, err := h.subs.ClaimDunningAttempt(ctx, subID, tenantID, sub.DunningAttempt)
+	if err != nil {
+		return fmt.Errorf("claim dunning attempt: %w", err)
+	}
+	if !claimed {
+		log.Info().Str("sub_id", subID.String()).Msg("dunning: already claimed by another worker — skip")
+		return nil
+	}
+
 	tenant, err := h.tenants.GetByID(ctx, tenantID)
 	if err != nil {
 		return fmt.Errorf("get tenant: %w", err)

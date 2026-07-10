@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -16,6 +17,27 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
+
+// newWebhookHTTPClient builds the client used exclusively for delivering
+// outbound webhooks to developer-controlled endpoints. It refuses to follow
+// redirects — an endpoint that 3xx's to an internal address (SSRF) would
+// otherwise have Tori's own server make a request on the attacker's behalf —
+// and bounds both the TCP+TLS handshake and the total request time so one
+// slow or hanging endpoint can't tie up a delivery goroutine indefinitely.
+func newWebhookHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: 30 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return fmt.Errorf("webhook delivery: redirects not allowed (potential SSRF)")
+		},
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout: 10 * time.Second,
+			}).DialContext,
+			TLSHandshakeTimeout: 10 * time.Second,
+		},
+	}
+}
 
 const apiVersion = "2026-06-19"
 
@@ -47,7 +69,7 @@ func NewDispatcher(repo domain.WebhookRepository, jobs domain.JobRepository) *Di
 	return &Dispatcher{
 		repo:   repo,
 		jobs:   jobs,
-		client: &http.Client{Timeout: 30 * time.Second},
+		client: newWebhookHTTPClient(),
 	}
 }
 

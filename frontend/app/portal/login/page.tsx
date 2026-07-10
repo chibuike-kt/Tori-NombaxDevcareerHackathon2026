@@ -43,7 +43,7 @@ export default function PortalLoginPage() {
       const res = await fetch(`${API_BASE}/v1/portal/auth/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ email, code }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error?.message || "Invalid code");
