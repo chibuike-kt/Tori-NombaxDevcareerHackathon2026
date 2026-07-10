@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/signal"
 	"syscall"
@@ -95,6 +96,11 @@ handlers := billing.NewHandlers(
 	payoutHandlers := payout.NewHandlers(payoutRepo, paymentClient, webhookDispatcher, tenantRepo, ledgerSvc)
 	worker.Register(domain.JobProcessPayout, payoutHandlers.ProcessPayout)
 
+	idempotencyKeyRepo := postgres.NewIdempotencyKeyRepo(pool)
+	worker.Register(domain.JobCleanupIdempotencyKeys, func(ctx context.Context, _ json.RawMessage) error {
+		return idempotencyKeyRepo.DeleteExpired(ctx)
+	})
+
 	// Reconciliation service
 reconSvc := reconciliation.NewService(pool, paymentClient, ledgerRepo)
 worker.Register(domain.JobReconciliation, reconSvc.HandleReconciliation)
@@ -113,6 +119,16 @@ worker.Register(domain.JobReconciliation, reconSvc.HandleReconciliation)
 	go func() {
 		if err := reconSvc.ScheduleNightly(runCtx, tenantRepo, jobRepo); err != nil {
 			log.Error().Err(err).Msg("failed to schedule nightly reconciliation")
+		}
+	}()
+
+	// Schedule idempotency key cleanup alongside reconciliation — a single
+	// global job, not per-tenant, since expired keys are just deleted by
+	// expires_at regardless of which tenant they belong to.
+	go func() {
+		payload, _ := json.Marshal(map[string]string{})
+		if _, err := jobRepo.Enqueue(runCtx, nil, domain.JobCleanupIdempotencyKeys, payload, time.Now(), 3, "live"); err != nil {
+			log.Error().Err(err).Msg("failed to schedule idempotency key cleanup")
 		}
 	}()
 

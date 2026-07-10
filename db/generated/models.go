@@ -91,6 +91,19 @@ type Event struct {
 	CreatedAt    time.Time   `json:"created_at"`
 }
 
+type IdempotencyKey struct {
+	ID             uuid.UUID       `json:"id"`
+	TenantID       uuid.UUID       `json:"tenant_id"`
+	IdempotencyKey string          `json:"idempotency_key"`
+	RequestPath    string          `json:"request_path"`
+	RequestMethod  string          `json:"request_method"`
+	ResponseStatus int32           `json:"response_status"`
+	ResponseBody   json.RawMessage `json:"response_body"`
+	Mode           string          `json:"mode"`
+	CreatedAt      time.Time       `json:"created_at"`
+	ExpiresAt      time.Time       `json:"expires_at"`
+}
+
 type Invitation struct {
 	ID         uuid.UUID          `json:"id"`
 	TenantID   uuid.UUID          `json:"tenant_id"`

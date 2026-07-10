@@ -133,6 +133,7 @@ const (
 	JobSimulateWebhook JobType = "simulate_webhook"
 	JobTrialEndingSoon JobType = "trial_ending_soon"
 	JobProcessPayout   JobType = "process_payout"
+	JobCleanupIdempotencyKeys JobType = "cleanup_idempotency_keys"
 )
 
 type FailureCategory string
@@ -545,6 +546,23 @@ type PaymentLink struct {
 	IsActive    bool      `json:"is_active"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// IdempotencyKey records the full HTTP response for a Platform API mutating
+// request made with an Idempotency-Key header, so a retried request with
+// the same key replays the original response instead of re-executing the
+// operation. Scoped per tenant and mode; expires 24 hours after creation.
+type IdempotencyKey struct {
+	ID             uuid.UUID       `json:"id"`
+	TenantID       uuid.UUID       `json:"tenant_id"`
+	Key            string          `json:"idempotency_key"`
+	RequestPath    string          `json:"request_path"`
+	RequestMethod  string          `json:"request_method"`
+	ResponseStatus int             `json:"response_status"`
+	ResponseBody   json.RawMessage `json:"response_body"`
+	Mode           string          `json:"mode"`
+	CreatedAt      time.Time       `json:"created_at"`
+	ExpiresAt      time.Time       `json:"expires_at"`
 }
 
 // Event is a mode-scoped activity-feed entry — subscription lifecycle,

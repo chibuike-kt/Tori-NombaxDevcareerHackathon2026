@@ -103,6 +103,7 @@ deps := api.Deps{
 		CustomerOTP:    postgres.NewCustomerOTPRepo(pool),
 		PaymentLinks:   postgres.NewPaymentLinkRepo(pool),
 		Events:         postgres.NewEventRepo(pool),
+		IdempotencyKeys: postgres.NewIdempotencyKeyRepo(pool),
     EmailClient:        email.NewResendClient(),
 		Pool: pool,
 }

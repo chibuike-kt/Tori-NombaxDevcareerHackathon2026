@@ -8,7 +8,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const apiVersion = "2026-06-01"
+const apiVersion = "2026-07-01"
 
 type Meta struct {
 	RequestID  string `json:"request_id"`

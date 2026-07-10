@@ -400,6 +400,69 @@ Authorization: Bearer eyJ...`,
             ],
           },
           {
+            id: "idempotency",
+            label: "Idempotency keys",
+            icon: "ti-refresh-alert",
+            blocks: [
+              {
+                type: "p",
+                text: "Networks fail. A request can time out after Tori has already processed it  you retry, and without protection you get a second customer, a second subscription, a second charge. Idempotency keys make any mutating Platform API request safe to retry.",
+              },
+              { type: "h2", text: "Why it matters", id: "idem-why" },
+              {
+                type: "p",
+                text: "If your server sends POST /v1/platform/checkout and the connection drops before the response arrives, you don't know if the subscription was created. Retrying blind risks a duplicate. An idempotency key turns that retry into a safe no-op: Tori recognises the key and hands back the exact original response instead of running the operation again.",
+              },
+              { type: "h2", text: "How to use it", id: "idem-how" },
+              {
+                type: "p",
+                text: "Generate a unique key (a UUID is fine) per logical operation and send it as the Idempotency-Key header. Reuse the same key only when retrying the same attempt  a new checkout for the same customer later should get a new key.",
+              },
+              {
+                type: "code",
+                lang: "bash",
+                code: `curl ${BASE}/v1/platform/checkout \\
+  -H "X-API-Key: tori_live_..." \\
+  -H "Idempotency-Key: 3f29a1d2-8b7e-4c31-9e0a-6d5c4b3a2f10" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "email": "amaka@startup.ng", "plan_id": "plan_..." }'`,
+              },
+              {
+                type: "callout",
+                variant: "info",
+                text: "The response echoes the header back as Idempotency-Key. On a replay it also sets Idempotency-Replayed: true, so you can tell in logs whether the operation actually ran again.",
+              },
+              { type: "h2", text: "What happens on replay", id: "idem-replay" },
+              {
+                type: "p",
+                text: "Send the same key again  same status code, same response body, no new subscription or customer created, no second charge. This holds however many times you retry, as long as the key matches and hasn't expired.",
+              },
+              {
+                type: "callout",
+                variant: "warn",
+                text: "Only successful responses (2xx) are cached against a key. If your first attempt failed validation (a 400, for example), retrying with the same key after fixing the request runs the operation for real  a failed attempt never permanently blocks that key.",
+              },
+              { type: "h2", text: "When you don't need it", id: "idem-skip" },
+              {
+                type: "list",
+                items: [
+                  "GET requests are already safe to retry  they don't change anything, so the header is ignored on them",
+                  "One-shot scripts or manual curl calls where a duplicate is not a real risk",
+                  "Calls you already dedupe another way  checkout already accepts its own idempotency_key body field, scoped to subscription creation specifically",
+                ],
+              },
+              { type: "h2", text: "Scoping and expiry", id: "idem-scope" },
+              {
+                type: "list",
+                items: [
+                  "Keys are scoped per tenant  the same key value used by two different tenants never collides",
+                  "Keys expire 24 hours after first use. After that, the same key on a new request is treated as a fresh operation",
+                  "Storing a key against the wrong request (a different path or body) is your risk to manage  Tori replays whatever response it stored for that key, so don't reuse one key across genuinely different operations",
+                ],
+              },
+            ],
+          },
+          {
             id: "first",
             label: "Quick start",
             icon: "ti-rocket",
@@ -1261,11 +1324,11 @@ res = requests.post(
     "expires_in": 1800,
     "mode": "live"
   },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "401": `{
   "error": { "code": "unauthorized", "message": "invalid client credentials" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },
@@ -1363,19 +1426,19 @@ res = requests.post(
     "customer_created": true,
     "promo_applied": false
   },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "400": `{
   "error": { "code": "missing_field", "message": "plan_id is required" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "401": `{
   "error": { "code": "unauthorized", "message": "invalid or missing API key" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "422": `{
   "error": { "code": "plan_inactive", "message": "this plan is no longer accepting new subscriptions" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },
@@ -1437,15 +1500,15 @@ resp, err := http.DefaultClient.Do(req)`,
     "cancel_at_period_end": false,
     "recovery_rail": "card"
   },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "401": `{
   "error": { "code": "unauthorized", "message": "invalid or missing API key" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "404": `{
   "error": { "code": "not_found", "message": "the requested resource does not exist" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },
@@ -1504,11 +1567,11 @@ req.Header.Set("X-API-Key", apiKey)`,
     }
   ],
   "pagination": { "has_more": false, "total": 1 },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "401": `{
   "error": { "code": "unauthorized", "message": "invalid or missing API key" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },
@@ -1552,15 +1615,15 @@ req.Header.Set("X-API-Key", apiKey)`,
                 responses: {
                   "200": `{
   "data": { "id": "f6ffcc85-...", "status": "ACTIVE", "cancel_at_period_end": true },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "401": `{
   "error": { "code": "unauthorized", "message": "invalid or missing API key" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "404": `{
   "error": { "code": "not_found", "message": "the requested resource does not exist" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },
@@ -1608,15 +1671,15 @@ req.Header.Set("X-API-Key", apiKey)`,
     "external_id": "school_001",
     "created_at": "2026-06-26T00:00:00Z"
   },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "401": `{
   "error": { "code": "unauthorized", "message": "invalid or missing API key" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "404": `{
   "error": { "code": "not_found", "message": "the requested resource does not exist" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },
@@ -1667,11 +1730,11 @@ req.Header.Set("X-API-Key", apiKey)`,
     { "id": "2c8e91c2-...", "email": "amaka@school.ng", "name": "Amaka Obi", "external_id": "school_001", "created_at": "2026-06-26T00:00:00Z" }
   ],
   "pagination": { "has_more": false, "total": 1 },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "401": `{
   "error": { "code": "unauthorized", "message": "invalid or missing API key" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },
@@ -1714,11 +1777,11 @@ req.Header.Set("X-API-Key", apiKey)`,
                 responses: {
                   "200": `{
   "data": { "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...", "expires_in": "3600" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "401": `{
   "error": { "code": "unauthorized", "message": "invalid or missing API key" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },
@@ -1775,11 +1838,11 @@ req.Header.Set("X-API-Key", apiKey)`,
     }
   ],
   "pagination": { "has_more": false, "total": 1 },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "401": `{
   "error": { "code": "unauthorized", "message": "invalid or missing API key" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },
@@ -1829,11 +1892,11 @@ req.Header.Set("X-API-Key", apiKey)`,
     "trial_period_days": 0,
     "is_active": true
   },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "404": `{
   "error": { "code": "not_found", "message": "the requested resource does not exist" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },
@@ -1898,15 +1961,15 @@ window.location.href = data.checkout_url;`,
     "amount_kobo": 500000,
     "merchant_name": "ClassPay"
   },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "401": `{
   "error": { "code": "unauthorized", "message": "invalid or missing API key" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "422": `{
   "error": { "code": "link_inactive", "message": "this payment link is no longer active" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },
@@ -2389,11 +2452,11 @@ window.location.href = data.checkout_url;`,
                 responses: {
                   "200": `{
   "data": { "status": "sent" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "404": `{
   "error": { "code": "not_found", "message": "no customer with this email" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },
@@ -2442,11 +2505,11 @@ const { data } = await res.json();
                 responses: {
                   "200": `{
   "data": { "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "400": `{
   "error": { "code": "invalid_code", "message": "code is incorrect, expired, or already used" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },
@@ -2495,11 +2558,11 @@ req.Header.Set("Authorization", "Bearer "+portalToken)`,
       "current_period_end": "2026-08-08T00:00:00Z"
     }
   ],
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "401": `{
   "error": { "code": "unauthorized", "message": "invalid or expired portal token" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },
@@ -2540,11 +2603,11 @@ req.Header.Set("Authorization", "Bearer "+portalToken)`,
                 responses: {
                   "200": `{
   "data": { "id": "f6ffcc85-...", "status": "ACTIVE", "cancel_at_period_end": true },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "401": `{
   "error": { "code": "unauthorized", "message": "subscription does not belong to this customer" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },
@@ -2587,11 +2650,11 @@ req.Header.Set("Authorization", "Bearer "+portalToken)`,
                 responses: {
                   "200": `{
   "data": { "checkout_url": "https://pay.nomba.com/checkout/def456" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "401": `{
   "error": { "code": "unauthorized", "message": "invalid or expired portal token" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },
@@ -2640,11 +2703,11 @@ req.Header.Set("Authorization", "Bearer "+portalToken)`,
       "paid_at": "2026-07-08T00:00:00Z"
     }
   ],
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                   "401": `{
   "error": { "code": "unauthorized", "message": "invalid or expired portal token" },
-  "meta": { "request_id": "uuid", "api_version": "2026-06-01" }
+  "meta": { "request_id": "uuid", "api_version": "2026-07-01" }
 }`,
                 },
               },

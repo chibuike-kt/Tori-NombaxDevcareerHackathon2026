@@ -45,6 +45,7 @@ type Deps struct {
 	CustomerOTP        domain.CustomerOTPRepository
 	PaymentLinks       domain.PaymentLinkRepository
 	Events             domain.EventRepository
+	IdempotencyKeys    domain.IdempotencyKeyRepository
 }
 
 // maxBodySize limits request bodies to 1MB to prevent OOM attacks.
@@ -264,6 +265,7 @@ r.Group(func(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.PlatformAuth(deps.Tenants, deps.APIKeys, deps.OAuth))
 		r.Use(tenantRateLimiter(600)) // 600 req/min per tenant for server-to-server
+		r.Use(middleware.IdempotencyMiddleware(deps.IdempotencyKeys))
 
 		r.Post("/v1/platform/checkout", checkoutH.CreateCheckout)
 		r.Get("/v1/platform/customers", customerH.List)

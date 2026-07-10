@@ -8,6 +8,18 @@ import (
 	"github.com/google/uuid"
 )
 
+// IdempotencyKeyRepository backs the Platform API's Idempotency-Key header
+// support — storing and replaying a full HTTP response for a retried
+// mutating request, scoped per tenant and mode.
+type IdempotencyKeyRepository interface {
+	Get(ctx context.Context, tenantID uuid.UUID, key string) (*IdempotencyKey, error)
+	// Store returns (nil, nil) rather than an error if the key was already
+	// stored by a concurrent request racing on the same key — the response
+	// that request captured is what will be replayed either way.
+	Store(ctx context.Context, tenantID uuid.UUID, key, path, method string, status int, body json.RawMessage, mode string) error
+	DeleteExpired(ctx context.Context) error
+}
+
 type TokenRevoker interface {
 	Revoke(ctx context.Context, token string, expiresAt time.Time) error
 	IsRevoked(ctx context.Context, token string) bool
